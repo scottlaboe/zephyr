@@ -47,6 +47,10 @@
 			label = "blue led";
 		};
 	};
+
+	aliases {
+		mcuboot-led0 = &blue_led_1;
+	};
 };
 
 &clk_hsi48 {
