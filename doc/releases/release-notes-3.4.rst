@@ -165,8 +165,30 @@ Changes in this release
   implemented for the STM32 DAC driver. Implicitly for this driver this changes
   the default from being buffered to unbuffered.
 
+* MCUmgr fs_mgmt group's file access hook is now called for all fs_mgmt group
+  functions (adding support for file status and file hash/checksum). In
+  addition, if the file access state is not lost, it will now only be called
+  once for the file access instead of each time a command is received.
+  Note that the structure for the notification has changed, the ``upload`` bool
+  has been replaced with an enum to indicate what function is used, see
+  :c:struct:`fs_mgmt_file_access` for the new structure definition.
+
+* Iterable sections API is now available at
+  :zephyr_file:`include/zephyr/sys/iterable_sections.h`. LD linker snippets are
+  available at :zephyr_file:`include/zephyr/linker/iterable_sections.h`.
+
+* Cache API functions are now fully inlined by compilers.
+
+* The Bluetooth HCI headers have been reworked, with ``hci.h`` now containing
+  only the function prototypes and the new ``hci_types.h`` defining all
+  HCI-related macros and structs. The previous ``hci_err.h`` has been merged
+  into ``hci_types.h``.
+
 Removed APIs in this release
 ============================
+
+* Pinmux API has been removed. Pin control needs to be used as its replacement,
+  refer to :ref:`pinctrl-guide` for more details.
 
 Deprecated in this release
 ==========================
@@ -184,6 +206,9 @@ Deprecated in this release
   :ref:`boot mode API <boot_mode_api>` for details. To restore the deprecated
   functionality, enable
   :kconfig:option:`CONFIG_NRF_STORE_REBOOT_TYPE_GPREGRET`.
+
+* Deprecated :c:macro:`PTHREAD_BARRIER_DEFINE` in favor of the standardized
+  :c:func:`pthread_barrier_init`
 
 Stable API changes in this release
 ==================================
@@ -225,6 +250,12 @@ New APIs in this release
   :c:func:`rtc_set_calibration` and :c:func:`rtc_get_calibration` are enabled with
   :kconfig:option:`CONFIG_RTC_CALIBRATION`.
 
+* Introduced :ref:`auxdisplay_api` for auxiliary (alphanumeric-based) displays.
+
+* Introduced :ref:`barriers_api` for barrier operations.
+
+* Added :c:macro:`CAN_FRAME_ESI` CAN-FD Error State Indicator flag.
+
 Kernel
 ******
 
@@ -236,28 +267,59 @@ Architectures
 *************
 
 * ARC
+
   * Removed absolute symbols :c:macro:`___callee_saved_t_SIZEOF` and
-  :c:macro:`_K_THREAD_NO_FLOAT_SIZEOF`
+    :c:macro:`_K_THREAD_NO_FLOAT_SIZEOF`
 
 * ARM
+
   * Removed absolute symbols :c:macro:`___basic_sf_t_SIZEOF`,
-  :c:macro:`_K_THREAD_NO_FLOAT_SIZEOF`, :c:macro:`___cpu_context_t_SIZEOF`
-  and :c:macro:`___thread_stack_info_t_SIZEOF`
+    :c:macro:`_K_THREAD_NO_FLOAT_SIZEOF`, :c:macro:`___cpu_context_t_SIZEOF`
+    and :c:macro:`___thread_stack_info_t_SIZEOF`
 
 * ARM64
+
   * Removed absolute symbol :c:macro:`___callee_saved_t_SIZEOF`
+  * Enabled FPU and FPU_SHARING for v8r aarch64
+  * Fixed the STACK_INIT logic during the reset
+  * Introduced and enabled safe exception stack
+  * Fixed possible deadlock on SMP with FPU sharing
+  * Added ISBs after SCTLR Modifications
 
 * NIOS2
+
   * Removed absolute symbol :c:macro:`_K_THREAD_NO_FLOAT_SIZEOF`
+
+* POSIX:
+
+  * Added :c:macro:`Z_SPIN_DELAY` to allow to conditionally compile a k_busy_wait() for this arch
+    in tests and samples.
 
 * RISC-V
 
+  * Added :kconfig:option:`CONFIG_PMP_NO_TOR`, :kconfig:option:`CONFIG_PMP_NO_NA4`, and
+    :kconfig:option:`CONFIG_PMP_NO_NAPOT` to allow disabling unsupported PMP range modes.
+  * Removed unused symbols: :c:macro:`_thread_offset_to_tp`,
+    :c:macro:`_thread_offset_to_priv_stack_start`, :c:macro:`_thread_offset_to_user_sp`.
+  * Added support for setting PMP granularity with :kconfig:option:`CONFIG_PMP_GRANULARITY`.
+  * Switched from accessing CSRs from inline assembly to using the :c:func:`csr_read` helper
+    function.
+  * Enabled single-threading support.
+
 * SPARC
+
   * Removed absolute symbol :c:macro:`_K_THREAD_NO_FLOAT_SIZEOF`
 
 * X86
 
 * Xtensa
+
+  * Fixed the cross stack call mechanism during nested interrupts where stack would be
+    corrupted under certain conditions.
+  * Added initial support for MMU on Xtensa.
+  * Now supports building with :kconfig:option:`CONFIG_MULTITHREADING` disabled so
+    target can run in single thread only operations.
+  * Added C structs to represent interrupt frames to help with debugging.
 
 Bluetooth
 *********
@@ -295,6 +357,9 @@ Boards & SoC Support
 
 * Added support for these ARM64 boards:
 
+  * PHYTEC phyCORE-AM62x A53
+  * MIMX93 EVK A53 (SOF)
+
 * Added support for these RISC-V boards:
 
 * Added support for these X86 boards:
@@ -305,9 +370,34 @@ Boards & SoC Support
 
 * Made these changes for ARM boards:
 
+  * ``atsamc21n_xpro``: Enable support to CAN.
+  * ``atsame54_xpro``: Read Ethernet MAC from I2C.
+  * Changed the default board revision to 0.14.0 for the Nordic boards
+    ``nrf9160dk_nrf9160`` and ``nrf9160dk_nrf52840``. To build for an
+    older revision of the nRF9160 DK without external flash, specify that
+    older board revision when building.
+  * ``nrf9160dk_nrf52840``: Enabled external_flash_pins_routing switch by default.
+  * ``nrf9160dk_nrf9160``: Changed the order of buttons and switches on the GPIO
+    expander to match the order when using GPIO directly on the nRF9160 SoC.
+
 * Made these changes for ARM64 boards:
 
+  * FVP revc_2xaemv8a / aemv8r: Added ethernet, PHY and MDIO nodes
+
+* Made these changes to POSIX boards:
+
+   * nrf52_bsim now includes support and models for:
+
+     * 802.15.4 in the RADIO.
+     * EGU.
+     * FLASH (NVMC & UICR).
+     * TEMP.
+     * UART connected to a host ptty.
+     * Many more minor CMSIS API and nRF APIs and drivers.
+
 * Made these changes for RISC-V boards:
+
+  * ``gd32vf103``: No longer requires special OpenOCD version.
 
 * Made these changes for X86 boards:
 
@@ -316,8 +406,6 @@ Boards & SoC Support
 * Removed support for these ARC boards:
 
 * Removed support for these ARM boards:
-
-* Removed support for these ARM64 boards:
 
 * Removed support for these RISC-V boards:
 
@@ -369,8 +457,83 @@ Build system and infrastructure
   ``EXTRA_DTC_OVERLAY_FILE`` is new, see
   :ref:`Set devicetree overlays <set-devicetree-overlays>` for further details.
 
+* Twister now supports ``gtest`` harness for running tests written in gTest.
+
+* Added an option to validate device initialization priorities at build time.
+  To use it, enable :kconfig:option:`CONFIG_CHECK_INIT_PRIORITIES`, see
+  :ref:`check_init_priorities.py` for more details.
+
+* Added a new option to disable tracking of macro expansion when compiling,
+  :kconfig:option:`CONFIG_COMPILER_TRACK_MACRO_EXPANSION`. This option may be
+  disabled to reduce compiler verbosity when errors occur during macro
+  expansions, e.g. in device definition macros.
+
+* Twister now supports loading test configurations from alternative root
+  folder/s by using ``--alt-config-root``. When a test is found, Twister will
+  check if a test configuration file exist in any of the alternative test
+  configuration root folders. For example, given
+  ``$test_root/tests/foo/testcase.yaml``, Twister will use
+  ``$alt_config_root/tests/foo/testcase.yaml`` if it exists.
+
+* Twister now uses native YAML lists for fields that were previously defined
+  using space-separated strings. For example:
+
+  .. code-block:: yaml
+
+     platform_allow: foo bar
+
+  can now be written as:
+
+  .. code-block:: yaml
+
+     platform_allow:
+       - foo
+       - bar
+
+  This applies to the following properties:
+
+    - ``arch_exclude``
+    - ``arch_allow``
+    - ``depends_on``
+    - ``extra_args``
+    - ``extra_sections``
+    - ``platform_exclude``
+    - ``platform_allow``
+    - ``tags``
+    - ``toolchain_exclude``
+    - ``toolchain_allow``
+
+  Note that the old behavior is kept as deprecated. The
+  :zephyr_file:`scripts/utils/twister_to_list.py` script can be used to
+  automatically migrate Twister configuration files.
+
+* When MCUboot image signing is enabled, a warning will now be emitted by cmake
+  if no signing key is set in the project, this warning can be safely ignored
+  if signing is performed manually or outside of zephyr. This warning informs
+  the user that the generated image will not be bootable by MCUboot as-is.
+
+* Babblesim is now included in the west manifest. Users can fetch it by enabling
+  the ``babblesim`` group with west config.
+
 Drivers and Sensors
 *******************
+
+* Device model
+
+  * Devices that do not require an initialization routine can now pass ``NULL``
+    to the ``DEVICE_*_DEFINE()`` macros.
+
+* Auxiliary display
+
+  * New auxiliary display (auxdisplay) peripheral has been added, this allows
+    for interfacing with simple alphanumeric displays that do not feature
+    graphic capabilities. This peripheral is marked as unstable.
+
+  * HD44780 driver added.
+
+  * Noritake Itron driver added.
+
+  * Grove LCD driver added (ported from existing sample).
 
 * ADC
 
@@ -389,7 +552,32 @@ Drivers and Sensors
 
 * CAN
 
+  * The CAN statistics are now reset when calling :c:func:`can_start`.
+
+  * Renamed the NXP FlexCAN devicetree binding compatible from ``nxp,kinetis-flexcan`` to
+    :dtcompatible:`nxp,flexcan`.
+
+  * Added support for the CAN-FD variant of the NXP FlexCAN controller using devicetree binding
+    :dtcompatible:`nxp,flexcan-fd`.
+
+  * Added support for the NXP NXP S32 CANEXCEL controller using devicetree binding
+    :dtcompatible:`nxp,s32-canxl`.
+
+  * Added support for the Atmel SAM0 CAN controller using devicetree binding
+    :dtcompatible:`atmel,sam0-can`.
+
+  * Refactored the Bosch M_CAN controller driver backend to allow for per-instance configuration via
+    devicetree.
+
 * Clock control
+
+  * Atmel SAM/SAM0: Introduce peripheral clock control.
+  * Atmel SAM0: Improved ``samd20``/``samd21``/``samr21`` clocking mechanism.
+
+* Console:
+
+  * The native_posix and bsim console drivers have been merged into one generic
+    driver usable by all POSIX arch based boards.
 
 * Counter
 
@@ -428,9 +616,15 @@ Drivers and Sensors
     with ``nrf_qspi_nor_xip_enable`` which apart from forcing the clock divider
     prevents the driver from deactivating the QSPI peripheral so that the XIP
     operation is actually possible.
-  * flash_simulator: A memory region can now be used as the storage area for the
-    flash simulator. Using the memory region allows the flash simulator to keep
-    its contents over a device reboot.
+  * flash_simulator:
+
+    * A memory region can now be used as the storage area for the
+      flash simulator. Using the memory region allows the flash simulator to keep
+      its contents over a device reboot.
+    * When building in native_posix, command line options have been added to select
+      if the flash should be cleared at boot, the flash content kept in RAM,
+      or the flash content file be deleted on exit.
+
   * spi_flash_at45: Fixed erase procedure to properly handle chips that have
     their initial sector split into two parts (usually marked as 0a and 0b).
 
@@ -473,6 +667,8 @@ Drivers and Sensors
 
 * PCIE
 
+  * Enable filtering PCIe devices by class/revision.
+
 * PECI
 
 * Retained memory
@@ -480,15 +676,25 @@ Drivers and Sensors
   * Retained memory (retained_mem) driver has been added with backends for
     Nordic nRF GPREGRET, and uninitialised RAM.
 
-Trusted Firmware-M
-******************
 * Pin control
+
+  * Added support for Infineon CAT1
+  * Added support for TI K3
+  * Added support for ARC emdsp
 
 * PWM
 
 * Power domain
 
 * Regulators
+
+  * The regulator API can now be built without thread-safe reference counting
+    by using :kconfig:option:`CONFIG_REGULATOR_THREAD_SAFE_REFCNT`. This
+    feature can be useful in applications that do not enable
+    :kconfig:option:`CONFIG_MULTITHREADING`.
+  * Added support for ADP5360 PMIC
+  * Added support for nPM1300 PMIC
+  * Added support for Raspberry Pi Pico core supply regulator
 
 * Reset
 
@@ -497,6 +703,24 @@ Trusted Firmware-M
 * Sensor
 
 * Serial
+
+  * Add UART3 and UART4 configuration for ``gd32vf103`` SoCs.
+  * uart_altera: added new driver for Altera Avalon UART.
+  * uart_emul: added new driver for emulated UART.
+  * uart_esp32:
+    * Added support for ESP32S3 SoC.
+    * Added support for RS-485 half duplex mode.
+  * uart_hostlink: added new driver for virtual UART via Synopsys ARC hostlink channels.
+  * uart_ifx_cat1: added new driver for Infineon CAT1 UART.
+  * uart_mcux: added power management support.
+  * uart_mcux_flexcomm: added support for asynchronous operations.
+  * uart_mcux_lpuart: added support for parity.
+  * uart_ns16550: now supports per instance hardware access mode instead of
+    one access mode for all instances.
+  * uart_pl011: fixed interrupt support.
+  * uart_rpi_pico_pio: added new driver to support UART via
+    Programmable Input/Output (PIO) on Raspberry Pi Pico.
+  * uart_xmc4xxx: added support for asynchronous operations.
 
 * SPI
 
@@ -508,6 +732,11 @@ Trusted Firmware-M
 * USB
 
 * W1
+
+  * Added DS2482-800 1-Wire master driver. See the :dtcompatible:`maxim,ds2482-800`
+    devicetree binding for more information.
+  * Added :kconfig:option:`CONFIG_W1_NET_FORCE_MULTIDROP_ADDRESSING` which can be
+    enabled force the 1-Wire network layer to use multidrop addressing.
 
 * Watchdog
 
@@ -544,6 +773,10 @@ Libraries / Subsystems
 * IPC
 
   * :c:func:`ipc_service_close_instance` now only acts on bounded endpoints.
+  * ICMSG: removed race condition during bonding.
+  * ICMSG: removed internal API for clearing shared memory.
+  * ICMSG: added mutual exclusion access to SHMEM.
+  * Fixed CONFIG_OPENAMP_WITH_DCACHE.
 
 * Management
 
@@ -574,6 +807,56 @@ Libraries / Subsystems
 
   * MCUmgr has now been marked as a stable Zephyr API.
 
+  * The MCUmgr UDP transport has been refactored to resolve some concurrency
+    issues and fixes a potential issue whereby an application might call the
+    open transport function whilst it is already open, causing an endless log
+    output loop.
+
+  * The MCUmgr fs_mgmt group Kconfig ``Insecure`` text has been replaced with
+    a CMake warning which triggers if fs_mgmt hooks are not enabled, as these
+    hooks can be used to ensure security of file access allowed by MCUmgr
+    clients.
+
+  * Fixed an issue with MCUmgr fs_mgmt file download not checking if the
+    offset parameter was provided.
+
+  * Fixed an issue with MCUmgr fs_mgmt file upload notification hook not
+    setting upload to true.
+
+  * Fixed an issue with MCUmgr img_mgmt image upload ``upgrade`` field wrongly
+    checking if the new image was the same version of the application and
+    allowing it to be uploaded if it was.
+
+  * MCUmgr img_mgmt group will only verify the SHA256 hash provided by the
+    client against the uploaded image (if support is enabled) if a full SHA256
+    hash was provided.
+
+  * MCUmgr Kconfig options have changed from ``select`` to ``depends on`` which
+    means that some additional Kconfig options may now need to be selected by
+    applications. :kconfig:option:`CONFIG_NET_BUF`,
+    :kconfig:option:`CONFIG_ZCBOR` and :kconfig:option:`CONFIG_CRC` are needed
+    to enable MCUmgr support, :kconfig:option:`CONFIG_BASE64` is needed to
+    enable shell/UART/dummy MCUmgr transports,
+    :kconfig:option:`CONFIG_NET_SOCKETS` is needed to enable the UDP MCUmgr
+    transport, :kconfig:option:`CONFIG_FLASH` is needed to enable MCUmgr
+    fs_mgmt, :kconfig:option:`CONFIG_FLASH` and
+    :kconfig:option:`CONFIG_IMG_MANAGER` are needed to enable MCUmgr img_mgmt.
+
+* POSIX API
+
+  * Improved the locking strategy for :c:func:`eventfd_read()` and
+    :c:func:`eventfd_write()`. This eliminated a deadlock scenario that was
+    present since the initial contribution and increased performance by a
+    factor of 10x.
+
+  * Reimplemented :ref:`POSIX <posix_support>` threads, mutexes, condition
+    variables, and barriers using native Zephyr counterparts. POSIX
+    synchronization primitives in Zephyr were originally implemented
+    separately and received less maintenance as a result. Unfortunately, this
+    opened POSIX up to unique bugs and race conditions. Going forward, POSIX
+    will benefit from all improvements to Zephyr's synchronization and
+    threading API and race conditions have been mitigated.
+
 * Retention
 
   * Retention subsystem has been added which adds enhanced features over
@@ -591,6 +874,12 @@ Libraries / Subsystems
 
   * Added policy that every ``sqe`` will generate a ``cqe`` (previously an RTIO_SQE_TRANSACTION
     entry would only trigger a ``cqe`` on the last ``sqe`` in the transaction.
+
+* Power management
+
+  * Added a new policy event API that can be used to register expected events
+    that will wake the system up in the future. This can be used to influence
+    the system on which low power states can be used.
 
 HALs
 ****
@@ -633,6 +922,11 @@ Documentation
 
 Tests and Samples
 *****************
+
+* Two Babblesim based networking (802.15.4) tests have been added, which are run in Zephyr's CI
+  system. One of them including the OpenThread stack.
+
+* For native_posix and the nrf52_bsim: Many tests have been fixed and enabled.
 
 Issue Related Items
 *******************

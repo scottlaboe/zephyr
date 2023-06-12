@@ -80,10 +80,10 @@
 /soc/posix/                               @aescolar @daor-oti
 /soc/riscv/                               @kgugala @pgielda
 /soc/riscv/openisa*/                      @dleach02
-/soc/riscv/riscv-privilege/andes_v5/      @cwshu @kevinwang821020 @jimmyzhe
-/soc/riscv/riscv-privilege/neorv32/       @henrikbrixandersen
-/soc/riscv/riscv-privilege/gd32vf103/     @soburi
-/soc/riscv/riscv-privilege/niosv/         @sweeaun
+/soc/riscv/riscv-privileged/andes_v5/      @cwshu @kevinwang821020 @jimmyzhe
+/soc/riscv/riscv-privileged/neorv32/       @henrikbrixandersen
+/soc/riscv/riscv-privileged/gd32vf103/     @soburi
+/soc/riscv/riscv-privileged/niosv/         @sweeaun
 /soc/x86/                                 @dcpleung @nashif @aasthagr
 /arch/xtensa/                             @dcpleung @andyross @nashif
 /soc/xtensa/                              @dcpleung @andyross @nashif
@@ -235,6 +235,7 @@
 /drivers/adc/adc_ads1x1x.c                @XenuIsWatching
 /drivers/adc/adc_stm32.c                  @cybertale
 /drivers/audio/*nrfx*                     @anangl
+/drivers/auxdisplay/*                      @thedjnK
 /drivers/bbram/*                          @yperess @sjg20 @jackrosenthal
 /drivers/bluetooth/                       @alwa-nordic @jhedberg @Vudentz
 /drivers/bluetooth/hci/hci_esp32.c        @sylvioalves
@@ -285,8 +286,11 @@
 /drivers/ethernet/*w5500*                 @parthitce
 /drivers/ethernet/*xlnx_gem*              @ibirnbaum
 /drivers/ethernet/*smsc91x*               @sgrrzhf
+/drivers/ethernet/*adin2111*              @GeorgeCGV
 /drivers/ethernet/phy/                    @rlubos @tbursztyka @arvinf
+/drivers/ethernet/phy/*adin2111*          @GeorgeCGV
 /drivers/mdio/                            @rlubos @tbursztyka @arvinf
+/drivers/mdio/*adin2111*                  @GeorgeCGV
 /drivers/flash/                           @nashif @de-nordic
 /drivers/flash/*stm32_qspi*               @lmajewski
 /drivers/flash/*b91*                      @andy-liu-telink
@@ -474,6 +478,7 @@
 /drivers/watchdog/wdt_counter.c           @nordic-krch
 /drivers/watchdog/*rpi_pico*              @thedjnK
 /drivers/watchdog/*dw*                    @softwarecki
+/drivers/watchdog/*ifx*                   @sreeramIfx
 /drivers/wifi/                            @rlubos @tbursztyka
 /drivers/wifi/esp_at/                     @mniestroj
 /drivers/wifi/eswifi/                     @loicpoulain @nandojve
@@ -565,6 +570,7 @@
 /dts/bindings/i3c/                        @dcpleung
 /dts/bindings/pm_cpu_ops/*                @carlocaione
 /dts/bindings/ethernet/*gem.yaml          @ibirnbaum
+/dts/bindings/auxdisplay/*                 @thedjnK
 /dts/posix/                               @aescolar @daor-oti
 /dts/bindings/sensor/*bme680*             @BoschSensortec
 /dts/bindings/sensor/*ina23*              @bbilas
@@ -576,6 +582,7 @@
 /include/                                 @nashif @carlescufi @galak @MaureenHelm
 /include/zephyr/drivers/*/*litex*                @mateusz-holenko @kgugala @pgielda
 /include/zephyr/drivers/adc.h                    @anangl
+/include/zephyr/drivers/auxdisplay.h       @thedjnK
 /include/zephyr/drivers/can.h                    @alexanderwachter @henrikbrixandersen
 /include/zephyr/drivers/can/                     @alexanderwachter @henrikbrixandersen
 /include/zephyr/drivers/counter.h                @nordic-krch
