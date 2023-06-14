@@ -1,0 +1,19 @@
+:description: This script is prepared to run Zephyr on the Nucleo-U575ZI-Q board.
+:name: Nucleo-U575ZI-Q
+
+using sysbus
+$name?="nucleo_u575zi_q"
+mach create $name
+
+machine LoadPlatformDescription $ORIGIN/nucleo_u575zi_q.repl
+
+showAnalyzer lpuart1
+
+macro reset
+"""
+    sysbus LoadELF $bin
+    cpu0 VectorTableOffset `sysbus GetSymbolAddress "_vector_table"`
+
+"""
+
+runMacro $reset

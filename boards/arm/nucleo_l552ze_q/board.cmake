@@ -12,6 +12,10 @@ if(CONFIG_BUILD_WITH_TFM)
   endif()
 endif()
 
+set(SUPPORTED_EMU_PLATFORMS renode)
+set(RENODE_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/support/nucleo_l552ze_q.resc)
+set(RENODE_UART sysbus.lpuart1)
+
 set_ifndef(BOARD_DEBUG_RUNNER pyocd)
 set_ifndef(BOARD_FLASH_RUNNER pyocd)
 

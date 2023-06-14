@@ -1,3 +1,7 @@
+set(SUPPORTED_EMU_PLATFORMS renode)
+set(RENODE_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/support/nucleo_u575zi_q.resc)
+set(RENODE_UART sysbus.lpuart1)
+
 board_runner_args(stm32cubeprogrammer "--erase" "--port=swd" "--reset-mode=hw")
 board_runner_args(stm32cubeprogrammer "--port=swd" "--reset-mode=hw")
 

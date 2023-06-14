@@ -24,7 +24,7 @@
 			label = "User LD3";
 		};
 	};
-
+	
 	gpio_keys {
 		compatible = "gpio-keys";
 		user_button: button {
@@ -37,6 +37,7 @@
 		die-temp0 = &die_temp;
 		volt-sensor0 = &vref;
 		volt-sensor1 = &vbat;
+		mcuboot-led0 = &blue_led_1;
 	};
 };
 
