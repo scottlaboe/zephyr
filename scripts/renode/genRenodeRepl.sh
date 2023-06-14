@@ -4,6 +4,12 @@
 BOARD_NAME="$1"
 BOARD_PREFIX=${BOARD_NAME%%_*}
 
+if [ "$ZEPHYR_BASE" = "" ]
+then
+    ZEPHYR_BASE="$(pwd)/zephyr"
+    echo "WARNING: ZEPHYR_BASE is unset; using \"$ZEPHYR_BASE\""
+fi
+
 OUT_FILE="${ZEPHYR_BASE}/boards/arm/${BOARD_NAME}/support/${BOARD_NAME}.repl"
 
 #Include board specific files
@@ -26,7 +32,8 @@ ${ZEPHYR_SDK_INSTALL_DIR}/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc \
     -H -E -P \
     -x assembler-with-cpp \
     ${BOARD_INC} \
-    ${ZEPHYR_BASE}/boards/arm/${BOARD_NAME}/${BOARD_NAME}.dts 1>${FLAT_DTS_FILE} 2>${INCLUDES_FILE}
+    ${ZEPHYR_BASE}/boards/arm/${BOARD_NAME}/${BOARD_NAME}.dts \
+    1>${FLAT_DTS_FILE} 2>${INCLUDES_FILE}
 
 echo "Generating Renode's .repl file"
 dts2repl --output ${OUT_FILE} ${FLAT_DTS_FILE}
