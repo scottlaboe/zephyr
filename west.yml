@@ -23,6 +23,8 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: babblesim
       url-base: https://github.com/BabbleSim
+    - name: scottl_public
+      url-base: https://github.com/scottlaboe
 
   group-filter: [-babblesim]
 
@@ -279,8 +281,9 @@ manifest:
       revision: 42fa8b211e946b90b9d968523fce7b1cfe27617e
       path: modules/lib/nanopb
     - name: net-tools
-      revision: e0828aa9629b533644dc96ff6d1295c939bd713c
+      revision: master
       path: tools/net-tools
+      remote: scottl_public
       groups:
         - tools
     - name: nrf_hw_models
