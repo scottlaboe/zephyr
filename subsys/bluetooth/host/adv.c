@@ -997,9 +997,7 @@ int bt_le_adv_start_legacy(struct bt_le_ext_adv *adv,
 	set_param.channel_map  = get_adv_channel_map(param->options);
 	set_param.filter_policy = get_filter_policy(param->options);
 
-	if (adv->id != param->id) {
-		atomic_clear_bit(bt_dev.flags, BT_DEV_RPA_VALID);
-	}
+	atomic_clear_bit(bt_dev.flags, BT_DEV_RPA_VALID);
 
 	adv->id = param->id;
 	bt_dev.adv_conn_id = adv->id;
@@ -2197,7 +2195,7 @@ void bt_hci_le_adv_set_terminated(struct net_buf *buf)
 	}
 
 	if (IS_ENABLED(CONFIG_BT_CONN) && !evt->status) {
-		struct bt_conn *conn = bt_conn_lookup_handle(conn_handle);
+		struct bt_conn *conn = bt_conn_lookup_handle(conn_handle, BT_CONN_TYPE_LE);
 
 		if (conn) {
 			if (IS_ENABLED(CONFIG_BT_PRIVACY) &&
