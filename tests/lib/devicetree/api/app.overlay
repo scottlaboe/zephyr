@@ -556,6 +556,14 @@
 				ranges = <0x0 0x0 0x0 0x3eff0000 0x10000>,
 				         <0x0 0x10000000 0x0 0x10000000 0x2eff0000>;
 			};
+
+			test_ranges_empty: empty@2 {
+				reg = <0 2 1>;
+				#address-cells = <2>;
+				#size-cells = <1>;
+
+				ranges;
+			};
 		};
 
 		device-with-props-0 {
@@ -636,6 +644,19 @@
 			compatible = "vnd,string-array-unquoted";
 			val = "XA XPLUS XB", "XC XPLUS XD", "XA XMINUS XB", "XC XMINUS XD";
 		};
+
+		test_mem_ram: memory@aabbccdd {
+			compatible = "vnd,memory-attr";
+			reg = < 0xaabbccdd 0x4000 >;
+			zephyr,memory-attr = "RAM";
+		};
+
+		test_mem_ram_nocache: memory@44332211 {
+			compatible = "vnd,memory-attr";
+			reg = < 0x44332211 0x2000 >;
+			zephyr,memory-attr = "RAM_NOCACHE";
+		};
+
 	};
 
 	test_64 {

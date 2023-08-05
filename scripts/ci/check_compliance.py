@@ -631,6 +631,7 @@ flagged.
         "CDC_ACM_PORT_NAME_",
         "CLOCK_STM32_SYSCLK_SRC_",
         "CMU",
+        "COMPILER_RT_RTLIB",
         "BT_6LOWPAN",  # Defined in Linux, mentioned in docs
         "CMD_CACHE",  # Defined in U-Boot, mentioned in docs
         "COUNTER_RTC_STM32_CLOCK_SRC",
@@ -647,6 +648,7 @@ flagged.
         "FOO_SETTING_1",
         "FOO_SETTING_2",
         "LSM6DSO_INT_PIN",
+        "LIBGCC_RTLIB",
         "LLVM_USE_LD",   # Both LLVM_USE_* are in cmake/toolchain/llvm/Kconfig
         "LLVM_USE_LLD",  # which are only included if LLVM is selected but
                          # not other toolchains. Compliance check would complain,
@@ -660,6 +662,9 @@ flagged.
         "MCUBOOT_CLEANUP_ARM_CORE", # Used in (sysbuild-based) test
         "MCUBOOT_SERIAL",           # Used in (sysbuild-based) test/
                                     # documentation
+        "MCUMGR_GRP_EXAMPLE", # Used in documentation
+        "MCUMGR_GRP_EXAMPLE_LOG_LEVEL", # Used in documentation
+        "MCUMGR_GRP_EXAMPLE_OTHER_HOOK", # Used in documentation
         "MISSING",
         "MODULES",
         "MYFEATURE",
@@ -1070,8 +1075,8 @@ class MaintainersFormat(ComplianceTest):
     def run(self):
         MAINTAINERS_FILES = ["MAINTAINERS.yml", "MAINTAINERS.yaml"]
 
-        for file in get_files(filter="d"):
-            if file not in MAINTAINERS_FILES:
+        for file in MAINTAINERS_FILES:
+            if not os.path.exists(file):
                 continue
 
             try:

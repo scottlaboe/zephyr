@@ -25,6 +25,7 @@
 
 #include <zephyr/types.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /** @brief Number of bits that make up a type */
 #define NUM_BITS(t) (sizeof(t) * 8)
@@ -258,6 +259,25 @@ extern "C" {
  * @return The result of @p n / @p d, rounded up.
  */
 #define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+
+/**
+ * @brief Divide and round to the nearest integer.
+ *
+ * Example:
+ * @code{.c}
+ * DIV_ROUND_CLOSEST(5, 2); // 3
+ * DIV_ROUND_CLOSEST(5, -2); // -3
+ * DIV_ROUND_CLOSEST(5, 3); // 2
+ * @endcode
+ *
+ * @param n Numerator.
+ * @param d Denominator.
+ *
+ * @return The result of @p n / @p d, rounded to the nearest integer.
+ */
+#define DIV_ROUND_CLOSEST(n, d)	\
+	((((n) < 0) ^ ((d) < 0)) ? ((n) - ((d) / 2)) / (d) : \
+	((n) + ((d) / 2)) / (d))
 
 /**
  * @brief Ceiling function applied to @p numerator / @p divider as a fraction.
@@ -568,6 +588,22 @@ char *utf8_lcpy(char *dst, const char *src, size_t n);
  * @return 2^ceil(log2(x)) or 0 if 2^ceil(log2(x)) would saturate 64-bits
  */
 #define NHPOT(x) ((x) < 1 ? 1 : ((x) > (1ULL<<63) ? 0 : 1ULL << LOG2CEIL(x)))
+
+/**
+ * @brief Determine if a buffer exceeds highest address
+ *
+ * This macro determines if a buffer identified by a starting address @a addr
+ * and length @a buflen spans a region of memory that goes beond the highest
+ * possible address (thereby resulting in a pointer overflow).
+ *
+ * @param addr Buffer starting address
+ * @param buflen Length of the buffer
+ *
+ * @return true if pointer overflow detected, false otherwise
+ */
+#define Z_DETECT_POINTER_OVERFLOW(addr, buflen)  \
+	(((buflen) != 0) &&                        \
+	((UINTPTR_MAX - (uintptr_t)(addr)) <= ((uintptr_t)((buflen) - 1))))
 
 #ifdef __cplusplus
 }
