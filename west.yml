@@ -190,7 +190,7 @@ manifest:
       groups:
         - hal
     - name: hal_nuvoton
-      revision: main
+      revision: master
       path: modules/hal/nuvoton
       remote: scottl_public
       groups:
