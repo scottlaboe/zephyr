@@ -35,6 +35,7 @@ struct spi_numaker_config {
 
 struct spi_numaker_data {
 	struct spi_context ctx;
+	bool initialized;
 };
 
 /*
@@ -58,7 +59,7 @@ static int spi_numaker_configure(const struct device *dev, const struct spi_conf
 	const struct spi_numaker_config *dev_cfg = dev->config;
 
 	LOG_DBG("%s", __func__);
-	if (spi_context_configured(&data->ctx, config)) {
+	if (data->initialized && spi_context_configured(&data->ctx, config)) {
 		return 0;
 	}
 
@@ -123,7 +124,7 @@ static int spi_numaker_configure(const struct device *dev, const struct spi_conf
 	/* Enable the automatic hardware slave select function. Select the SS pin and configure as
 	 * low-active.
 	 */
-	if (data->ctx.num_cs_gpios != 0) {
+	if (data->ctx.num_cs_gpios == 0) {
 		SPI_EnableAutoSS(dev_cfg->spi, SPI_SS, SPI_SS_ACTIVE_LOW);
 	} else {
 		SPI_DisableAutoSS(dev_cfg->spi);
@@ -132,6 +133,7 @@ static int spi_numaker_configure(const struct device *dev, const struct spi_conf
 	/* Be able to set TX/RX FIFO threshold, for ex: SPI_SetFIFO(dev_cfg->spi, 2, 2) */
 
 	data->ctx.config = config;
+	data->initialized = true;
 
 	return 0;
 }
@@ -172,6 +174,7 @@ static int spi_numaker_txrx(const struct device *dev)
 	if (spi_context_tx_on(ctx)) {
 		tx_frame = ((ctx->tx_buf == NULL) ? SPI_NUMAKER_TX_NOP
 						  : UNALIGNED_GET((uint8_t *)(data->ctx.tx_buf)));
+		
 		/* Write to TX register */
 		SPI_WRITE_TX(dev_cfg->spi, tx_frame);
 		spi_context_update_tx(ctx, spi_dfs, 1);
@@ -331,9 +334,11 @@ done:
 #define NUMAKER_SPI_INIT(inst)                                                                     \
 	PINCTRL_DT_INST_DEFINE(inst);                                                              \
 	static struct spi_numaker_data spi_numaker_data_##inst = {                                 \
+		.initialized = false,																\
 		SPI_CONTEXT_INIT_LOCK(spi_numaker_data_##inst, ctx),                               \
 		SPI_CONTEXT_INIT_SYNC(spi_numaker_data_##inst, ctx),                               \
-		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(inst), ctx)};                          \
+		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(inst), ctx)							\
+	};															                          \
 	static struct spi_numaker_config spi_numaker_config_##inst = {                             \
 		.spi = (SPI_T *)DT_INST_REG_ADDR(inst),                                            \
 		.is_qspi = DT_INST_NODE_HAS_PROP(inst, qspi),                                      \
