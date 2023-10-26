@@ -22,7 +22,7 @@ static bool failed_expectation;
 #include <stdlib.h>
 #include <time.h>
 
-#include <zephyr/random/rand32.h>
+#include <zephyr/random/random.h>
 #define NUM_ITER_PER_SUITE CONFIG_ZTEST_SHUFFLE_SUITE_REPEAT_COUNT
 #define NUM_ITER_PER_TEST  CONFIG_ZTEST_SHUFFLE_TEST_REPEAT_COUNT
 #else
@@ -439,7 +439,12 @@ static void test_finalize(void)
 {
 	if (IS_ENABLED(CONFIG_MULTITHREADING)) {
 		k_thread_abort(&ztest_thread);
+		if (k_is_in_isr()) {
+			return;
+		}
+
 		k_thread_abort(k_current_get());
+		CODE_UNREACHABLE;
 	}
 }
 
@@ -1079,7 +1084,18 @@ int main(void)
 	z_init_mock();
 	test_main();
 	end_report();
+#ifdef CONFIG_ZTEST_NO_YIELD
+	/*
+	 * Rather than yielding to idle thread, keep the part awake so debugger can
+	 * still access it, since some SOCs cannot be debugged in low power states.
+	 */
+	uint32_t key = irq_lock();
 
+	while (1) {
+		; /* Spin */
+	}
+	irq_unlock(key);
+#endif
 	return test_status;
 }
 #else
@@ -1124,6 +1140,18 @@ int main(void)
 			state.boots = 0;
 		}
 	}
+#ifdef CONFIG_ZTEST_NO_YIELD
+	/*
+	 * Rather than yielding to idle thread, keep the part awake so debugger can
+	 * still access it, since some SOCs cannot be debugged in low power states.
+	 */
+	uint32_t key = irq_lock();
+
+	while (1) {
+		; /* Spin */
+	}
+	irq_unlock(key);
+#endif
 	return 0;
 }
 #endif

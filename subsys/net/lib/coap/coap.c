@@ -12,7 +12,7 @@ LOG_MODULE_REGISTER(net_coap, CONFIG_COAP_LOG_LEVEL);
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <zephyr/random/rand32.h>
+#include <zephyr/random/random.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/util.h>
 
@@ -1298,6 +1298,19 @@ int coap_get_block1_option(const struct coap_packet *cpkt, bool *has_more, uint8
 	}
 
 	*has_more = GET_MORE(ret);
+	*block_number = GET_NUM(ret);
+	ret = 1 << (GET_BLOCK_SIZE(ret) + 4);
+	return ret;
+}
+
+int coap_get_block2_option(const struct coap_packet *cpkt, uint8_t *block_number)
+{
+	int ret = coap_get_option_int(cpkt, COAP_OPTION_BLOCK2);
+
+	if (ret < 0) {
+		return ret;
+	}
+
 	*block_number = GET_NUM(ret);
 	ret = 1 << (GET_BLOCK_SIZE(ret) + 4);
 	return ret;

@@ -978,9 +978,15 @@ class ProjectBuilder(FilterBuilder):
         sys.stdout.flush()
 
     @staticmethod
-    def cmake_assemble_args(args, handler, extra_conf_files, extra_overlay_confs,
+    def cmake_assemble_args(extra_args, handler, extra_conf_files, extra_overlay_confs,
                             extra_dtc_overlay_files, cmake_extra_args,
                             build_dir):
+        # Retain quotes around config options
+        config_options = [arg for arg in extra_args if arg.startswith("CONFIG_")]
+        args = [arg for arg in extra_args if not arg.startswith("CONFIG_")]
+
+        args_expanded = ["-D{}".format(a.replace('"', '\"')) for a in config_options]
+
         if handler.ready:
             args.extend(handler.args)
 
@@ -1003,7 +1009,7 @@ class ProjectBuilder(FilterBuilder):
             args.append("OVERLAY_CONFIG=\"%s\"" % (" ".join(overlays)))
 
         # Build the final argument list
-        args_expanded = ["-D{}".format(a.replace('"', '\"')) for a in cmake_extra_args]
+        args_expanded.extend(["-D{}".format(a.replace('"', '\"')) for a in cmake_extra_args])
         args_expanded.extend(["-D{}".format(a.replace('"', '')) for a in args])
 
         return args_expanded
@@ -1031,6 +1037,9 @@ class ProjectBuilder(FilterBuilder):
         instance = self.instance
 
         if instance.handler.ready:
+            logger.debug(f"Reset instance status from '{instance.status}' to None before run.")
+            instance.status = None
+
             if instance.handler.type_str == "device":
                 instance.handler.duts = self.duts
 
@@ -1046,13 +1055,15 @@ class ProjectBuilder(FilterBuilder):
             harness = HarnessImporter.get_harness(instance.testsuite.harness.capitalize())
             harness.configure(instance)
             if isinstance(harness, Pytest):
-                harness.pytest_run(instance.handler.timeout)
+                harness.pytest_run(instance.handler.get_test_timeout())
             else:
                 instance.handler.handle(harness)
 
         sys.stdout.flush()
 
     def gather_metrics(self, instance: TestInstance):
+        if self.options.create_rom_ram_report:
+            self.run_build(['--build', self.build_dir, "--target", "footprint"])
         if self.options.enable_size_report and not self.options.cmake_only:
             self.calc_size(instance=instance, from_buildlog=self.options.footprint_from_buildlog)
         else:

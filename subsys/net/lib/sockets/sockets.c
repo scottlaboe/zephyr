@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2017 Linaro Limited
  * Copyright (c) 2021 Nordic Semiconductor
+ * Copyright (c) 2023 Arm Limited (or its affiliates). All rights reserved.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -32,12 +33,13 @@ LOG_MODULE_REGISTER(net_sock, CONFIG_NET_SOCKETS_LOG_LEVEL);
 
 #include "sockets_internal.h"
 #include "../../ip/tcp_internal.h"
+#include "../../ip/net_private.h"
 
 #define SET_ERRNO(x) \
 	{ int _err = x; if (_err < 0) { errno = -_err; return -1; } }
 
 #define VTABLE_CALL(fn, sock, ...)			     \
-	do {						     \
+	({						     \
 		const struct socket_op_vtable *vtable;	     \
 		struct k_mutex *lock;			     \
 		void *obj;				     \
@@ -60,8 +62,8 @@ LOG_MODULE_REGISTER(net_sock, CONFIG_NET_SOCKETS_LOG_LEVEL);
 							     \
 		k_mutex_unlock(lock);                        \
 							     \
-		return ret;				     \
-	} while (0)
+		ret;					     \
+	})
 
 const struct socket_op_vtable sock_fd_op_vtable;
 
@@ -77,14 +79,7 @@ static inline void *get_sock_vtable(int sock,
 
 #ifdef CONFIG_USERSPACE
 	if (ctx != NULL && z_is_in_user_syscall()) {
-		struct z_object *zo;
-		int ret;
-
-		zo = z_object_find(ctx);
-		ret = z_object_validate(zo, K_OBJ_NET_SOCKET, _OBJ_INIT_TRUE);
-
-		if (ret != 0) {
-			z_dump_object_error(ret, ctx, zo, K_OBJ_NET_SOCKET);
+		if (!k_object_is_valid(ctx, K_OBJ_NET_SOCKET)) {
 			/* Invalidate the context, the caller doesn't have
 			 * sufficient permission or there was some other
 			 * problem with the net socket object
@@ -223,6 +218,8 @@ static int zsock_socket_internal(int family, int type, int proto)
 int z_impl_zsock_socket(int family, int type, int proto)
 {
 	STRUCT_SECTION_FOREACH(net_socket_register, sock_family) {
+		int ret;
+
 		if (sock_family->family != family &&
 		    sock_family->family != AF_UNSPEC) {
 			continue;
@@ -234,7 +231,11 @@ int z_impl_zsock_socket(int family, int type, int proto)
 			continue;
 		}
 
-		return sock_family->handler(family, type, proto);
+		ret = sock_family->handler(family, type, proto);
+
+		(void)sock_obj_core_alloc(ret, sock_family, family, type, proto);
+
+		return ret;
 	}
 
 	errno = EAFNOSUPPORT;
@@ -297,6 +298,8 @@ int z_impl_zsock_close(int sock)
 	k_mutex_unlock(lock);
 
 	z_free_fd(sock);
+
+	(void)sock_obj_core_dealloc(sock);
 
 	return ret;
 }
@@ -423,12 +426,12 @@ static void zsock_received_cb(struct net_context *ctx,
 	k_fifo_put(&ctx->recv_q, pkt);
 
 unlock:
+	/* Wake reader if it was sleeping */
+	(void)k_condvar_signal(&ctx->cond.recv);
+
 	if (ctx->cond.lock) {
 		(void)k_mutex_unlock(ctx->cond.lock);
 	}
-
-	/* Wake reader if it was sleeping */
-	(void)k_condvar_signal(&ctx->cond.recv);
 }
 
 int zsock_shutdown_ctx(struct net_context *ctx, int how)
@@ -470,7 +473,7 @@ int zsock_bind_ctx(struct net_context *ctx, const struct sockaddr *addr,
 
 int z_impl_zsock_bind(int sock, const struct sockaddr *addr, socklen_t addrlen)
 {
-	VTABLE_CALL(bind, sock, addr, addrlen);
+	return VTABLE_CALL(bind, sock, addr, addrlen);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -549,7 +552,7 @@ int zsock_connect_ctx(struct net_context *ctx, const struct sockaddr *addr,
 int z_impl_zsock_connect(int sock, const struct sockaddr *addr,
 			socklen_t addrlen)
 {
-	VTABLE_CALL(connect, sock, addr, addrlen);
+	return VTABLE_CALL(connect, sock, addr, addrlen);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -577,7 +580,7 @@ int zsock_listen_ctx(struct net_context *ctx, int backlog)
 
 int z_impl_zsock_listen(int sock, int backlog)
 {
-	VTABLE_CALL(listen, sock, backlog);
+	return VTABLE_CALL(listen, sock, backlog);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -674,7 +677,13 @@ int zsock_accept_ctx(struct net_context *parent, struct sockaddr *addr,
 
 int z_impl_zsock_accept(int sock, struct sockaddr *addr, socklen_t *addrlen)
 {
-	VTABLE_CALL(accept, sock, addr, addrlen);
+	int new_sock;
+
+	new_sock = VTABLE_CALL(accept, sock, addr, addrlen);
+
+	(void)sock_obj_core_alloc_find(sock, new_sock, addr->sa_family, SOCK_STREAM);
+
+	return new_sock;
 }
 
 #ifdef CONFIG_USERSPACE
@@ -838,7 +847,13 @@ ssize_t zsock_sendto_ctx(struct net_context *ctx, const void *buf, size_t len,
 ssize_t z_impl_zsock_sendto(int sock, const void *buf, size_t len, int flags,
 			   const struct sockaddr *dest_addr, socklen_t addrlen)
 {
-	VTABLE_CALL(sendto, sock, buf, len, flags, dest_addr, addrlen);
+	int ret;
+
+	ret = VTABLE_CALL(sendto, sock, buf, len, flags, dest_addr, addrlen);
+
+	sock_obj_core_update_send_stats(sock, ret);
+
+	return ret;
 }
 
 #ifdef CONFIG_USERSPACE
@@ -917,7 +932,13 @@ ssize_t zsock_sendmsg_ctx(struct net_context *ctx, const struct msghdr *msg,
 
 ssize_t z_impl_zsock_sendmsg(int sock, const struct msghdr *msg, int flags)
 {
-	VTABLE_CALL(sendmsg, sock, msg, flags);
+	int ret;
+
+	ret = VTABLE_CALL(sendmsg, sock, msg, flags);
+
+	sock_obj_core_update_send_stats(sock, ret);
+
+	return ret;
 }
 
 #ifdef CONFIG_USERSPACE
@@ -1477,7 +1498,13 @@ ssize_t zsock_recvfrom_ctx(struct net_context *ctx, void *buf, size_t max_len,
 ssize_t z_impl_zsock_recvfrom(int sock, void *buf, size_t max_len, int flags,
 			     struct sockaddr *src_addr, socklen_t *addrlen)
 {
-	VTABLE_CALL(recvfrom, sock, buf, max_len, flags, src_addr, addrlen);
+	int ret;
+
+	ret = VTABLE_CALL(recvfrom, sock, buf, max_len, flags, src_addr, addrlen);
+
+	sock_obj_core_update_recv_stats(sock, ret);
+
+	return ret;
 }
 
 #ifdef CONFIG_USERSPACE
@@ -1944,6 +1971,17 @@ int zsock_getsockopt_ctx(struct net_context *ctx, int level, int optname,
 	switch (level) {
 	case SOL_SOCKET:
 		switch (optname) {
+		case SO_ERROR: {
+			if (*optlen != sizeof(int)) {
+				errno = EINVAL;
+				return -1;
+			}
+
+			*(int *)optval = POINTER_TO_INT(ctx->user_data);
+
+			return 0;
+		}
+
 		case SO_TYPE: {
 			int type = (int)net_context_get_type(ctx);
 
@@ -2012,6 +2050,34 @@ int zsock_getsockopt_ctx(struct net_context *ctx, int level, int optname,
 				return 0;
 			}
 			break;
+
+		case SO_REUSEADDR:
+			if (IS_ENABLED(CONFIG_NET_CONTEXT_REUSEADDR)) {
+				ret = net_context_get_option(ctx,
+							     NET_OPT_REUSEADDR,
+							     optval, optlen);
+				if (ret < 0) {
+					errno = -ret;
+					return -1;
+				}
+
+				return 0;
+			}
+			break;
+
+		case SO_REUSEPORT:
+			if (IS_ENABLED(CONFIG_NET_CONTEXT_REUSEPORT)) {
+				ret = net_context_get_option(ctx,
+							     NET_OPT_REUSEPORT,
+							     optval, optlen);
+				if (ret < 0) {
+					errno = -ret;
+					return -1;
+				}
+
+				return 0;
+			}
+			break;
 		}
 
 		break;
@@ -2048,6 +2114,22 @@ int zsock_getsockopt_ctx(struct net_context *ctx, int level, int optname,
 
 	case IPPROTO_IPV6:
 		switch (optname) {
+		case IPV6_V6ONLY:
+			if (IS_ENABLED(CONFIG_NET_IPV4_MAPPING_TO_IPV6)) {
+				ret = net_context_get_option(ctx,
+							     NET_OPT_IPV6_V6ONLY,
+							     optval,
+							     optlen);
+				if (ret < 0) {
+					errno  = -ret;
+					return -1;
+				}
+
+				return 0;
+			}
+
+			break;
+
 		case IPV6_TCLASS:
 			if (IS_ENABLED(CONFIG_NET_CONTEXT_DSCP_ECN)) {
 				ret = net_context_get_option(ctx,
@@ -2075,7 +2157,7 @@ int zsock_getsockopt_ctx(struct net_context *ctx, int level, int optname,
 int z_impl_zsock_getsockopt(int sock, int level, int optname,
 			    void *optval, socklen_t *optlen)
 {
-	VTABLE_CALL(getsockopt, sock, level, optname, optval, optlen);
+	return VTABLE_CALL(getsockopt, sock, level, optname, optval, optlen);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -2148,10 +2230,34 @@ int zsock_setsockopt_ctx(struct net_context *ctx, int level, int optname,
 			break;
 
 		case SO_REUSEADDR:
-			/* Ignore for now. Provided to let port
-			 * existing apps.
-			 */
-			return 0;
+			if (IS_ENABLED(CONFIG_NET_CONTEXT_REUSEADDR)) {
+				ret = net_context_set_option(ctx,
+							     NET_OPT_REUSEADDR,
+							     optval, optlen);
+				if (ret < 0) {
+					errno = -ret;
+					return -1;
+				}
+
+				return 0;
+			}
+
+			break;
+
+		case SO_REUSEPORT:
+			if (IS_ENABLED(CONFIG_NET_CONTEXT_REUSEPORT)) {
+				ret = net_context_set_option(ctx,
+							     NET_OPT_REUSEPORT,
+							     optval, optlen);
+				if (ret < 0) {
+					errno = -ret;
+					return -1;
+				}
+
+				return 0;
+			}
+
+			break;
 
 		case SO_PRIORITY:
 			if (IS_ENABLED(CONFIG_NET_CONTEXT_PRIORITY)) {
@@ -2361,9 +2467,17 @@ int zsock_setsockopt_ctx(struct net_context *ctx, int level, int optname,
 	case IPPROTO_IPV6:
 		switch (optname) {
 		case IPV6_V6ONLY:
-			/* Ignore for now. Provided to let port
-			 * existing apps.
-			 */
+			if (IS_ENABLED(CONFIG_NET_IPV4_MAPPING_TO_IPV6)) {
+				ret = net_context_set_option(ctx,
+							     NET_OPT_IPV6_V6ONLY,
+							     optval,
+							     optlen);
+				if (ret < 0) {
+					errno  = -ret;
+					return -1;
+				}
+			}
+
 			return 0;
 
 		case IPV6_TCLASS:
@@ -2393,7 +2507,7 @@ int zsock_setsockopt_ctx(struct net_context *ctx, int level, int optname,
 int z_impl_zsock_setsockopt(int sock, int level, int optname,
 			    const void *optval, socklen_t optlen)
 {
-	VTABLE_CALL(setsockopt, sock, level, optname, optval, optlen);
+	return VTABLE_CALL(setsockopt, sock, level, optname, optval, optlen);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -2467,7 +2581,7 @@ int zsock_getpeername_ctx(struct net_context *ctx, struct sockaddr *addr,
 int z_impl_zsock_getpeername(int sock, struct sockaddr *addr,
 			     socklen_t *addrlen)
 {
-	VTABLE_CALL(getpeername, sock, addr, addrlen);
+	return VTABLE_CALL(getpeername, sock, addr, addrlen);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -2546,7 +2660,7 @@ int zsock_getsockname_ctx(struct net_context *ctx, struct sockaddr *addr,
 int z_impl_zsock_getsockname(int sock, struct sockaddr *addr,
 			     socklen_t *addrlen)
 {
-	VTABLE_CALL(getsockname, sock, addr, addrlen);
+	return VTABLE_CALL(getsockname, sock, addr, addrlen);
 }
 
 #ifdef CONFIG_USERSPACE

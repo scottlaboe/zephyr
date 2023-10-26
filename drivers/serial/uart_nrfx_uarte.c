@@ -844,15 +844,7 @@ static int uarte_nrfx_rx_enable(const struct device *dev, uint8_t *buf,
 	}
 
 	data->async->rx_timeout = timeout;
-	/* Set minimum interval to 3 RTC ticks. 3 is used due to RTC limitation
-	 * which cannot set timeout for next tick. Assuming delay in processing
-	 * 3 instead of 2 is used. Note that lower value would work in a similar
-	 * way but timeouts would always occur later than expected,  most likely
-	 * after ~3 ticks.
-	 */
-	data->async->rx_timeout_slab =
-		MAX(timeout / RX_TIMEOUT_DIV,
-		    NRFX_CEIL_DIV(3 * 1000000, CONFIG_SYS_CLOCK_TICKS_PER_SEC));
+	data->async->rx_timeout_slab = timeout / RX_TIMEOUT_DIV;
 
 	data->async->rx_buf = buf;
 	data->async->rx_buf_len = len;
@@ -936,11 +928,6 @@ static int uarte_nrfx_callback_set(const struct device *dev,
 
 	data->async->user_callback = callback;
 	data->async->user_data = user_data;
-
-#if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS) && defined(UARTE_INTERRUPT_DRIVEN)
-	data->int_driven->cb = NULL;
-	data->int_driven->cb_data = NULL;
-#endif
 
 	return 0;
 }
@@ -1680,11 +1667,6 @@ static void uarte_nrfx_irq_callback_set(const struct device *dev,
 
 	data->int_driven->cb = cb;
 	data->int_driven->cb_data = cb_data;
-
-#if defined(UARTE_ANY_ASYNC) && defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS)
-	data->async->user_callback = NULL;
-	data->async->user_data = NULL;
-#endif
 }
 #endif /* UARTE_INTERRUPT_DRIVEN */
 

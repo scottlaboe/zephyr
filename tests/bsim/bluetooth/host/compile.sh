@@ -35,6 +35,9 @@ app=tests/bsim/bluetooth/host/att/eatt_notif conf_file=prj.conf compile
 app=tests/bsim/bluetooth/host/att/mtu_update compile
 app=tests/bsim/bluetooth/host/att/read_fill_buf/client compile
 app=tests/bsim/bluetooth/host/att/read_fill_buf/server compile
+app=tests/bsim/bluetooth/host/att/sequential/dut compile
+app=tests/bsim/bluetooth/host/att/sequential/tester compile
+app=tests/bsim/bluetooth/host/att/long_read compile
 
 app=tests/bsim/bluetooth/host/gatt/caching compile
 app=tests/bsim/bluetooth/host/gatt/general compile
@@ -44,6 +47,9 @@ app=tests/bsim/bluetooth/host/gatt/settings compile
 app=tests/bsim/bluetooth/host/gatt/settings conf_file=prj_2.conf compile
 app=tests/bsim/bluetooth/host/gatt/ccc_store compile
 app=tests/bsim/bluetooth/host/gatt/ccc_store conf_file=prj_2.conf compile
+app=tests/bsim/bluetooth/host/gatt/sc_indicate compile
+
+app=tests/bsim/bluetooth/host/iso/cis compile
 
 app=tests/bsim/bluetooth/host/l2cap/general compile
 app=tests/bsim/bluetooth/host/l2cap/userdata compile
@@ -58,6 +64,8 @@ app=tests/bsim/bluetooth/host/l2cap/send_on_connect compile
 app=tests/bsim/bluetooth/host/l2cap/send_on_connect conf_file=prj_ecred.conf compile
 
 app=tests/bsim/bluetooth/host/misc/disable compile
+app=tests/bsim/bluetooth/host/misc/disconnect/dut compile
+app=tests/bsim/bluetooth/host/misc/disconnect/tester compile
 
 app=tests/bsim/bluetooth/host/privacy/central compile
 app=tests/bsim/bluetooth/host/privacy/peripheral compile
@@ -69,7 +77,8 @@ app=tests/bsim/bluetooth/host/security/bond_overwrite_denied compile
 app=tests/bsim/bluetooth/host/security/bond_per_connection compile
 app=tests/bsim/bluetooth/host/security/ccc_update compile
 app=tests/bsim/bluetooth/host/security/ccc_update conf_file=prj_2.conf compile
-app=tests/bsim/bluetooth/host/security/id_addr_update compile
+app=tests/bsim/bluetooth/host/security/id_addr_update/central compile
+app=tests/bsim/bluetooth/host/security/id_addr_update/peripheral compile
 app=tests/bsim/bluetooth/host/security/security_changed_callback compile
 
 app=tests/bsim/bluetooth/host/id/settings compile

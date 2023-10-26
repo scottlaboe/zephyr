@@ -11,13 +11,13 @@ extern enum bst_result_t bst_result;
 struct bt_conn *default_conn;
 atomic_t flag_connected;
 atomic_t flag_conn_updated;
+volatile bt_security_t security_level;
 
 const struct bt_data ad[AD_SIZE] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR))
 };
 
-void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
-			 struct net_buf_simple *ad)
+static void device_found(const struct bt_le_scan_recv_info *info, struct net_buf_simple *ad)
 {
 	char addr_str[BT_ADDR_LE_STR_LEN];
 	int err;
@@ -27,15 +27,15 @@ void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 	}
 
 	/* We're only interested in connectable events */
-	if (type != BT_HCI_ADV_IND && type != BT_HCI_ADV_DIRECT_IND) {
+	if ((info->adv_props & BT_GAP_ADV_PROP_CONNECTABLE) == 0) {
 		return;
 	}
 
-	bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
-	printk("Device found: %s (RSSI %d)\n", addr_str, rssi);
+	bt_addr_le_to_str(info->addr, addr_str, sizeof(addr_str));
+	printk("Device found: %s (RSSI %d)\n", addr_str, info->rssi);
 
 	/* connect only to devices in close proximity */
-	if (rssi < -70) {
+	if (info->rssi < -70) {
 		FAIL("RSSI too low");
 		return;
 	}
@@ -46,12 +46,16 @@ void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
 		return;
 	}
 
-	err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN,
-				BT_LE_CONN_PARAM_DEFAULT, &default_conn);
+	err = bt_conn_le_create(info->addr, BT_CONN_LE_CREATE_CONN, BT_LE_CONN_PARAM_DEFAULT,
+				&default_conn);
 	if (err) {
 		FAIL("Could not connect to peer: %d", err);
 	}
 }
+
+struct bt_le_scan_cb common_scan_cb = {
+	.recv = device_found,
+};
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
@@ -71,7 +75,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 		return;
 	}
 
-	printk("Connected to %s\n", addr);
+	printk("Connected to %s (%p)\n", addr, conn);
 	SET_FLAG(flag_connected);
 }
 
@@ -91,6 +95,7 @@ void disconnected(struct bt_conn *conn, uint8_t reason)
 	default_conn = NULL;
 	UNSET_FLAG(flag_connected);
 	UNSET_FLAG(flag_conn_updated);
+	security_level = BT_SECURITY_L1;
 }
 
 static void conn_param_updated_cb(struct bt_conn *conn, uint16_t interval, uint16_t latency,
@@ -102,10 +107,20 @@ static void conn_param_updated_cb(struct bt_conn *conn, uint16_t interval, uint1
 	SET_FLAG(flag_conn_updated);
 }
 
+static void security_changed_cb(struct bt_conn *conn, bt_security_t level, enum bt_security_err err)
+{
+	printk("Security changed: %p level %d err %d\n", conn, level, err);
+
+	if (err == BT_SECURITY_ERR_SUCCESS) {
+		security_level = level;
+	}
+}
+
 BT_CONN_CB_DEFINE(conn_callbacks) = {
 	.connected = connected,
 	.disconnected = disconnected,
 	.le_param_updated = conn_param_updated_cb,
+	.security_changed = security_changed_cb,
 };
 
 void test_tick(bs_time_t HW_device_time)

@@ -362,13 +362,24 @@ static int cmd_can_show(const struct shell *sh, size_t argc, char **argv)
 			    timing_min->prescaler, timing_max->prescaler);
 	}
 
+#ifdef CONFIG_CAN_STATS
+	shell_print(sh, "statistics:");
+	shell_print(sh, "  bit0 errors:   %u", can_stats_get_bit0_errors(dev));
+	shell_print(sh, "  bit1 errors:   %u", can_stats_get_bit1_errors(dev));
+	shell_print(sh, "  stuff errors:  %u", can_stats_get_stuff_errors(dev));
+	shell_print(sh, "  crc errors:    %u", can_stats_get_crc_errors(dev));
+	shell_print(sh, "  form errors:   %u", can_stats_get_form_errors(dev));
+	shell_print(sh, "  ack errors:    %u", can_stats_get_ack_errors(dev));
+	shell_print(sh, "  rx overruns:   %u", can_stats_get_rx_overruns(dev));
+#endif /* CONFIG_CAN_STATS */
+
 	return 0;
 }
 
 static int cmd_can_bitrate_set(const struct shell *sh, size_t argc, char **argv)
 {
 	const struct device *dev = device_get_binding(argv[1]);
-	struct can_timing timing;
+	struct can_timing timing = { 0 };
 	uint16_t sample_pnt;
 	uint32_t bitrate;
 	char *endptr;
@@ -392,16 +403,6 @@ static int cmd_can_bitrate_set(const struct shell *sh, size_t argc, char **argv)
 			return -EINVAL;
 		}
 
-		if (argc >= 5) {
-			timing.sjw = (uint16_t)strtoul(argv[4], &endptr, 10);
-			if (*endptr != '\0') {
-				shell_error(sh, "failed to parse SJW");
-				return -EINVAL;
-			}
-		} else {
-			timing.sjw = CAN_SJW_NO_CHANGE;
-		}
-
 		err = can_calc_timing(dev, &timing, bitrate, sample_pnt);
 		if (err < 0) {
 			shell_error(sh, "failed to calculate timing for "
@@ -410,16 +411,19 @@ static int cmd_can_bitrate_set(const struct shell *sh, size_t argc, char **argv)
 			return err;
 		}
 
-		if (timing.sjw == CAN_SJW_NO_CHANGE) {
-			shell_print(sh, "setting bitrate to %d bps, sample point %d.%d%% "
-				    "(+/- %d.%d%%)",
-				    bitrate, sample_pnt / 10, sample_pnt % 10, err / 10, err % 10);
-		} else {
-			shell_print(sh, "setting bitrate to %d bps, sample point %d.%d%% "
-				    "(+/- %d.%d%%), sjw %d",
-				    bitrate, sample_pnt / 10, sample_pnt % 10, err / 10, err % 10,
-				    timing.sjw);
+		if (argc >= 5) {
+			/* Overwrite calculated default SJW with user-provided value */
+			timing.sjw = (uint16_t)strtoul(argv[4], &endptr, 10);
+			if (*endptr != '\0') {
+				shell_error(sh, "failed to parse SJW");
+				return -EINVAL;
+			}
 		}
+
+		shell_print(sh, "setting bitrate to %d bps, sample point %d.%d%% "
+			    "(+/- %d.%d%%), sjw %d",
+			    bitrate, sample_pnt / 10, sample_pnt % 10, err / 10, err % 10,
+			    timing.sjw);
 
 		LOG_DBG("sjw %u, prop_seg %u, phase_seg1 %u, phase_seg2 %u, prescaler %u",
 			timing.sjw, timing.prop_seg, timing.phase_seg1, timing.phase_seg2,
@@ -446,7 +450,7 @@ static int cmd_can_bitrate_set(const struct shell *sh, size_t argc, char **argv)
 static int cmd_can_dbitrate_set(const struct shell *sh, size_t argc, char **argv)
 {
 	const struct device *dev = device_get_binding(argv[1]);
-	struct can_timing timing;
+	struct can_timing timing = { 0 };
 	uint16_t sample_pnt;
 	uint32_t bitrate;
 	char *endptr;
@@ -470,16 +474,6 @@ static int cmd_can_dbitrate_set(const struct shell *sh, size_t argc, char **argv
 			return -EINVAL;
 		}
 
-		if (argc >= 5) {
-			timing.sjw = (uint16_t)strtoul(argv[4], &endptr, 10);
-			if (*endptr != '\0') {
-				shell_error(sh, "failed to parse SJW");
-				return -EINVAL;
-			}
-		} else {
-			timing.sjw = CAN_SJW_NO_CHANGE;
-		}
-
 		err = can_calc_timing_data(dev, &timing, bitrate, sample_pnt);
 		if (err < 0) {
 			shell_error(sh, "failed to calculate timing for "
@@ -488,16 +482,19 @@ static int cmd_can_dbitrate_set(const struct shell *sh, size_t argc, char **argv
 			return err;
 		}
 
-		if (timing.sjw == CAN_SJW_NO_CHANGE) {
-			shell_print(sh, "setting data bitrate to %d bps, sample point %d.%d%% "
-				    "(+/- %d.%d%%)",
-				    bitrate, sample_pnt / 10, sample_pnt % 10, err / 10, err % 10);
-		} else {
-			shell_print(sh, "setting data bitrate to %d bps, sample point %d.%d%% "
-				    "(+/- %d.%d%%), sjw %d",
-				    bitrate, sample_pnt / 10, sample_pnt % 10, err / 10, err % 10,
-				    timing.sjw);
+		if (argc >= 5) {
+			/* Overwrite calculated default SJW with user-provided value */
+			timing.sjw = (uint16_t)strtoul(argv[4], &endptr, 10);
+			if (*endptr != '\0') {
+				shell_error(sh, "failed to parse SJW");
+				return -EINVAL;
+			}
 		}
+
+		shell_print(sh, "setting data bitrate to %d bps, sample point %d.%d%% "
+			    "(+/- %d.%d%%), sjw %d",
+			    bitrate, sample_pnt / 10, sample_pnt % 10, err / 10, err % 10,
+			    timing.sjw);
 
 		LOG_DBG("sjw %u, prop_seg %u, phase_seg1 %u, phase_seg2 %u, prescaler %u",
 			timing.sjw, timing.prop_seg, timing.phase_seg1, timing.phase_seg2,

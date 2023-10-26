@@ -135,7 +135,7 @@ static void calc_temp(const struct npm1300_charger_config *const config, uint16_
 static uint32_t calc_ntc_res(const struct npm1300_charger_config *const config, int32_t temp_mdegc)
 {
 	float inv_t0 = 1.f / 298.15f;
-	float temp = (float)temp_mdegc / 1000000.f;
+	float temp = (float)temp_mdegc / 1000.f;
 
 	float inv_temp_k = 1.f / (temp + 273.15f);
 
@@ -159,13 +159,11 @@ static void calc_current(const struct npm1300_charger_config *const config,
 		full_scale_ma = config->dischg_limit_microamp / 1000;
 		break;
 	case IBAT_STAT_CHARGE_TRICKLE:
-		full_scale_ma = -config->current_microamp / 10000;
-		break;
+	/* Fallthrough */
 	case IBAT_STAT_CHARGE_COOL:
-		full_scale_ma = -config->current_microamp / 2000;
-		break;
+	/* Fallthrough */
 	case IBAT_STAT_CHARGE_NORMAL:
-		full_scale_ma = -config->current_microamp / 1000;
+		full_scale_ma = -config->current_microamp / 800;
 		break;
 	default:
 		full_scale_ma = 0;

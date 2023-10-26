@@ -16,11 +16,15 @@ import sys
 import tempfile
 import traceback
 import shlex
+import shutil
 
 from yamllint import config, linter
 
 from junitparser import TestCase, TestSuite, JUnitXml, Skipped, Error, Failure
 import magic
+
+from west.manifest import Manifest
+from west.manifest import ManifestProject
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from get_maintainer import Maintainers, MaintainersError
@@ -353,6 +357,8 @@ class KconfigCheck(ComplianceTest):
         if not os.path.exists(kconfig_path):
             self.error(kconfig_path + " not found")
 
+        kconfiglib_dir = tempfile.mkdtemp(prefix="kconfiglib_")
+
         sys.path.insert(0, kconfig_path)
         # Import globally so that e.g. kconfiglib.Symbol can be referenced in
         # tests
@@ -367,7 +373,7 @@ class KconfigCheck(ComplianceTest):
         os.environ["ARCH_DIR"] = "arch/"
         os.environ["BOARD_DIR"] = "boards/*/*"
         os.environ["ARCH"] = "*"
-        os.environ["KCONFIG_BINARY_DIR"] = tempfile.gettempdir()
+        os.environ["KCONFIG_BINARY_DIR"] = kconfiglib_dir
         os.environ['DEVICETREE_CONF'] = "dummy"
         os.environ['TOOLCHAIN_HAS_NEWLIB'] = "y"
 
@@ -376,10 +382,9 @@ class KconfigCheck(ComplianceTest):
         os.environ["GENERATED_DTS_BOARD_CONF"] = "dummy"
 
         # For multi repo support
-        self.get_modules(os.path.join(tempfile.gettempdir(), "Kconfig.modules"))
-
+        self.get_modules(os.path.join(kconfiglib_dir, "Kconfig.modules"))
         # For Kconfig.dts support
-        self.get_kconfig_dts(os.path.join(tempfile.gettempdir(), "Kconfig.dts"))
+        self.get_kconfig_dts(os.path.join(kconfiglib_dir, "Kconfig.dts"))
 
         # Tells Kconfiglib to generate warnings for all references to undefined
         # symbols within Kconfig files
@@ -394,6 +399,9 @@ class KconfigCheck(ComplianceTest):
         except kconfiglib.KconfigError as e:
             self.failure(str(e))
             raise EndTest
+        finally:
+            # Clean up the temporary directory
+            shutil.rmtree(kconfiglib_dir)
 
     def get_defined_syms(self, kconf):
         # Returns a set() with the names of all defined Kconfig symbols (with no
@@ -612,6 +620,9 @@ flagged.
                               # toolchain Kconfig which is sourced based on
                               # Zephyr toolchain variant and therefore not
                               # visible to compliance.
+        "BOOT_ENCRYPTION_KEY_FILE", # Used in sysbuild
+        "BOOT_ENCRYPT_IMAGE", # Used in sysbuild
+        "BINDESC_", # Used in documentation as a prefix
         "BOOT_UPGRADE_ONLY", # Used in example adjusting MCUboot config, but
                              # symbol is defined in MCUboot itself.
         "BOOT_SERIAL_BOOT_MODE",     # Used in (sysbuild-based) test/
@@ -619,11 +630,14 @@ flagged.
         "BOOT_SERIAL_CDC_ACM",       # Used in (sysbuild-based) test
         "BOOT_SERIAL_ENTRANCE_GPIO", # Used in (sysbuild-based) test
         "BOOT_SERIAL_IMG_GRP_HASH",  # Used in documentation
-        "BOOT_SIGNATURE_KEY_FILE", # MCUboot setting used by sysbuild
+        "BOOT_SHARE_DATA",           # Used in Kconfig text
+        "BOOT_SHARE_DATA_BOOTINFO", # Used in (sysbuild-based) test
+        "BOOT_SHARE_BACKEND_RETENTION", # Used in Kconfig text
+        "BOOT_SIGNATURE_KEY_FILE",   # MCUboot setting used by sysbuild
         "BOOT_SIGNATURE_TYPE_ECDSA_P256", # MCUboot setting used by sysbuild
-        "BOOT_SIGNATURE_TYPE_ED25519", # MCUboot setting used by sysbuild
-        "BOOT_SIGNATURE_TYPE_NONE", # MCUboot setting used by sysbuild
-        "BOOT_SIGNATURE_TYPE_RSA", # MCUboot setting used by sysbuild
+        "BOOT_SIGNATURE_TYPE_ED25519",    # MCUboot setting used by sysbuild
+        "BOOT_SIGNATURE_TYPE_NONE",       # MCUboot setting used by sysbuild
+        "BOOT_SIGNATURE_TYPE_RSA",        # MCUboot setting used by sysbuild
         "BOOT_VALIDATE_SLOT0",       # Used in (sysbuild-based) test
         "BOOT_WATCHDOG_FEED",        # Used in (sysbuild-based) test
         "BTTESTER_LOG_LEVEL",  # Used in tests/bluetooth/tester
@@ -1083,6 +1097,40 @@ class MaintainersFormat(ComplianceTest):
                 Maintainers(file)
             except MaintainersError as ex:
                 self.failure(f"Error parsing {file}: {ex}")
+
+class ModulesMaintainers(ComplianceTest):
+    """
+    Check that all modules have a MAINTAINERS entry.
+    """
+    name = "ModulesMaintainers"
+    doc = "Check that all modules have a MAINTAINERS entry."
+    path_hint = "<git-top>"
+
+    def run(self):
+        MAINTAINERS_FILES = ["MAINTAINERS.yml", "MAINTAINERS.yaml"]
+
+        manifest = Manifest.from_file()
+
+        maintainers_file = None
+        for file in MAINTAINERS_FILES:
+            if os.path.exists(file):
+                maintainers_file = file
+                break
+        if not maintainers_file:
+            return
+
+        maintainers = Maintainers(maintainers_file)
+
+        for project in manifest.get_projects([]):
+            if not manifest.is_active(project):
+                continue
+
+            if isinstance(project, ManifestProject):
+                continue
+
+            area = f"West project: {project.name}"
+            if area not in maintainers.areas:
+                self.failure(f"Missing {maintainers_file} entry for: \"{area}\"")
 
 
 class YAMLLint(ComplianceTest):

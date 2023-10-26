@@ -736,11 +736,6 @@ struct bt_gatt_ccc_cfg {
 	uint8_t id;
 	/** Remote peer address. */
 	bt_addr_le_t peer;
-	/**
-	 * Separate storage for encrypted and unencrypted context. This
-	 * indicate that the link was encrypted when the CCC was written.
-	 */
-	bool link_encrypted;
 	/** Configuration value. */
 	uint16_t value;
 };
@@ -1463,10 +1458,10 @@ struct bt_gatt_discover_params {
 	uint16_t end_handle;
 	/** Discover type */
 	uint8_t type;
-#if defined(CONFIG_BT_GATT_AUTO_DISCOVER_CCC)
+#if defined(CONFIG_BT_GATT_AUTO_DISCOVER_CCC) || defined(__DOXYGEN__)
 	/** Only for stack-internal use, used for automatic discovery. */
 	struct bt_gatt_subscribe_params *sub_params;
-#endif /* defined(CONFIG_BT_GATT_AUTO_DISCOVER_CCC) */
+#endif /* defined(CONFIG_BT_GATT_AUTO_DISCOVER_CCC) || defined(__DOXYGEN__) */
 #if defined(CONFIG_BT_EATT)
 	enum bt_att_chan_opt chan_opt;
 #endif /* CONFIG_BT_EATT */
@@ -1577,6 +1572,8 @@ struct bt_gatt_read_params {
 #if defined(CONFIG_BT_EATT)
 	enum bt_att_chan_opt chan_opt;
 #endif /* CONFIG_BT_EATT */
+	/** Internal */
+	uint16_t _att_mtu;
 };
 
 /** @brief Read Attribute Value by handle
@@ -1587,9 +1584,21 @@ struct bt_gatt_read_params {
  *  depending on how many instances of given the UUID exists with the
  *  start_handle being updated for each instance.
  *
- *  If an instance does contain a long value which cannot be read entirely the
- *  caller will need to read the remaining data separately using the handle and
- *  offset.
+ *  To perform a GATT Long Read procedure, start with a Characteristic Value
+ *  Read (by setting @c offset @c 0 and @c handle_count @c 1) and then return
+ *  @ref BT_GATT_ITER_CONTINUE from the callback. This is equivalent to calling
+ *  @ref bt_gatt_read again, but with the correct offset to continue the read.
+ *  This may be repeated until the procedure is complete, which is signaled by
+ *  the callback being called with @p data set to @c NULL.
+ *
+ *  Note that returning @ref BT_GATT_ITER_CONTINUE is really starting a new ATT
+ *  operation, so this can fail to allocate resources. However, all API errors
+ *  are reported as if the server returned @ref BT_ATT_ERR_UNLIKELY. There is no
+ *  way to distinguish between this condition and a @ref BT_ATT_ERR_UNLIKELY
+ *  response from the server itself.
+ *
+ *  Note that the effect of returning @ref BT_GATT_ITER_CONTINUE from the
+ *  callback varies depending on the type of read operation.
  *
  *  The Response comes in callback @p params->func. The callback is run from
  *  the context specified by 'config BT_RECV_CONTEXT'.
@@ -1831,12 +1840,12 @@ struct bt_gatt_subscribe_params {
 	uint16_t value_handle;
 	/** Subscribe CCC handle */
 	uint16_t ccc_handle;
-#if defined(CONFIG_BT_GATT_AUTO_DISCOVER_CCC)
+#if defined(CONFIG_BT_GATT_AUTO_DISCOVER_CCC) || defined(__DOXYGEN__)
 	/** Subscribe End handle (for automatic discovery) */
 	uint16_t end_handle;
 	/** Discover parameters used when ccc_handle = 0 */
 	struct bt_gatt_discover_params *disc_params;
-#endif /* CONFIG_BT_GATT_AUTO_DISCOVER_CCC */
+#endif /* defined(CONFIG_BT_GATT_AUTO_DISCOVER_CCC) || defined(__DOXYGEN__) */
 	/** Subscribe value */
 	uint16_t value;
 #if defined(CONFIG_BT_SMP)

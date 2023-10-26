@@ -36,7 +36,7 @@ LOG_MODULE_REGISTER(net_core, CONFIG_NET_CORE_LOG_LEVEL);
 #endif
 
 #include "net_private.h"
-#include "net_shell.h"
+#include "shell/net_shell.h"
 
 #include "icmpv6.h"
 #include "ipv6.h"
@@ -45,6 +45,7 @@ LOG_MODULE_REGISTER(net_core, CONFIG_NET_CORE_LOG_LEVEL);
 #include "ipv4.h"
 
 #include "dhcpv4.h"
+#include "dhcpv6_internal.h"
 
 #include "route.h"
 
@@ -210,6 +211,15 @@ static void init_rx_queues(void)
 /* Check if the IPv{4|6} addresses are proper. As this can be expensive,
  * make this optional.
  */
+
+static inline void copy_ll_addr(struct net_pkt *pkt)
+{
+	memcpy(net_pkt_lladdr_src(pkt), net_pkt_lladdr_if(pkt),
+	       sizeof(struct net_linkaddr));
+	memcpy(net_pkt_lladdr_dst(pkt), net_pkt_lladdr_if(pkt),
+	       sizeof(struct net_linkaddr));
+}
+
 static inline int check_ip_addr(struct net_pkt *pkt)
 {
 	uint8_t family = net_pkt_family(pkt);
@@ -237,6 +247,9 @@ static inline int check_ip_addr(struct net_pkt *pkt)
 			net_ipv6_addr_copy_raw(NET_IPV6_HDR(pkt)->src,
 					       NET_IPV6_HDR(pkt)->dst);
 			net_ipv6_addr_copy_raw(NET_IPV6_HDR(pkt)->dst, (uint8_t *)&addr);
+
+			net_pkt_set_ll_proto_type(pkt, ETH_P_IPV6);
+			copy_ll_addr(pkt);
 
 			return 1;
 		}
@@ -284,6 +297,9 @@ static inline int check_ip_addr(struct net_pkt *pkt)
 			net_ipv4_addr_copy_raw(NET_IPV4_HDR(pkt)->src,
 					       NET_IPV4_HDR(pkt)->dst);
 			net_ipv4_addr_copy_raw(NET_IPV4_HDR(pkt)->dst, (uint8_t *)&addr);
+
+			net_pkt_set_ll_proto_type(pkt, ETH_P_IP);
+			copy_ll_addr(pkt);
 
 			return 1;
 		}
@@ -472,6 +488,11 @@ static inline int services_init(void)
 
 	status = net_dhcpv4_init();
 	if (status) {
+		return status;
+	}
+
+	status = net_dhcpv6_init();
+	if (status != 0) {
 		return status;
 	}
 

@@ -143,19 +143,66 @@ struct k_mem_paging_histogram_t {
 #endif /* CONFIG_DEMAND_PAGING_TIMING_HISTOGRAM */
 };
 
+/**
+ * @brief Check if a physical address is within range of physical memory.
+ *
+ * This checks if the physical address (@p virt) is within
+ * permissible range, e.g. between
+ * :kconfig:option:`CONFIG_SRAM_BASE_ADDRESS` and
+ * (:kconfig:option:`CONFIG_SRAM_BASE_ADDRESS` +
+ *  :kconfig:option:`CONFIG_SRAM_SIZE`).
+ *
+ * @note Only used if
+ * :kconfig:option:`CONFIG_KERNEL_VM_USE_CUSTOM_MEM_RANGE_CHECK`
+ * is enabled.
+ *
+ * @param phys Physical address to be checked.
+ *
+ * @return True if physical address is within range, false if not.
+ */
+bool sys_mm_is_phys_addr_in_range(uintptr_t phys);
+
+/**
+ * @brief Check if a virtual address is within range of virtual memory.
+ *
+ * This checks if the virtual address (@p virt) is within
+ * permissible range, e.g. between
+ * :kconfig:option:`CONFIG_KERNEL_VM_BASE` and
+ * (:kconfig:option:`CONFIG_KERNEL_VM_BASE` +
+ *  :kconfig:option:`CONFIG_KERNEL_VM_SIZE`).
+ *
+ * @note Only used if
+ * :kconfig:option:`CONFIG_KERNEL_VM_USE_CUSTOM_MEM_RANGE_CHECK`
+ * is enabled.
+ *
+ * @param virt Virtual address to be checked.
+ *
+ * @return True if virtual address is within range, false if not.
+ */
+bool sys_mm_is_virt_addr_in_range(void *virt);
+
 /* Just like Z_MEM_PHYS_ADDR() but with type safety and assertions */
 static inline uintptr_t z_mem_phys_addr(void *virt)
 {
 	uintptr_t addr = (uintptr_t)virt;
 
-#ifdef CONFIG_MMU
-	__ASSERT((addr >= CONFIG_KERNEL_VM_BASE) &&
+#if defined(CONFIG_KERNEL_VM_USE_CUSTOM_MEM_RANGE_CHECK)
+	__ASSERT(sys_mm_is_virt_addr_in_range(virt),
+		 "address %p not in permanent mappings", virt);
+#elif defined(CONFIG_MMU)
+	__ASSERT(
+#if CONFIG_KERNEL_VM_BASE != 0
+		 (addr >= CONFIG_KERNEL_VM_BASE) &&
+#endif
 		 (addr < (CONFIG_KERNEL_VM_BASE +
 			  (CONFIG_KERNEL_VM_SIZE))),
 		 "address %p not in permanent mappings", virt);
 #else
 	/* Should be identity-mapped */
-	__ASSERT((addr >= CONFIG_SRAM_BASE_ADDRESS) &&
+	__ASSERT(
+#if CONFIG_SRAM_BASE_ADDRESS != 0
+		 (addr >= CONFIG_SRAM_BASE_ADDRESS) &&
+#endif
 		 (addr < (CONFIG_SRAM_BASE_ADDRESS +
 			  (CONFIG_SRAM_SIZE * 1024UL))),
 		 "physical address 0x%lx not in RAM",
@@ -172,10 +219,18 @@ static inline uintptr_t z_mem_phys_addr(void *virt)
 /* Just like Z_MEM_VIRT_ADDR() but with type safety and assertions */
 static inline void *z_mem_virt_addr(uintptr_t phys)
 {
-	__ASSERT((phys >= CONFIG_SRAM_BASE_ADDRESS) &&
+#if defined(CONFIG_KERNEL_VM_USE_CUSTOM_MEM_RANGE_CHECK)
+	__ASSERT(sys_mm_is_phys_addr_in_range(phys),
+		"physical address 0x%lx not in RAM", (unsigned long)phys);
+#else
+	__ASSERT(
+#if CONFIG_SRAM_BASE_ADDRESS != 0
+		 (phys >= CONFIG_SRAM_BASE_ADDRESS) &&
+#endif
 		 (phys < (CONFIG_SRAM_BASE_ADDRESS +
 			  (CONFIG_SRAM_SIZE * 1024UL))),
 		 "physical address 0x%lx not in RAM", (unsigned long)phys);
+#endif
 
 	/* TODO add assertion that this page frame is pinned to boot mapping,
 	 * the above check won't be sufficient with demand paging
