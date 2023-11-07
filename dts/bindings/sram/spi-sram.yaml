@@ -1,0 +1,18 @@
+# Copyright (c) 2023 iWorx Systems
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Driver binding for external SRAM on SPI bus.
+
+compatible: "spi-sram"
+
+include: [spi-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  size:
+    type: int
+    description: |
+      The size in bits. Set this or size-in-bytes, but not both.

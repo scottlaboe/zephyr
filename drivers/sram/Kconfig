@@ -1,0 +1,20 @@
+# SRAM driver configuration options
+
+# Copyright (c) 2023 iWorx Systems
+# SPDX-License-Identifier: Apache-2.0
+
+#
+# SRAM Drivers
+#
+menuconfig SRAM
+	bool "Serial Peripheral Interface (SPI) bus drivers"
+	help
+	  Enable support for the SPI hardware bus.
+
+if SRAM
+
+module = SRAM
+module-str = sram
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # SRAM

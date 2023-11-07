@@ -1,0 +1,13 @@
+# Driver for SRAM on SPI bus.
+#
+# Copyright (c) 2023 iWorx Systems
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+config SRAM_SPI
+	bool "SRAM on SPI bus driver"
+	default y
+	select SPI
+	help
+	  Enable driver for SRAM on SPI bus.
