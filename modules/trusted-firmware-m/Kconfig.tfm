@@ -302,6 +302,7 @@ endif # TFM_BL2
 
 choice TFM_MODEL
 	prompt "TF-M Firmware Framework model"
+	default TFM_SFN if TFM_PROFILE_TYPE_SMALL
 	default TFM_IPC
 	help
 	  The Firmware Framework M (FF-M) provides different programming models
@@ -323,6 +324,7 @@ config TFM_IPC
 
 config TFM_SFN
 	bool "SFN model"
+	depends on !FP_HARDABI
 	help
 	  Use the SFN Model as the SPM backend for the PSA API.
 	  The SFN model supports the SFN Partition model, and isolation level 1.
