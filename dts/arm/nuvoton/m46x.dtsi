@@ -76,6 +76,17 @@
 			};
 		};
 
+		hyperbus: hyperbus@400ce000 {
+			compatible = "nuvoton,numaker-hyperbus";
+			reg = <0x400ce000 0x18>;
+			ranges = <0x8 0x0 0x10000>;
+			interrupts = <97 0>;
+			resets = <&rst NUMAKER_HBI_RST>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			status = "disabled";
+		};
+
 		uart0: serial@40070000 {
 			compatible = "nuvoton,numaker-uart";
 			reg = <0x40070000 0x1000>;

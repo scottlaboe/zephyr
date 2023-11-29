@@ -1,0 +1,58 @@
+# Copyright (c) 2023 iWorx Systems
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Binding for ISSI's IS66/67WVO32M8DALL/BLL octal SRAM.
+  For info on hyperbus specification refer to Cypress's 
+  document number: 001-99253.
+
+compatible: issi,is6xwvo32m8dxll-octalram
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  drive-strength:
+    type: string
+    enum:
+      - "146_ohms"
+      - "76_ohms"
+      - "52_ohms"
+      - "41_ohms"
+      - "34_ohms"
+      - "30_ohms"
+      - "26_ohms"
+      - "24_ohms"
+    description: "Pin driver output impedance."
+  
+  dqsm-read-precycle:
+    type: string
+    enum:
+      - "0_clock"
+      - "1_clock"
+    description: "DQSM is Refresh Collision Indicator, Data Strobe Signal in Read operation, and Write Data Mask in Write operation."
+
+  initial-latency:
+    type: string
+    enum:
+      - "3_clocks"
+      - "4_clocks"
+      - "5_clocks"
+      - "6_clocks"
+      - "7_clocks"
+      - "8_clocks"
+    description: "This sets the inital latency for read/write transactions."
+
+  fixed-latency-enable:
+    type: boolean
+    description: "Set true for fixed initial latency and false for variable initial latency."
+
+  burst-length:
+    type: string
+    enum:
+      - "128_bytes"
+      - "64_bytes"
+      - "32_bytes"
+      - "16_bytes"

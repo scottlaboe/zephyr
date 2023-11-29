@@ -1,0 +1,70 @@
+# Copyright (c) 2023 iWorx Systems
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Binding for Winbonds's W956(D/A)8MBYA octal SRAM.
+  For info on hyperbus specification refer to Cypress's 
+  document number: 001-99253.
+
+compatible: winbond,w956x8mbya5i-octalram
+
+include: base.yaml
+
+properties:
+  drive-strength-ohms:
+    type: int
+    enum:
+      - 34
+      - 115
+      - 67
+      - 46
+      - 34
+      - 27
+      - 22
+      - 19
+    default: 34
+    description: Pin driver output impedance.
+
+  initial-latency-clks:
+    type: int
+    enum:
+      - 5
+      - 6
+      - 7
+      - 3
+      - 4
+    default: 7
+    description: |
+      This sets the inital latency for read/write
+      transactions.
+
+  fixed-latency-enable:
+    type: int
+    enum:
+      - 0
+      - 1
+    default: 1
+    description: |
+      Set true for fixed 2x initial latency and false for
+      variable initial latency (either x1 or x2).
+
+  hybrid-burst-enable:
+    type: int
+    enum:
+      - 0
+      - 1
+    default: 1
+    description: |
+      Set true to handle wrapped burst sequences in
+      legacy mode and flase to handle them with hybrid
+      burst sequencing.
+
+  burst-byte-length:
+    type: int
+    enum:
+      - 128
+      - 64
+      - 16
+      - 32
+    default: 32
+    description: Num bytes to read/write per burst.
