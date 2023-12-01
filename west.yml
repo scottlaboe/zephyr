@@ -262,14 +262,6 @@ manifest:
       repo-path: hostap
       path: modules/lib/hostap
       revision: 7adaff26baa48e26a32c576125e0a749a5239b12
-
-    - name: iworx_modules
-      path: modules/iworx
-      remote: scottl_private
-      repo-path: iworx-zephyr-modules.git
-      revision: main
-      import: true
-
     - name: libmetal
       revision: 03140d7f4bd9ba474ebfbb6256e84a9089248e67
       path: modules/hal/libmetal

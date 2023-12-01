@@ -1,0 +1,21 @@
+#
+# Copyright (c) 2023 iWorx Systems Inc.
+#
+# SPDX-License-Identifier: BSD-Protection
+#
+
+manifest:
+  remotes:
+    - name: scottl_private
+      url-base: git@github.com:scottlaboe
+
+  projects:
+    - name: protocol_buffers
+      path: test/proto/src
+      remote: scottl_private
+      repo-path: iworx-proto.git
+      revision: main
+
+  self:
+    # This repository should be cloned to 
+    path: .
