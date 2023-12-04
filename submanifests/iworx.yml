@@ -10,13 +10,14 @@ manifest:
       url-base: git@github.com:scottlaboe
 
   projects:
-    - name: iworx_modules
-      path: modules/iworx/acquisition/test/proto/src
+    - name: iworx-modules
+      path: modules/iworx
       remote: scottl_private
-      repo-path: iworx-proto.git
+      repo-path: iworx-zephyr-modules.git
       revision: main
-    - name: protocol_buffers
-      path: modules/iworx/proto/src
+
+    - name: iworx-proto
+      path: modules/iworx_protocol_buffers
       remote: scottl_private
       repo-path: iworx-proto.git
       revision: main
