@@ -5,13 +5,13 @@ manifest:
 
   projects:
     # Drivers
-    - name: drivers
+    - name: scottl_drivers
       remote: scottl_private
       repo-path: zephyr-drivers.git
       revision: main
 
     # Boards
-    - name: boards
+    - name: scottl_boards
       remote: scottl_private
       repo-path: zephyr-boards.git
       revision: main
