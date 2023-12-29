@@ -3,6 +3,7 @@ manifest:
     - name: scottl_private
       url-base: git@github.com:scottlaboe
 
+  projects:
     # Drivers
     - name: drivers
       remote: scottl_private
