@@ -1,0 +1,23 @@
+manifest:
+  remotes:
+    - name: scottl_private
+      url-base: git@github.com:scottlaboe
+
+  projects:
+    # Drivers
+    - name: scottl_drivers
+      remote: scottl_private
+      repo-path: zephyr-drivers.git
+      revision: main
+
+    # Boards
+    - name: scottl_boards
+      remote: scottl_private
+      repo-path: zephyr-boards.git
+      revision: main
+
+    # Modules
+    - name: scottl_modules
+      remote: scottl_private
+      repo-path: zephyr-modules.git
+      revision: main

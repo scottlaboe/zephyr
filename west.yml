@@ -25,6 +25,8 @@ manifest:
       url-base: https://github.com/BabbleSim
     - name: scottl_public
       url-base: https://github.com/scottlaboe
+    - name: scottl_private
+      url-base: git@github.com:scottlaboe
 
   group-filter: [-babblesim, -optional]
 
