@@ -274,6 +274,7 @@ static int wifi_connect(uint32_t mgmt_request, struct net_if *iface,
 	    (params->ssid_length > WIFI_SSID_MAX_LEN) ||
 	    (params->ssid_length == 0U) ||
 	    ((params->security == WIFI_SECURITY_TYPE_PSK ||
+		  params->security == WIFI_SECURITY_TYPE_WPA_PSK ||
 		  params->security == WIFI_SECURITY_TYPE_PSK_SHA256) &&
 	     ((params->psk_length < 8) || (params->psk_length > 64) ||
 	      (params->psk_length == 0U) || !params->psk)) ||
@@ -705,4 +706,44 @@ void wifi_mgmt_raise_disconnect_complete_event(struct net_if *iface,
 	net_mgmt_event_notify_with_info(NET_EVENT_WIFI_DISCONNECT_COMPLETE,
 					iface, &cnx_status,
 					sizeof(struct wifi_status));
+}
+
+void wifi_mgmt_raise_ap_enable_result_event(struct net_if *iface,
+					    enum wifi_ap_status status)
+{
+	struct wifi_status cnx_status = {
+		.status = status,
+	};
+
+	net_mgmt_event_notify_with_info(NET_EVENT_WIFI_AP_ENABLE_RESULT,
+					iface, &cnx_status,
+					sizeof(enum wifi_ap_status));
+}
+
+void wifi_mgmt_raise_ap_disable_result_event(struct net_if *iface,
+					     enum wifi_ap_status status)
+{
+	struct wifi_status cnx_status = {
+		.status = status,
+	};
+
+	net_mgmt_event_notify_with_info(NET_EVENT_WIFI_AP_DISABLE_RESULT,
+					iface, &cnx_status,
+					sizeof(enum wifi_ap_status));
+}
+
+void wifi_mgmt_raise_ap_sta_connected_event(struct net_if *iface,
+					    struct wifi_ap_sta_info *sta_info)
+{
+	net_mgmt_event_notify_with_info(NET_EVENT_WIFI_AP_STA_CONNECTED,
+					iface, sta_info,
+					sizeof(struct wifi_ap_sta_info));
+}
+
+void wifi_mgmt_raise_ap_sta_disconnected_event(struct net_if *iface,
+					       struct wifi_ap_sta_info *sta_info)
+{
+	net_mgmt_event_notify_with_info(NET_EVENT_WIFI_AP_STA_DISCONNECTED,
+					iface, sta_info,
+					sizeof(struct wifi_ap_sta_info));
 }

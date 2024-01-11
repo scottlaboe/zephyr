@@ -37,6 +37,8 @@ Architectures
 
 * Xtensa
 
+  * Removed the unused Kconfig option ``CONFIG_XTENSA_NO_IPC``.
+
 * x86
 
 * POSIX
@@ -52,6 +54,11 @@ Bluetooth
 
 * Mesh
 
+  * Added the delayable messages functionality to apply random delays for
+    the transmitted responses on the Access layer.
+    The functionality is enabled by the :kconfig:option:`CONFIG_BT_MESH_ACCESS_DELAYABLE_MSG`
+    Kconfig option.
+
 * Controller
 
 Boards & SoC Support
@@ -59,13 +66,20 @@ Boards & SoC Support
 
 * Added support for these SoC series:
 
+  * Added support for Renesas R-Car Gen4 series
+
 * Removed support for these SoC series:
 
 * Made these changes in other SoC series:
 
+  * Nordic SoCs now imply :kconfig:option:`CONFIG_XIP` instead of selecting it, this allows for
+    creating RAM-based applicatins by disabling it.
+
 * Added support for these ARC boards:
 
 * Added support for these ARM boards:
+
+  * Added support for Renesas R-Car Spider board CR52: ``rcar_spider_cr52``
 
 * Added support for these ARM64 boards:
 
@@ -110,6 +124,28 @@ Boards & SoC Support
 Build system and infrastructure
 *******************************
 
+* Dropped the ``COMPAT_INCLUDES`` option, it was unused since 3.0.
+
+* Fixed an issue whereby board revision ``0`` did not include overlay files for that revision.
+
+* Added ``PRE_IMAGE_CMAKE`` and ``POST_IMAGE_CMAKE`` hooks to sysbuild modules, which allows for
+  modules to run code after and before each image's cmake invocation.
+
+* Added :kconfig:option:`CONFIG_ROM_END_OFFSET` option which allows reducing the size of an image,
+  this is intended for use with firmware signing scripts which add additional data to the end of
+  images outside of the build itself.
+
+* Added MCUboot image size reduction to sysbuild images which include MCUboot which prevents
+  issues with building firmware images that are too large for MCUboot to swap.
+
+* Deprecated :kconfig:option:`CONFIG_BOOTLOADER_SRAM_SIZE`, users of this should transition to
+  having RAM set up properly in their board devicetree files.
+
+* Fixed an issue whereby shields were processed in order of the root they resided in rather than
+  the order they were supplied to cmake in.
+
+* Fixed an issue whereby using some shields with sysbuild would cause a cmake Kconfig error.
+
 Drivers and Sensors
 *******************
 
@@ -118,6 +154,8 @@ Drivers and Sensors
 * CAN
 
 * Clock control
+
+  * Renesas R-Car clock control driver now supports Gen4 SoCs
 
 * Counter
 
@@ -139,13 +177,20 @@ Drivers and Sensors
 
 * GPIO
 
+  * Renesas R-Car GPIO driver now supports Gen4 SoCs
+
 * I2C
 
 * I2S
 
 * I3C
 
+  * The Legacy Virtual Register defines have been renamed from ``I3C_DCR_I2C_*``
+    to ``I3C_LVR_I2C_*``.
+
 * IEEE 802.15.4
+
+  * Removed :kconfig:option:`CONFIG_IEEE802154_SELECTIVE_TXPOWER` Kconfig option.
 
 * Interrupt Controller
 
@@ -157,6 +202,8 @@ Drivers and Sensors
 
 * Pin control
 
+  * Renesas R-Car pinctrl driver now supports Gen4 SoCs
+
 * PWM
 
 * Regulators
@@ -164,6 +211,10 @@ Drivers and Sensors
 * Reset
 
 * Retained memory
+
+  * Retained memory driver backend for registers has been added.
+
+  * Retained memory API status changed from experimental to unstable.
 
 * RTC
 
@@ -186,6 +237,13 @@ Networking
 
 * CoAP:
 
+  * Emit observer/service network events using the Network Event subsystem.
+
+  * Added new API functions:
+
+    * :c:func:`coap_get_transmission_parameters`
+    * :c:func:`coap_set_transmission_parameters`
+
 * Connection Manager:
 
 * DHCP:
@@ -202,6 +260,16 @@ Networking
 
 * Misc:
 
+  * It is now possible to have separate IPv4 TTL value and IPv6 hop limit value for
+    unicast and multicast packets. This can be controlled in each socket via
+    :c:func:`setsockopt` API.
+
+  * Added support for compile time network event handlers using the macro
+    :c:macro:`NET_MGMT_REGISTER_EVENT_HANDLER`.
+
+  * The :kconfig:option:`CONFIG_NET_MGMT_EVENT_WORKER` choice is added to
+    allow emitting network events using the system work queue or synchronously.
+
 * MQTT-SN:
 
 * OpenThread:
@@ -209,6 +277,9 @@ Networking
 * PPP:
 
 * Sockets:
+
+  * Added support for IPv4 multicast ``IP_ADD_MEMBERSHIP`` and ``IP_DROP_MEMBERSHIP`` socket options.
+  * Added support for IPv6 multicast ``IPV6_ADD_MEMBERSHIP`` and ``IPV6_DROP_MEMBERSHIP`` socket options.
 
 * TCP:
 
@@ -236,6 +307,24 @@ Libraries / Subsystems
 
 * Management
 
+  * Fixed an issue in MCUmgr image management whereby erasing an already erased slot would return
+    an unknown error, it now returns success.
+
+  * Fixed MCUmgr UDP transport structs being statically initialised, this results in about a
+    ~5KiB flash saving.
+
+  * Fixed an issue in MCUmgr which would cause a user data buffer overflow if the UDP transport was
+    enabled on IPv4 only but IPv6 support was enabled in the kernel.
+
+  * Implemented datetime functionality in MCUmgr OS management group, this makes use of the RTC
+    driver API.
+
+  * Fixed an issue in MCUmgr console UART input whereby the FIFO would be read outside of an ISR,
+    which is not supported in the next USB stack.
+
+  * Fixed an issue whereby the ``mcuboot erase`` DFU shell command could be used to erase the
+    MCUboot or currently running application slot.
+
 * File systems
 
 * Modem modules
@@ -245,6 +334,9 @@ Libraries / Subsystems
 * Random
 
 * Retention
+
+  * Fixed issue whereby :kconfig:option:`CONFIG_RETENTION_BUFFER_SIZE` values over 256 would cause
+    an infinite loop due to use of 8-bit variables.
 
 * Binary descriptors
 
@@ -257,6 +349,11 @@ Libraries / Subsystems
 * RTIO
 
 * ZBus
+
+  * Renamed :kconfig:option:`ZBUS_MSG_SUBSCRIBER_NET_BUF_DYNAMIC` and
+    :kconfig:option:`ZBUS_MSG_SUBSCRIBER_NET_BUF_STATIC`
+    with :kconfig:option:`ZBUS_MSG_SUBSCRIBER_BUF_ALLOC_DYNAMIC` and
+    :kconfig:option:`ZBUS_MSG_SUBSCRIBER_BUF_ALLOC_STATIC`
 
 HALs
 ****
@@ -278,3 +375,11 @@ Documentation
 
 Tests and Samples
 *****************
+
+* :ref:`native_sim<native_sim>` has replaced :ref:`native_posix<native_posix>` as the default
+  test platform.
+  :ref:`native_posix<native_posix>` remains supported and used in testing but will be deprecated
+  in a future release.
+
+* Fixed an issue in :zephyr:code-sample:`smp-svr` sample whereby if USB was already initialised,
+  application would fail to boot properly.

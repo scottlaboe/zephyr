@@ -10,12 +10,6 @@
 #include <zephyr/devicetree.h>
 
 /*
- * NRFX API version 2.10 flag.
- * When the flag is set NRFX API is compatible with the newest NRFX release.
- */
-#define NRFX_CONFIG_API_VER_2_10 1
-
-/*
  * These are mappings of Kconfig options enabling nrfx drivers and particular
  * peripheral instances to the corresponding symbols used inside of nrfx.
  * Please note that only subsets of these entries are used for particular SoCs
@@ -117,15 +111,24 @@
 
 #ifdef CONFIG_NRFX_GPIOTE
 #define NRFX_GPIOTE_ENABLED 1
-#if (defined(CONFIG_SOC_SERIES_NRF91X) || defined(CONFIG_SOC_SERIES_NRF53X)) \
-	&& defined(NRF_TRUSTZONE_NONSECURE)
-#define NRFX_GPIOTE1_ENABLED 1
-#else
+#endif
+#ifdef CONFIG_NRFX_GPIOTE0
 #define NRFX_GPIOTE0_ENABLED 1
 #endif
+#ifdef CONFIG_NRFX_GPIOTE1
+#define NRFX_GPIOTE1_ENABLED 1
 #endif
-#ifdef CONFIG_NRFX_GPIOTE_LOG
-#define NRFX_GPIOTE_CONFIG_LOG_ENABLED 1
+#ifdef CONFIG_NRFX_GPIOTE20
+#define NRFX_GPIOTE20_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_GPIOTE30
+#define NRFX_GPIOTE30_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_GPIOTE130
+#define NRFX_GPIOTE130_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_GPIOTE131
+#define NRFX_GPIOTE131_ENABLED 1
 #endif
 
 #ifdef CONFIG_NRFX_GPIOTE_NUM_OF_EVT_HANDLERS
@@ -140,6 +143,9 @@
 #endif
 #ifdef CONFIG_NRFX_I2S0
 #define NRFX_I2S0_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_I2S20
+#define NRFX_I2S20_ENABLED 1
 #endif
 
 #ifdef CONFIG_NRFX_IPC
@@ -243,6 +249,18 @@
 #endif
 #ifdef CONFIG_NRFX_QDEC1
 #define NRFX_QDEC1_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_QDEC20
+#define NRFX_QDEC20_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_QDEC21
+#define NRFX_QDEC21_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_QDEC130
+#define NRFX_QDEC130_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_QDEC131
+#define NRFX_QDEC131_ENABLED 1
 #endif
 
 #ifdef CONFIG_NRFX_QSPI
@@ -546,17 +564,6 @@
 #define NRFX_UARTE3_ENABLED 1
 #endif
 
-#ifdef CONFIG_NRFX_USBD
-#define NRFX_USBD_ENABLED 1
-#endif
-#ifdef CONFIG_NRFX_USBD_LOG
-#define NRFX_USBD_CONFIG_LOG_ENABLED 1
-#endif
-
-#ifdef CONFIG_NRFX_USBD_ISO_IN_ZLP
-#define NRFX_USBD_CONFIG_ISO_IN_ZLP 1
-#endif
-
 #ifdef CONFIG_NRFX_USBREG
 #define NRFX_USBREG_ENABLED 1
 #endif
@@ -576,12 +583,23 @@
 #ifdef CONFIG_NRFX_WDT1
 #define NRFX_WDT1_ENABLED 1
 #endif
+#ifdef CONFIG_NRFX_WDT30
+#define NRFX_WDT30_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_WDT31
+#define NRFX_WDT31_ENABLED 1
+#endif
+#ifdef CONFIG_NRFX_WDT130
+#define NRFX_WDT130_ENABLED 1
+#endif
 
 #ifdef CONFIG_NRF52_ANOMALY_109_WORKAROUND
 #define NRFX_SPIM_NRF52_ANOMALY_109_WORKAROUND_ENABLED 1
 #define NRFX_SPIS_NRF52_ANOMALY_109_WORKAROUND_ENABLED 1
 #define NRFX_TWIM_NRF52_ANOMALY_109_WORKAROUND_ENABLED 1
 #define NRFX_PWM_NRF52_ANOMALY_109_WORKAROUND_ENABLED 1
+#define NRFX_PWM_NRF52_ANOMALY_109_EGU_INSTANCE \
+	CONFIG_NRF52_ANOMALY_109_WORKAROUND_EGU_INSTANCE
 #endif
 
 #if defined(CONFIG_SOC_SERIES_BSIM_NRFXX)

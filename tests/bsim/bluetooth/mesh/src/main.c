@@ -19,6 +19,7 @@ extern struct bst_test_list *test_sar_pst_install(struct bst_test_list *test);
 #endif /* defined(CONFIG_BT_MESH_V1d1) */
 #elif defined(CONFIG_BT_MESH_GATT_PROXY)
 extern struct bst_test_list *test_adv_install(struct bst_test_list *test);
+extern struct bst_test_list *test_suspend_install(struct bst_test_list *test);
 #if defined(CONFIG_BT_MESH_V1d1)
 extern struct bst_test_list *test_beacon_install(struct bst_test_list *tests);
 #endif /* defined(CONFIG_BT_MESH_V1d1) */
@@ -26,6 +27,7 @@ extern struct bst_test_list *test_beacon_install(struct bst_test_list *tests);
 #elif defined(CONFIG_BT_CTLR_LOW_LAT)
 extern struct bst_test_list *test_transport_install(struct bst_test_list *tests);
 extern struct bst_test_list *test_friendship_install(struct bst_test_list *tests);
+extern struct bst_test_list *test_suspend_install(struct bst_test_list *test);
 #else
 extern struct bst_test_list *test_transport_install(struct bst_test_list *tests);
 extern struct bst_test_list *test_friendship_install(struct bst_test_list *tests);
@@ -36,6 +38,7 @@ extern struct bst_test_list *test_heartbeat_install(struct bst_test_list *test);
 extern struct bst_test_list *test_access_install(struct bst_test_list *test);
 extern struct bst_test_list *test_ivi_install(struct bst_test_list *test);
 extern struct bst_test_list *test_adv_install(struct bst_test_list *test);
+extern struct bst_test_list *test_suspend_install(struct bst_test_list *test);
 #if defined(CONFIG_BT_MESH_V1d1)
 extern struct bst_test_list *test_blob_install(struct bst_test_list *test);
 extern struct bst_test_list *test_op_agg_install(struct bst_test_list *test);
@@ -57,12 +60,14 @@ bst_test_install_t test_installers[] = {
 #endif /* defined(CONFIG_BT_MESH_V1d1) */
 #elif defined(CONFIG_BT_MESH_GATT_PROXY)
 	test_adv_install,
+	test_suspend_install,
 #if defined(CONFIG_BT_MESH_V1d1)
 	test_beacon_install,
 #endif /* defined(CONFIG_BT_MESH_V1d1) */
 #elif defined(CONFIG_BT_CTLR_LOW_LAT)
 	test_transport_install,
 	test_friendship_install,
+	test_suspend_install,
 #else
 	test_transport_install,
 	test_friendship_install,
@@ -73,6 +78,7 @@ bst_test_install_t test_installers[] = {
 	test_access_install,
 	test_ivi_install,
 	test_adv_install,
+	test_suspend_install,
 #if defined(CONFIG_BT_MESH_V1d1)
 	test_blob_install,
 	test_op_agg_install,

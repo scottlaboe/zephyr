@@ -56,7 +56,7 @@ Nucleo G0B1RE provides the following hardware components:
 - HDMI_CEC(1)
 - USB 2.0 FS device (crystal-less) and host controller(1)
 - USB Type-C Power Delivery controller
-- CAN-FD(2)
+- CAN FD(2)
 - GPIO (up to 94) with external interrupt capability
 - Tamper Pins(3)
 - 12-bit ADC with 16 channels
@@ -108,6 +108,8 @@ The Zephyr nucleo_g0b1re board configuration supports the following hardware fea
 +-----------+------------+-------------------------------------+
 | die-temp  | on-chip    | die temperature sensor              |
 +-----------+------------+-------------------------------------+
+| FDCAN1    | on-chip    | CAN controller                      |
++-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported in this Zephyr port.
 
@@ -137,8 +139,9 @@ Default Zephyr Peripheral Mapping:
 - ADC1 IN0  : PA0
 - ADC1 IN1  : PA1
 - DAC1_OUT1 : PA4
+- FDCAN1 RX/TX: PA11/PA12
 
-For mode details please refer to `STM32 Nucleo-64 board User Manual`_.
+For more details please refer to `STM32 Nucleo-64 board User Manual`_.
 
 Programming and Debugging
 *************************
