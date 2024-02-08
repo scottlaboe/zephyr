@@ -15,9 +15,13 @@ manifest:
       remote: scottl_private
       repo-path: iworx-zephyr-modules.git
       revision: main
+      groups:
+        - iworx
 
     - name: iworx-proto
       path: modules/iworx_protocol_buffers
       remote: scottl_private
       repo-path: iworx-proto.git
       revision: main
+      groups:
+        - iworx
