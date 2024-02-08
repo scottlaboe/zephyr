@@ -7,6 +7,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/pm/device.h>
 #include <zephyr/drivers/pinctrl.h>
+#include <zephyr/devicetree.h>
 #include <soc.h>
 
 #include <nrfx_qdec.h>
@@ -24,6 +25,8 @@ LOG_MODULE_REGISTER(qdec_nrfx, CONFIG_SENSOR_LOG_LEVEL);
 #define ACC_MAX (INT_MAX / FULL_ANGLE)
 #define ACC_MIN (INT_MIN / FULL_ANGLE)
 
+// Calculate sample period for a data ready report interrupt
+#define NRF_QDEC_SAMPLE_PERIOD_US(t_config)	(t_config->num_samples_per_report * t_config->sample_period_us)
 
 struct qdec_nrfx_data {
 	int32_t acc;
@@ -34,6 +37,8 @@ struct qdec_nrfx_data {
 struct qdec_nrfx_config {
 	nrfx_qdec_t qdec;
 	nrfx_qdec_config_t config;
+	uint32_t num_samples_per_report;
+	uint32_t sample_period_us;
 	void (*irq_connect)(void);
 	const struct pinctrl_dev_config *pcfg;
 	uint32_t enable_pin;
@@ -62,7 +67,9 @@ static int qdec_nrfx_sample_fetch(const struct device *dev,
 	int32_t acc;
 	uint32_t accdbl;
 
-	if ((chan != SENSOR_CHAN_ALL) && (chan != SENSOR_CHAN_ROTATION)) {
+	if ((chan != SENSOR_CHAN_ALL) &&
+		(chan != SENSOR_CHAN_ROTATION) &&
+		(chan != SENSOR_CHAN_RPM)) {
 		return -ENOTSUP;
 	}
 
@@ -82,7 +89,8 @@ static int qdec_nrfx_channel_get(const struct device *dev,
 	unsigned int key;
 	int32_t acc;
 
-	if (chan != SENSOR_CHAN_ROTATION) {
+	if (chan != SENSOR_CHAN_ROTATION &&
+		chan != SENSOR_CHAN_RPM) {
 		return -ENOTSUP;
 	}
 
@@ -91,11 +99,21 @@ static int qdec_nrfx_channel_get(const struct device *dev,
 	data->acc = 0;
 	irq_unlock(key);
 
-	val->val1 = (acc * FULL_ANGLE) / config->steps;
-	val->val2 = (acc * FULL_ANGLE) - (val->val1 * config->steps);
-	if (val->val2 != 0) {
-		val->val2 *= 1000000;
-		val->val2 /= config->steps;
+	switch(chan){
+		case SENSOR_CHAN_RPM:
+			val->val1 = (((int32_t)SEC_PER_MIN * (int32_t)USEC_PER_SEC * acc) / config->steps) / ( (int32_t)NRF_QDEC_SAMPLE_PERIOD_US(config));
+			val->val2 = acc;
+			break;
+		case SENSOR_CHAN_ROTATION:
+			val->val1 = (acc * FULL_ANGLE) / config->steps;
+			val->val2 = (acc * FULL_ANGLE) - (val->val1 * config->steps);
+			if (val->val2 != 0) {
+				val->val2 *= 1000000;
+				val->val2 /= config->steps;
+			}
+			break;
+		default:
+			return -ENOTSUP;
 	}
 
 	return 0;
@@ -113,7 +131,8 @@ static int qdec_nrfx_trigger_set(const struct device *dev,
 	}
 
 	if ((trig->chan != SENSOR_CHAN_ALL) &&
-	    (trig->chan != SENSOR_CHAN_ROTATION)) {
+	    (trig->chan != SENSOR_CHAN_ROTATION &&
+		(trig->chan != SENSOR_CHAN_RPM))) {
 		return -ENOTSUP;
 	}
 
@@ -268,13 +287,15 @@ static int qdec_nrfx_init(const struct device *dev)
 	PINCTRL_DT_DEFINE(QDEC(idx));							     \
 	static struct qdec_nrfx_config qdec_##idx##_config = {				     \
 		.qdec = NRFX_QDEC_INSTANCE(idx),					     \
+		.num_samples_per_report = DT_INST_PROP(idx, report_samples),	\
+		.sample_period_us = DT_INST_PROP(idx, sample_period_us),	\
 		.config = {								     \
-			.reportper = NRF_QDEC_REPORTPER_40,				     \
-			.sampleper = NRF_QDEC_SAMPLEPER_2048US,				     \
+			.reportper = NRFX_CONCAT_2(NRF_QDEC_REPORTPER_, DT_INST_PROP(idx, report_samples)),		\
+			.sampleper = NRFX_CONCAT_3(NRF_QDEC_SAMPLEPER_, DT_INST_PROP(idx, sample_period_us), US),	\
 			.skip_gpio_cfg = true,						     \
 			.skip_psel_cfg = true,						     \
 			.ledpre  = QDEC_PROP(idx, led_pre),				     \
-			.ledpol  = NRF_QDEC_LEPOL_ACTIVE_HIGH,				     \
+			.ledpol  = DT_INST_PROP_OR(idx, led_pol_active_low, NRF_QDEC_LEPOL_ACTIVE_HIGH),			\
 			.reportper_inten = true,					     \
 		},									     \
 		.irq_connect = irq_connect##idx,					     \

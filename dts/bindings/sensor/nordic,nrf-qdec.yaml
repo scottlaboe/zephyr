@@ -41,3 +41,37 @@ properties:
     type: int
     description: Number of steps on the rotating wheel
     required: true
+
+  led-pol-active-low:
+    type: boolean
+    description: LED is enabled with an active high by default. Set this
+      to true to invert the LED enable such that the LED is active when 
+      the LED pin is low.
+
+  report-samples:
+    type: int
+    description: The number of samples to accumulate before triggering a 
+      data ready interrupt.
+    enum:
+      - 1
+      - 10
+      - 40
+      - 80
+      - 120
+      - 160
+      - 200
+      - 240
+      - 280
+
+  sample-period-us:
+    type: int
+    description: The number of microseconds between each sample.
+    enum:
+      - 128
+      - 256
+      - 512
+      - 1024
+      - 2048
+      - 4096
+      - 8192
+      - 16384
