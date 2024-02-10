@@ -533,7 +533,7 @@ static inline uint8_t bin2bcd(uint8_t bin)
 */
 static inline uint8_t u32_num_set_bits(uint32_t val){
 	uint8_t num_set_bits = 0;
-	for( int i = 0; i < NUM_BITS(uint32_t); ++i ){
+	for( uint32_t i = 0; i < NUM_BITS(uint32_t); ++i ){
 		num_set_bits += (val & BIT(i)) ? 1 : 0;
 	}
 	return num_set_bits;
