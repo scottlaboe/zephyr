@@ -17,7 +17,10 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(settings, CONFIG_SETTINGS_LOG_LEVEL);
 
-#if DT_HAS_CHOSEN(zephyr_settings_partition)
+#if USE_PARTITION_MANAGER
+#include <pm_config.h>
+#define SETTINGS_PARTITION PM_SETTINGS_STORAGE_ID
+#elif DT_HAS_CHOSEN(zephyr_settings_partition)
 #define SETTINGS_PARTITION DT_FIXED_PARTITION_ID(DT_CHOSEN(zephyr_settings_partition))
 #else
 #define SETTINGS_PARTITION FIXED_PARTITION_ID(storage_partition)
