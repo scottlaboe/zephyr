@@ -330,6 +330,7 @@ extern "C" {
  */
 #define GET_ARG_N(N, ...) Z_GET_ARG_##N(__VA_ARGS__)
 
+
 /**
  * @brief Strips n first arguments from the argument list.
  *
@@ -339,6 +340,29 @@ extern "C" {
  * @return argument list without N first arguments.
  */
 #define GET_ARGS_LESS_N(N, ...) Z_GET_ARGS_LESS_##N(__VA_ARGS__)
+
+
+/**
+ * @brief Get even indexed arguments from argument list. So 
+ * every 2nd, 4th, 6th, etc. argument
+ *
+ * @param ... Variable list of arguments from even indexed 
+ * arguments are returned
+ *
+ * @return Every Nth argument where N is even.
+ */
+#define GET_EVEN_ARGS(...) Z_GET_EVEN_ARGS_N(NUM_VA_ARGS_LESS_1(LIST_DROP_EMPTY(__VA_ARGS__), 0), __VA_ARGS__)
+
+/**
+ * @brief Get odd indexed arguments from argument list. So 
+ * every 1st, 3rd, 5th, etc. argument
+ *
+ * @param ... Variable list of arguments from odd indexed 
+ * arguments are returned
+ *
+ * @return Every Nth argument where N is odd.
+ */
+#define GET_ODD_ARGS(...) Z_GET_ODD_ARGS_N(NUM_VA_ARGS_LESS_1(__VA_ARGS__, 0), __VA_ARGS__)
 
 /**
  * @brief Like <tt>a || b</tt>, but does evaluation and

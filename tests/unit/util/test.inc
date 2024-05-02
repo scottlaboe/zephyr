@@ -628,3 +628,41 @@ void run_DIV_ROUND_CLOSEST(void)
 	zassert_equal(DIV_ROUND_CLOSEST(7, 3), 2);
 	zassert_equal(DIV_ROUND_CLOSEST(-7, 3), -2);
 }
+
+void run_GET_EVEN_ARGS(void)
+{
+	uint8_t test_array_4[2] = {
+		GET_EVEN_ARGS(1, 2, 3, 4)
+	};
+	uint8_t test_array_16[8] = {
+		GET_EVEN_ARGS(1, 2, 3, 4, 5, 6, 7,
+			8, 9, 10, 11, 12, 13, 14, 15, 16)
+	};
+
+	zassert_equal(GET_EVEN_ARGS(1, 2), 2);
+	zassert_equal(GET_EVEN_ARGS(1, 2, 3), 2);
+	zassert_equal(test_array_4[0], 2);
+	zassert_equal(test_array_4[1], 4);
+	zassert_equal(test_array_16[0], 2);
+	zassert_equal(test_array_16[1], 4);
+	zassert_equal(test_array_16[7], 16);
+}
+
+void run_GET_ODD_ARGS(void)
+{
+	uint8_t test_array_4[2] = {
+		GET_ODD_ARGS(1, 2, 3, 4)
+	};
+	uint8_t test_array_16[8] = {
+		GET_ODD_ARGS(1, 2, 3, 4, 5, 6, 7,
+			8, 9, 10, 11, 12, 13, 14, 15, 16)
+	};
+
+	zassert_equal(GET_ODD_ARGS(1), 1);
+	zassert_equal(GET_ODD_ARGS(1, 2), 1);
+	zassert_equal(test_array_4[0], 1);
+	zassert_equal(test_array_4[1], 3);
+	zassert_equal(test_array_16[0], 1);
+	zassert_equal(test_array_16[1], 3);
+	zassert_equal(test_array_16[7], 15);
+}

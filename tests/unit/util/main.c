@@ -304,4 +304,14 @@ ZTEST(util_cc, test_DIV_ROUND_CLOSEST)
 	run_DIV_ROUND_CLOSEST();
 }
 
+ZTEST(util_cc, test_GET_EVEN_ARGS)
+{
+	run_GET_EVEN_ARGS();
+}
+
+ZTEST(util_cc, test_GET_ODD_ARGS)
+{
+	run_GET_ODD_ARGS();
+}
+
 ZTEST_SUITE(util_cc, NULL, NULL, NULL, NULL, NULL);
