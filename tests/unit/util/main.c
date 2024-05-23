@@ -64,6 +64,47 @@ ZTEST(util, test_u8_to_dec) {
 		      "Length of converted value using 0 byte buffer isn't 0");
 }
 
+ZTEST(util, test_sign_extend) {
+	uint8_t u8;
+	uint16_t u16;
+	uint32_t u32;
+
+	u8 = 0x0f;
+	zassert_equal(sign_extend(u8, 3), -1);
+	zassert_equal(sign_extend(u8, 4), 0xf);
+
+	u16 = 0xfff;
+	zassert_equal(sign_extend(u16, 11), -1);
+	zassert_equal(sign_extend(u16, 12), 0xfff);
+
+	u32 = 0xfffffff;
+	zassert_equal(sign_extend(u32, 27), -1);
+	zassert_equal(sign_extend(u32, 28), 0xfffffff);
+}
+
+ZTEST(util, test_sign_extend_64) {
+	uint8_t u8;
+	uint16_t u16;
+	uint32_t u32;
+	uint64_t u64;
+
+	u8 = 0x0f;
+	zassert_equal(sign_extend_64(u8, 3), -1);
+	zassert_equal(sign_extend_64(u8, 4), 0xf);
+
+	u16 = 0xfff;
+	zassert_equal(sign_extend_64(u16, 11), -1);
+	zassert_equal(sign_extend_64(u16, 12), 0xfff);
+
+	u32 = 0xfffffff;
+	zassert_equal(sign_extend_64(u32, 27), -1);
+	zassert_equal(sign_extend_64(u32, 28), 0xfffffff);
+
+	u64 = 0xfffffffffffffff;
+	zassert_equal(sign_extend_64(u64, 59), -1);
+	zassert_equal(sign_extend_64(u64, 60), 0xfffffffffffffff);
+}
+
 ZTEST(util, test_COND_CODE_1) {
 	#define TEST_DEFINE_1 1
 	#define TEST_DEFINE_0 0
@@ -236,6 +277,7 @@ ZTEST(util, test_IN_RANGE) {
 
 ZTEST(util, test_FOR_EACH) {
 	#define FOR_EACH_MACRO_TEST(arg) *buf++ = arg
+	#define FOR_EACH_MACRO_TEST2(arg) arg
 
 	uint8_t array[3] = {0};
 	uint8_t *buf = array;
@@ -245,6 +287,14 @@ ZTEST(util, test_FOR_EACH) {
 	zassert_equal(array[0], 1, "Unexpected value %d", array[0]);
 	zassert_equal(array[1], 2, "Unexpected value %d", array[1]);
 	zassert_equal(array[2], 3, "Unexpected value %d", array[2]);
+
+	uint8_t test0[] = { 0, FOR_EACH(FOR_EACH_MACRO_TEST2, (,))};
+
+	BUILD_ASSERT(sizeof(test0) == 1, "Unexpected length due to FOR_EACH fail");
+
+	uint8_t test1[] = { 0, FOR_EACH(FOR_EACH_MACRO_TEST2, (,), 1)};
+
+	BUILD_ASSERT(sizeof(test1) == 2, "Unexpected length due to FOR_EACH fail");
 }
 
 ZTEST(util, test_FOR_EACH_NONEMPTY_TERM) {
@@ -715,6 +765,42 @@ ZTEST(util, test_mem_xor_128)
 
 	mem_xor_128(dst, src1, src2);
 	zassert_mem_equal(expected_result, dst, 16);
+}
+
+ZTEST(util, test_CONCAT)
+{
+#define _CAT_PART1 1
+#define CAT_PART1 _CAT_PART1
+#define _CAT_PART2 2
+#define CAT_PART2 _CAT_PART2
+#define _CAT_PART3 3
+#define CAT_PART3 _CAT_PART3
+#define _CAT_PART4 4
+#define CAT_PART4 _CAT_PART4
+#define _CAT_PART5 5
+#define CAT_PART5 _CAT_PART5
+#define _CAT_PART6 6
+#define CAT_PART6 _CAT_PART6
+#define _CAT_PART7 7
+#define CAT_PART7 _CAT_PART7
+#define _CAT_PART8 8
+#define CAT_PART8 _CAT_PART8
+
+	zassert_equal(CONCAT(CAT_PART1), 1);
+	zassert_equal(CONCAT(CAT_PART1, CAT_PART2), 12);
+	zassert_equal(CONCAT(CAT_PART1, CAT_PART2, CAT_PART3), 123);
+	zassert_equal(CONCAT(CAT_PART1, CAT_PART2, CAT_PART3, CAT_PART4), 1234);
+	zassert_equal(CONCAT(CAT_PART1, CAT_PART2, CAT_PART3, CAT_PART4, CAT_PART5), 12345);
+	zassert_equal(CONCAT(CAT_PART1, CAT_PART2, CAT_PART3, CAT_PART4, CAT_PART5, CAT_PART6),
+			123456);
+	zassert_equal(CONCAT(CAT_PART1, CAT_PART2, CAT_PART3, CAT_PART4,
+			     CAT_PART5, CAT_PART6, CAT_PART7),
+			1234567);
+	zassert_equal(CONCAT(CAT_PART1, CAT_PART2, CAT_PART3, CAT_PART4,
+			     CAT_PART5, CAT_PART6, CAT_PART7, CAT_PART8),
+			12345678);
+
+	zassert_equal(CONCAT(CAT_PART1, CONCAT(CAT_PART2, CAT_PART3)), 123);
 }
 
 ZTEST_SUITE(util, NULL, NULL, NULL, NULL, NULL);

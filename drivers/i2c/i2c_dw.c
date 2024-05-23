@@ -124,7 +124,7 @@ int32_t i2c_dw_idma_rx_transfer(const struct device *dev)
 	dma_cfg.dma_callback = cb_i2c_idma_transfer;
 	dma_cfg.user_data = (void *)dev;
 	dma_cfg.complete_callback_en = 0U;
-	dma_cfg.error_callback_en = 1U;
+	dma_cfg.error_callback_dis = 0U;
 	dma_cfg.block_count = 1U;
 	dma_cfg.head_block = &dma_block_cfg;
 
@@ -172,7 +172,7 @@ int32_t i2c_dw_idma_tx_transfer(const struct device *dev,
 	dma_cfg.dma_callback = cb_i2c_idma_transfer;
 	dma_cfg.user_data = (void *)dev;
 	dma_cfg.complete_callback_en = 0U;
-	dma_cfg.error_callback_en = 1U;
+	dma_cfg.error_callback_dis = 0U;
 	dma_cfg.block_count = 1U;
 	dma_cfg.head_block = &dma_block_cfg;
 
@@ -187,7 +187,7 @@ int32_t i2c_dw_idma_tx_transfer(const struct device *dev,
 	}
 
 	if (dma_start(rom->dma_dev, DMA_INTEL_LPSS_TX_CHAN)) {
-		LOG_DBG("Error trnasfer");
+		LOG_DBG("Error transfer");
 		return  -EIO;
 	}
 	i2c_dw_enable_idma(dev, true);
@@ -252,7 +252,9 @@ static inline void i2c_dw_data_ask(const struct device *dev)
 			data |= IC_DATA_CMD_STOP;
 		}
 
+#ifdef CONFIG_I2C_TARGET
 		clear_bit_intr_mask_tx_empty(reg_base);
+#endif /* CONFIG_I2C_TARGET */
 
 		write_cmd_data(data, reg_base);
 
@@ -413,6 +415,7 @@ static void i2c_dw_isr(const struct device *port)
 			i2c_dw_data_read(port);
 		}
 
+#ifdef CONFIG_I2C_TARGET
 		/* Check if the TX FIFO is ready for commands.
 		 * TX FIFO also serves as command queue where read requests
 		 * are written to TX FIFO.
@@ -421,6 +424,7 @@ static void i2c_dw_isr(const struct device *port)
 			    == I2C_MSG_READ) {
 			set_bit_intr_mask_tx_empty(reg_base);
 		}
+#endif /* CONFIG_I2C_TARGET */
 
 		if (intr_stat.bits.tx_empty) {
 			if ((dw->xfr_flags & I2C_MSG_RW_MASK)
@@ -909,7 +913,7 @@ static int i2c_dw_set_slave_mode(const struct device *dev, uint8_t addr)
 	write_tx_tl(0, reg_base);
 	write_rx_tl(0, reg_base);
 
-	LOG_DBG("I2C: Host registed as Slave Device");
+	LOG_DBG("I2C: Host registered as Slave Device");
 
 	return 0;
 }

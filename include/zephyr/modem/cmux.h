@@ -25,6 +25,7 @@
 #include <zephyr/sys/atomic.h>
 
 #include <zephyr/modem/pipe.h>
+#include <zephyr/modem/stats.h>
 
 #ifndef ZEPHYR_MODEM_CMUX_
 #define ZEPHYR_MODEM_CMUX_
@@ -102,6 +103,11 @@ struct modem_cmux_dlci {
 
 	/* State */
 	enum modem_cmux_dlci_state state;
+
+	/* Statistics */
+#if CONFIG_MODEM_STATS
+	struct modem_stats_buffer receive_buf_stats;
+#endif
 };
 
 struct modem_cmux_frame {
@@ -141,6 +147,8 @@ struct modem_cmux {
 	uint16_t receive_buf_size;
 	uint16_t receive_buf_len;
 
+	uint8_t work_buf[CONFIG_MODEM_CMUX_WORK_BUFFER_SIZE];
+
 	/* Transmit buffer */
 	struct ring_buf transmit_rb;
 	struct k_mutex transmit_rb_lock;
@@ -158,6 +166,12 @@ struct modem_cmux {
 
 	/* Synchronize actions */
 	struct k_event event;
+
+	/* Statistics */
+#if CONFIG_MODEM_STATS
+	struct modem_stats_buffer receive_buf_stats;
+	struct modem_stats_buffer transmit_buf_stats;
+#endif
 };
 
 /**

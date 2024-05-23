@@ -17,7 +17,7 @@
 
 #ifndef _ASMLANGUAGE
 #include <zephyr/kernel.h>
-#include <zephyr/sys/arch_interface.h>
+#include <zephyr/arch/arch_interface.h>
 #include <zephyr/sys/math_extras.h>
 #include <stdbool.h>
 #include <zephyr/logging/log.h>
@@ -62,7 +62,7 @@ static inline bool k_is_in_user_syscall(void)
 	 * calls from supervisor mode bypass everything directly to
 	 * the implementation function.
 	 */
-	return !k_is_in_isr() && _current->syscall_frame != NULL;
+	return !k_is_in_isr() && (_current->syscall_frame != NULL);
 }
 
 /**

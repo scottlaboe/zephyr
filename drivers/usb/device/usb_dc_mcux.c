@@ -76,8 +76,8 @@ static void usb_isr_handler(void);
 BUILD_ASSERT(NUM_INSTS <= 1, "Only one USB device supported");
 
 /* Controller ID is for HAL usage */
-#if defined(CONFIG_SOC_SERIES_IMX_RT5XX) || \
-	defined(CONFIG_SOC_SERIES_IMX_RT6XX) || \
+#if defined(CONFIG_SOC_SERIES_IMXRT5XX) || \
+	defined(CONFIG_SOC_SERIES_IMXRT6XX) || \
 	defined(CONFIG_SOC_LPC55S28) || \
 	defined(CONFIG_SOC_LPC55S16)
 #define CONTROLLER_ID	kUSB_ControllerLpcIp3511Hs0
@@ -89,12 +89,16 @@ BUILD_ASSERT(NUM_INSTS <= 1, "Only one USB device supported");
 #elif DT_NODE_HAS_STATUS(DT_NODELABEL(usbfs), okay)
 #define CONTROLLER_ID	kUSB_ControllerLpcIp3511Fs0
 #endif /* LPC55s69 */
-#elif defined(CONFIG_SOC_SERIES_IMX_RT)
+#elif defined(CONFIG_SOC_SERIES_IMXRT11XX) || \
+	defined(CONFIG_SOC_SERIES_IMXRT10XX) || \
+	defined(CONFIG_SOC_SERIES_MCXNX4X)
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(usb1), okay)
 #define CONTROLLER_ID kUSB_ControllerEhci0
 #elif DT_NODE_HAS_STATUS(DT_NODELABEL(usb2), okay)
 #define CONTROLLER_ID kUSB_ControllerEhci1
 #endif /* IMX RT */
+#elif defined(CONFIG_SOC_SERIES_RW6XX)
+#define CONTROLLER_ID kUSB_ControllerEhci0
 #else
 /* If SOC has EHCI or LPCIP3511 then probably just need to add controller ID to this code */
 #error "USB driver does not yet support this SOC"
@@ -909,9 +913,6 @@ static void usb_mcux_thread_main(void *arg1, void *arg2, void *arg3)
 			break;
 		case kUSB_DeviceNotifyResume:
 			dev_state.status_cb(USB_DC_RESUME, NULL);
-			break;
-		case kUSB_DeviceNotifySOF:
-			dev_state.status_cb(USB_DC_SOF, NULL);
 			break;
 		default:
 			ep_abs_idx = EP_ABS_IDX(msg.code);

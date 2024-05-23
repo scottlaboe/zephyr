@@ -12,11 +12,11 @@
  *
  * @defgroup bt_gatt_micp Microphone Control Profile (MICP)
  *
+ * @since 2.7
+ * @version 0.8.0
+ *
  * @ingroup bluetooth
  * @{
- *
- * [Experimental] Users should note that the APIs can change
- * as a part of ongoing development.
  */
 
 #include <stdint.h>
@@ -185,6 +185,9 @@ struct bt_micp_mic_ctlr_cb {
 	/** Audio Input Control Service client callback */
 	struct bt_aics_cb               aics_cb;
 #endif /* CONFIG_BT_MICP_MIC_CTLR_AICS */
+
+	/** Internally used field for list handling */
+	sys_snode_t _node;
 };
 
 /**

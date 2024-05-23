@@ -25,11 +25,10 @@
 
 #define SEM_TIMEOUT K_SECONDS(10)
 #define PA_SYNC_SKIP         5
-#define SYNC_RETRY_COUNT     6 /* similar to retries for connections */
+#define PA_SYNC_INTERVAL_TO_TIMEOUT_RATIO 20 /* Set the timeout relative to interval */
 #define INVALID_BROADCAST_ID 0xFFFFFFFF
 
 static bool pbs_found;
-static uint8_t meta[CONFIG_BT_AUDIO_CODEC_CAP_MAX_METADATA_SIZE];
 
 static K_SEM_DEFINE(sem_pa_synced, 0U, 1U);
 static K_SEM_DEFINE(sem_base_received, 0U, 1U);
@@ -70,8 +69,8 @@ static struct bt_bap_stream streams[CONFIG_BT_BAP_BROADCAST_SNK_STREAM_COUNT];
 struct bt_bap_stream *streams_p[ARRAY_SIZE(streams)];
 
 static const struct bt_audio_codec_cap codec = BT_AUDIO_CODEC_CAP_LC3(
-	BT_AUDIO_CODEC_LC3_FREQ_48KHZ, BT_AUDIO_CODEC_LC3_DURATION_10,
-	BT_AUDIO_CODEC_LC3_CHAN_COUNT_SUPPORT(1), 40u, 60u, 1u, (BT_AUDIO_CONTEXT_TYPE_MEDIA));
+	BT_AUDIO_CODEC_CAP_FREQ_48KHZ, BT_AUDIO_CODEC_CAP_DURATION_10,
+	BT_AUDIO_CODEC_CAP_CHAN_COUNT_SUPPORT(1), 40u, 60u, 1u, (BT_AUDIO_CONTEXT_TYPE_MEDIA));
 
 /* Create a mask for the maximum BIS we can sync to using the number of streams
  * we have. We add an additional 1 since the bis indexes start from 1 and not
@@ -115,19 +114,16 @@ static struct bt_pacs_cap cap = {
 static uint16_t interval_to_sync_timeout(uint16_t interval)
 {
 	uint32_t interval_ms;
-	uint16_t timeout;
-
-	/* Ensure that the following calculation does not overflow silently */
-	__ASSERT(SYNC_RETRY_COUNT < 10, "SYNC_RETRY_COUNT shall be less than 10");
+	uint32_t timeout;
 
 	/* Add retries and convert to unit in 10's of ms */
 	interval_ms = BT_GAP_PER_ADV_INTERVAL_TO_MS(interval);
-	timeout = (interval_ms * SYNC_RETRY_COUNT) / 10;
+	timeout = (interval_ms * PA_SYNC_INTERVAL_TO_TIMEOUT_RATIO) / 10;
 
 	/* Enforce restraints */
 	timeout = CLAMP(timeout, BT_GAP_PER_ADV_MIN_TIMEOUT, BT_GAP_PER_ADV_MAX_TIMEOUT);
 
-	return timeout;
+	return (uint16_t)timeout;
 }
 
 static void sync_broadcast_pa(const struct bt_le_scan_recv_info *info,
@@ -160,11 +156,11 @@ static void sync_broadcast_pa(const struct bt_le_scan_recv_info *info,
 
 static bool scan_check_and_sync_broadcast(struct bt_data *data, void *user_data)
 {
+	enum bt_pbp_announcement_feature source_features;
 	uint32_t *broadcast_id = user_data;
 	struct bt_uuid_16 adv_uuid;
-	enum bt_pbp_announcement_feature source_features = 0U;
-
-	memset(meta, 0, ARRAY_SIZE(meta));
+	uint8_t *tmp_meta = NULL;
+	int ret;
 
 	if (data->type != BT_DATA_SVC_DATA16) {
 		return true;
@@ -179,16 +175,18 @@ static bool scan_check_and_sync_broadcast(struct bt_data *data, void *user_data)
 		return true;
 	}
 
-	if (!bt_uuid_cmp(&adv_uuid.uuid, BT_UUID_PBA)) {
-		bt_pbp_parse_announcement(data, &source_features, meta);
+	ret = bt_pbp_parse_announcement(data, &source_features, &tmp_meta);
+	if (ret >= 0) {
 		if (!(source_features & BT_PBP_ANNOUNCEMENT_FEATURE_HIGH_QUALITY)) {
 			/* This is a Standard Quality Public Broadcast Audio stream */
 			printk("This is a Standard Quality Public Broadcast Audio stream\n");
 			pbs_found = false;
 
-			return true;
+			return false;
 		}
-		printk("Found Suitable Public Broadcast Announcement\n");
+
+		printk("Found Suitable Public Broadcast Announcement with %d octets of metadata\n",
+		       ret);
 		pbs_found = true;
 
 		/**
@@ -198,8 +196,6 @@ static bool scan_check_and_sync_broadcast(struct bt_data *data, void *user_data)
 		if (*broadcast_id == INVALID_BROADCAST_ID) {
 			return true;
 		}
-
-		return false;
 	}
 
 	return true;
@@ -259,7 +255,7 @@ static void broadcast_pa_recv(struct bt_le_per_adv_sync *sync,
 	bt_data_parse(buf, pa_decode_base, NULL);
 }
 
-static void syncable_cb(struct bt_bap_broadcast_sink *sink, bool encrypted)
+static void syncable_cb(struct bt_bap_broadcast_sink *sink, const struct bt_iso_biginfo *biginfo)
 {
 	k_sem_give(&sem_syncable);
 }

@@ -33,8 +33,7 @@ static struct bt_cap_stream broadcast_source_stream;
 static struct bt_cap_stream *broadcast_stream;
 
 static uint8_t bis_codec_data[] = {BT_AUDIO_CODEC_DATA(
-	BT_AUDIO_CODEC_CONFIG_LC3_FREQ, BT_BYTES_LIST_LE16(BT_AUDIO_CODEC_CONFIG_LC3_FREQ_48KHZ))};
-
+	BT_AUDIO_CODEC_CFG_FREQ, BT_BYTES_LIST_LE16(BT_AUDIO_CODEC_CFG_FREQ_48KHZ))};
 
 const uint8_t pba_metadata[] = {
 	BT_AUDIO_CODEC_DATA(BT_AUDIO_METADATA_TYPE_PROGRAM_INFO, PBS_DEMO)
@@ -49,6 +48,10 @@ static const char broadcast_name[] = "PBP Source Demo";
 static struct bt_bap_lc3_preset broadcast_preset_48_2_1 =
 	BT_BAP_LC3_UNICAST_PRESET_48_2_1(BT_AUDIO_LOCATION_FRONT_LEFT,
 					BT_AUDIO_CONTEXT_TYPE_MEDIA);
+
+static const struct bt_data ad[] = {
+	BT_DATA(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME, sizeof(CONFIG_BT_DEVICE_NAME) - 1),
+};
 
 struct bt_cap_initiator_broadcast_stream_param stream_params;
 struct bt_cap_initiator_broadcast_subgroup_param subgroup_param;
@@ -105,7 +108,7 @@ static void broadcast_sent_cb(struct bt_bap_stream *stream)
 
 	net_buf_reserve(buf, BT_ISO_CHAN_SEND_RESERVE);
 	net_buf_add_mem(buf, mock_data, broadcast_preset_48_2_1.qos.sdu);
-	ret = bt_bap_stream_send(stream, buf, seq_num++, BT_ISO_TIMESTAMP_NONE);
+	ret = bt_bap_stream_send(stream, buf, seq_num++);
 	if (ret < 0) {
 		/* This will end broadcasting on this stream. */
 		net_buf_unref(buf);
@@ -125,11 +128,19 @@ static int setup_extended_adv(struct bt_le_ext_adv **adv)
 	int err;
 
 	/* Create a non-connectable non-scannable advertising set */
-	err = bt_le_ext_adv_create(BT_LE_EXT_ADV_NCONN_NAME, NULL, adv);
+	err = bt_le_ext_adv_create(BT_LE_EXT_ADV_NCONN, NULL, adv);
 	if (err != 0) {
 		printk("Unable to create extended advertising set: %d\n", err);
 
 		return err;
+	}
+
+	/* Set advertising data to have complete local name set */
+	err = bt_le_ext_adv_set_data(*adv, ad, ARRAY_SIZE(ad), NULL, 0);
+	if (err) {
+		printk("Failed to set advertising data (err %d)\n", err);
+
+		return 0;
 	}
 
 	/* Set periodic advertising parameters */

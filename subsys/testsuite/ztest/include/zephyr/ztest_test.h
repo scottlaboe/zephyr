@@ -461,7 +461,7 @@ void ztest_skip_failed_assumption(void);
  * @brief Define a test function
  *
  * This macro behaves exactly the same as ZTEST(), but the function takes an argument for the
- * fixture of type `struct suite##_fixture*` named `this`.
+ * fixture of type `struct suite##_fixture*` named `fixture`.
  *
  * @param suite The name of the test suite to attach this test
  * @param fn The test function to call.
@@ -472,7 +472,7 @@ void ztest_skip_failed_assumption(void);
  * @brief Define a test function that should run as a user thread
  *
  * If CONFIG_USERSPACE is not enabled, this is functionally identical to ZTEST_F(). The test
- * function takes a single fixture argument of type `struct suite##_fixture*` named `this`.
+ * function takes a single fixture argument of type `struct suite##_fixture*` named `fixture`.
  *
  * @param suite The name of the test suite to attach this test
  * @param fn The test function to call.
@@ -546,6 +546,9 @@ void ztest_simple_1cpu_after(void *data);
  * @brief Run the specified test suite.
  *
  * @param suite Test suite to run.
+ * @param shuffle Shuffle tests
+ * @param suite_iter Test suite repetitions.
+ * @param case_iter Test case repetitions.
  */
 #define ztest_run_test_suite(suite, shuffle, suite_iter, case_iter) \
 	z_ztest_run_test_suite(STRINGIFY(suite), shuffle, suite_iter, case_iter)

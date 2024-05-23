@@ -25,11 +25,6 @@ LOG_MODULE_REGISTER(bt_hci_driver);
 #define HCI_SPI_NODE DT_COMPAT_GET_ANY_STATUS_OKAY(ambiq_bt_hci_spi)
 #define SPI_DEV_NODE DT_BUS(HCI_SPI_NODE)
 
-#define HCI_CMD 0x01
-#define HCI_ACL 0x02
-#define HCI_SCO 0x03
-#define HCI_EVT 0x04
-
 /* Offset of special item */
 #define PACKET_TYPE         0
 #define PACKET_TYPE_SIZE    1
@@ -52,7 +47,7 @@ LOG_MODULE_REGISTER(bt_hci_driver);
 #define SPI_MAX_TX_MSG_LEN 524
 #define SPI_MAX_RX_MSG_LEN 258
 
-static uint8_t g_hciRxMsg[SPI_MAX_RX_MSG_LEN];
+static uint8_t __noinit rxmsg[SPI_MAX_RX_MSG_LEN];
 static const struct device *spi_dev = DEVICE_DT_GET(SPI_DEV_NODE);
 static struct spi_config spi_cfg = {
 	.operation = SPI_OP_MODE_MASTER | SPI_TRANSFER_MSB | SPI_MODE_CPOL | SPI_MODE_CPHA |
@@ -259,7 +254,7 @@ static void bt_spi_rx_thread(void *p1, void *p2, void *p3)
 
 		do {
 			/* Recevive the HCI packet via SPI */
-			ret = spi_receive_packet(&g_hciRxMsg[0], &len);
+			ret = spi_receive_packet(&rxmsg[0], &len);
 			if (ret) {
 				break;
 			}
@@ -267,22 +262,22 @@ static void bt_spi_rx_thread(void *p1, void *p2, void *p3)
 			/* Check if needs to handle the vendor specific events which are
 			 * incompatible with the standard Bluetooth HCI format.
 			 */
-			if (bt_apollo_vnd_rcv_ongoing(&g_hciRxMsg[0], len)) {
+			if (bt_apollo_vnd_rcv_ongoing(&rxmsg[0], len)) {
 				break;
 			}
 
-			switch (g_hciRxMsg[PACKET_TYPE]) {
-			case HCI_EVT:
-				buf = bt_hci_evt_recv(&g_hciRxMsg[PACKET_TYPE + PACKET_TYPE_SIZE],
+			switch (rxmsg[PACKET_TYPE]) {
+			case BT_HCI_H4_EVT:
+				buf = bt_hci_evt_recv(&rxmsg[PACKET_TYPE + PACKET_TYPE_SIZE],
 						      (len - PACKET_TYPE_SIZE));
 				break;
-			case HCI_ACL:
-				buf = bt_hci_acl_recv(&g_hciRxMsg[PACKET_TYPE + PACKET_TYPE_SIZE],
+			case BT_HCI_H4_ACL:
+				buf = bt_hci_acl_recv(&rxmsg[PACKET_TYPE + PACKET_TYPE_SIZE],
 						      (len - PACKET_TYPE_SIZE));
 				break;
 			default:
 				buf = NULL;
-				LOG_WRN("Unknown BT buf type %d", g_hciRxMsg[PACKET_TYPE]);
+				LOG_WRN("Unknown BT buf type %d", rxmsg[PACKET_TYPE]);
 				break;
 			}
 
@@ -306,10 +301,10 @@ static int bt_hci_send(struct net_buf *buf)
 
 	switch (bt_buf_get_type(buf)) {
 	case BT_BUF_ACL_OUT:
-		net_buf_push_u8(buf, HCI_ACL);
+		net_buf_push_u8(buf, BT_HCI_H4_ACL);
 		break;
 	case BT_BUF_CMD:
-		net_buf_push_u8(buf, HCI_CMD);
+		net_buf_push_u8(buf, BT_HCI_H4_CMD);
 		break;
 	default:
 		LOG_ERR("Unsupported type");

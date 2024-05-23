@@ -33,8 +33,7 @@ The following :ref:`Kconfig <kconfig>` options enable additional subcommands and
 * :kconfig:option:`CONFIG_CAN_STATS` enables printing of various statistics for the CAN controller
   in the ``can show`` subcommand. This depends on :kconfig:option:`CONFIG_STATS` being enabled as
   well.
-* :kconfig:option:`CONFIG_CAN_AUTO_BUS_OFF_RECOVERY` enables the ``can recover`` subcommand when
-  disabled.
+* :kconfig:option:`CONFIG_CAN_MANUAL_RECOVERY_MODE` enables the ``can recover`` subcommand.
 
 For example, building the :ref:`hello_world` sample for the :ref:`frdm_k64f` with the CAN shell and
 CAN statistics enabled:
@@ -62,7 +61,8 @@ Inspection
 
 The properties of a given CAN controller can be inspected using the ``can show`` subcommand as shown
 below. The properties include the core CAN clock rate, the maximum supported bitrate, the number of
-RX filters supported, capabilities, current state, error counters, timing limits, and more:
+RX filters supported, capabilities, current mode, current state, error counters, timing limits, and
+more:
 
 .. code-block:: console
 
@@ -72,11 +72,13 @@ RX filters supported, capabilities, current state, error counters, timing limits
    max std filters: 15
    max ext filters: 15
    capabilities:    normal loopback listen-only fd
+   mode:            normal
    state:           stopped
    rx errors:       0
    tx errors:       0
    timing:          sjw 1..128, prop_seg 0..0, phase_seg1 2..256, phase_seg2 2..128, prescaler 1..512
    timing data:     sjw 1..16, prop_seg 0..0, phase_seg1 1..32, phase_seg2 1..16, prescaler 1..32
+   transceiver:     passive/none
    statistics:
      bit errors:    0
        bit0 errors: 0
@@ -250,8 +252,8 @@ details on the supported arguments.
 Bus Recovery
 ************
 
-The ``can recover`` subcommand can be used for initiating recovery from a CAN bus-off event as shown
-below:
+The ``can recover`` subcommand can be used for initiating manual recovery from a CAN bus-off event
+as shown below:
 
 .. code-block:: console
 
@@ -262,5 +264,5 @@ The subcommand accepts an optional bus recovery timeout in milliseconds. If no t
 the command will wait indefinitely for the bus recovery to succeed.
 
 .. note::
-   The ``recover`` subcommand is only available if
-   :kconfig:option:`CONFIG_CAN_AUTO_BUS_OFF_RECOVERY` is disabled.
+   The ``recover`` subcommand is only available if :kconfig:option:`CONFIG_CAN_MANUAL_RECOVERY_MODE`
+   is enabled.

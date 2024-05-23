@@ -101,7 +101,7 @@ TESTDATA_PART1 = [
     ("platform_allow", ['demo_board_1'], None, None, "Not in testsuite platform allow list"),
     ("toolchain_exclude", ['zephyr'], None, None, "In test case toolchain exclude"),
     ("platform_exclude", ['demo_board_2'], None, None, "In test case platform exclude"),
-    ("arch_exclude", ['x86_demo'], None, None, "In test case arch exclude"),
+    ("arch_exclude", ['x86'], None, None, "In test case arch exclude"),
     ("arch_allow", ['arm'], None, None, "Not in test case arch allow list"),
     ("skip", True, None, None, "Skip filter"),
     ("tags", set(['sensor', 'bluetooth']), "ignore_tags", ['bluetooth'], "Excluded tags per platform (exclude_tags)"),
@@ -109,6 +109,7 @@ TESTDATA_PART1 = [
     ("min_ram", "500", "ram", "256", "Not enough RAM"),
     ("None", "None", "env", ['BSIM_OUT_PATH', 'demo_env'], "Environment (BSIM_OUT_PATH, demo_env) not satisfied"),
     ("build_on_all", True, None, None, "Platform is excluded on command line."),
+    ("build_on_all", True, "level", "foobar", "Unknown test level 'foobar'"),
     (None, None, "supported_toolchains", ['gcc'], "Not supported by the toolchain"),
 ]
 
@@ -161,6 +162,9 @@ def test_apply_filters_part1(class_testplan, all_testsuites_dict, platforms_list
             testcase.min_flash = tc_value
         if tc_attribute == "min_ram":
             testcase.min_ram = tc_value
+
+    if plat_attribute == "level":
+        plan.options.level = plat_value
 
     if tc_attribute == "build_on_all":
         for _, testcase in plan.testsuites.items():
@@ -416,6 +420,11 @@ def test_testplan_get_level():
 
     res = testplan.get_level(name)
     assert res == lvl1
+
+    lvl_missed = mock.Mock()
+    lvl_missed.name = 'missed lvl'
+    res = testplan.get_level('missed_lvl')
+    assert res is None
 
     testplan.levels.remove(lvl1)
     testplan.levels.remove(lvl2)
@@ -700,6 +709,7 @@ def test_testplan_load(
     testplan.testsuites['ts1'].name = 'ts1'
     testplan.testsuites['ts2'].name = 'ts2'
     testplan.options = mock.Mock(
+        report_summary=None,
         outdir=tmp_path,
         report_suffix=report_suffix,
         only_failed=only_failed,
@@ -728,6 +738,18 @@ def test_testplan_load(
     testplan.platforms[9].name = 'lt-p2'
     testplan.platforms[10].name = 'lt-p3'
     testplan.platforms[11].name = 'lt-p4'
+    testplan.platforms[0].normalized_name = 't-p1'
+    testplan.platforms[1].normalized_name = 't-p2'
+    testplan.platforms[2].normalized_name = 't-p3'
+    testplan.platforms[3].normalized_name = 't-p4'
+    testplan.platforms[4].normalized_name = 'ts-p1'
+    testplan.platforms[5].normalized_name = 'ts-p2'
+    testplan.platforms[6].normalized_name = 'ts-p3'
+    testplan.platforms[7].normalized_name = 'ts-p4'
+    testplan.platforms[8].normalized_name = 'lt-p1'
+    testplan.platforms[9].normalized_name = 'lt-p2'
+    testplan.platforms[10].normalized_name = 'lt-p3'
+    testplan.platforms[11].normalized_name = 'lt-p4'
     testplan.generate_subset = mock.Mock()
     testplan.apply_filters = mock.Mock()
 
@@ -952,7 +974,7 @@ def test_testplan_report_tag_list(capfd):
 
 def test_testplan_report_test_tree(capfd):
     testplan = TestPlan(env=mock.Mock())
-    testplan.get_all_tests = mock.Mock(
+    testplan.get_tests_list = mock.Mock(
         return_value=['1.dummy.case.1', '1.dummy.case.2',
                       '2.dummy.case.1', '2.dummy.case.2',
                       '3.dummy.case.1', '3.dummy.case.2',
@@ -1010,7 +1032,7 @@ Testsuite
 
 def test_testplan_report_test_list(capfd):
     testplan = TestPlan(env=mock.Mock())
-    testplan.get_all_tests = mock.Mock(
+    testplan.get_tests_list = mock.Mock(
         return_value=['4.dummy.case.1', '4.dummy.case.2',
                       '3.dummy.case.2', '2.dummy.case.2',
                       '1.dummy.case.1', '1.dummy.case.2',
@@ -1035,15 +1057,6 @@ def test_testplan_report_test_list(capfd):
            ' - 5.dummy.case.1\n' \
            ' - 5.dummy.case.2\n' \
            '10 total.' in out
-
-
-def test_testplan_config(caplog):
-    testplan = TestPlan(env=mock.Mock())
-    testplan.coverage_platform = 'dummy cov'
-
-    testplan.config()
-
-    assert 'coverage platform: dummy cov' in caplog.text
 
 
 def test_testplan_info(capfd):
@@ -1076,7 +1089,7 @@ def test_testplan_add_configurations(
 ):
     # tmp_path
     # └ boards  <- board root
-    #   ├ arch1
+    #   ├ x86
     #   │ ├ p1
     #   │ | ├ p1e1.yaml
     #   │ | └ p1e2.yaml
@@ -1084,7 +1097,7 @@ def test_testplan_add_configurations(
     #   │   ├ p2.yaml
     #   │   └ p2-1.yaml <- duplicate
     #   │   └ p2-2.yaml <- load error
-    #   └ arch2
+    #   └ arm
     #     └ p3
     #       ├ p3.yaml
     #       └ p3_B.conf
@@ -1092,17 +1105,32 @@ def test_testplan_add_configurations(
     tmp_board_root_dir = tmp_path / 'boards'
     tmp_board_root_dir.mkdir()
 
-    tmp_arch1_dir = tmp_board_root_dir / 'arch1'
+    tmp_arch1_dir = tmp_board_root_dir / 'x86'
     tmp_arch1_dir.mkdir()
 
     tmp_p1_dir = tmp_arch1_dir / 'p1'
     tmp_p1_dir.mkdir()
 
+    p1e1_bs_yaml = """\
+boards:
+
+  - name: ple1
+    vendor: zephyr
+    socs:
+      - name: unit_testing
+  - name: ple2
+    vendor: zephyr
+    socs:
+      - name: unit_testing
+"""
+    p1e1_yamlfile = tmp_p1_dir / 'board.yml'
+    p1e1_yamlfile.write_text(p1e1_bs_yaml)
+
     p1e1_yaml = """\
 identifier: p1e1
 name: Platform 1 Edition 1
 type: native
-arch: arch1
+arch: x86
 vendor: vendor1
 toolchain:
   - zephyr
@@ -1115,7 +1143,7 @@ twister: False
 identifier: p1e2
 name: Platform 1 Edition 2
 type: native
-arch: arch1
+arch: x86
 vendor: vendor1
 toolchain:
   - zephyr
@@ -1126,11 +1154,26 @@ toolchain:
     tmp_p2_dir = tmp_arch1_dir / 'p2'
     tmp_p2_dir.mkdir()
 
+    p2_bs_yaml = """\
+boards:
+
+  - name: p2
+    vendor: zephyr
+    socs:
+      - name: unit_testing
+  - name: p2_2
+    vendor: zephyr
+    socs:
+      - name: unit_testing
+"""
+    p2_yamlfile = tmp_p2_dir / 'board.yml'
+    p2_yamlfile.write_text(p2_bs_yaml)
+
     p2_yaml = """\
 identifier: p2
 name: Platform 2
 type: sim
-arch: arch1
+arch: x86
 vendor: vendor2
 toolchain:
   - zephyr
@@ -1150,7 +1193,7 @@ testing:
 identifier: p2_2
 name: Platform 2 2
 type: sim
-arch: arch1
+arch: x86
 vendor: vendor2
 toolchain:
   - zephyr
@@ -1158,17 +1201,28 @@ toolchain:
     p2_2_yamlfile = tmp_p2_dir / 'p2-2.yaml'
     p2_2_yamlfile.write_text(p2_2_yaml)
 
-    tmp_arch2_dir = tmp_board_root_dir / 'arch2'
+    tmp_arch2_dir = tmp_board_root_dir / 'arm'
     tmp_arch2_dir.mkdir()
 
     tmp_p3_dir = tmp_arch2_dir / 'p3'
     tmp_p3_dir.mkdir()
 
+    p3_bs_yaml = """\
+boards:
+
+  - name: p3
+    vendor: zephyr
+    socs:
+      - name: unit_testing
+"""
+    p3_yamlfile = tmp_p3_dir / 'board.yml'
+    p3_yamlfile.write_text(p3_bs_yaml)
+
     p3_yaml = """\
 identifier: p3
 name: Platform 3
 type: unit
-arch: arch2
+arch: arm
 vendor: vendor3
 toolchain:
   - zephyr
@@ -1375,6 +1429,7 @@ def test_testplan_load_from_file(caplog, device_testing, expected_tfilter):
     def get_platform(name):
         p = mock.Mock()
         p.name = name
+        p.normalized_name = name
         return p
 
     ts1tc1 = mock.Mock()
@@ -1397,7 +1452,7 @@ def test_testplan_load_from_file(caplog, device_testing, expected_tfilter):
     ts5.name = 'TestSuite 5'
 
     testplan = TestPlan(env=mock.Mock(outdir=os.path.join('out', 'dir')))
-    testplan.options = mock.Mock(device_testing=device_testing, test_only=True)
+    testplan.options = mock.Mock(device_testing=device_testing, test_only=True, report_summary=None)
     testplan.testsuites = {
         'TestSuite 1': ts1,
         'TestSuite 2': ts2,
@@ -1696,11 +1751,6 @@ TESTDATA_13 = [
     TESTDATA_13,
 )
 def test_testplan_create_build_dir_link(os_name):
-    testplan = TestPlan(env=mock.Mock())
-    links_dir_path = os.path.join('links', 'path')
-    instance_build_dir = os.path.join('some', 'far', 'off', 'build', 'dir')
-    instance = mock.Mock(build_dir=instance_build_dir)
-
     def mock_makedirs(path, exist_ok=False):
         assert exist_ok
         assert path == instance_build_dir
@@ -1714,14 +1764,24 @@ def test_testplan_create_build_dir_link(os_name):
         assert cmd == ['mklink', '/J', os.path.join('links', 'path', 'test_0'),
                        instance_build_dir]
 
+    def mock_join(*paths):
+        slash = "\\" if os.name == 'nt' else "/"
+        return slash.join(paths)
+
     with mock.patch('os.name', os_name), \
          mock.patch('os.symlink', side_effect=mock_symlink), \
          mock.patch('os.makedirs', side_effect=mock_makedirs), \
-         mock.patch('subprocess.call', side_effect=mock_call):
+         mock.patch('subprocess.call', side_effect=mock_call), \
+         mock.patch('os.path.join', side_effect=mock_join):
+
+        testplan = TestPlan(env=mock.Mock())
+        links_dir_path = os.path.join('links', 'path')
+        instance_build_dir = os.path.join('some', 'far', 'off', 'build', 'dir')
+        instance = mock.Mock(build_dir=instance_build_dir)
         testplan._create_build_dir_link(links_dir_path, instance)
 
-    assert instance.build_dir == os.path.join('links', 'path', 'test_0')
-    assert testplan.link_dir_counter == 1
+        assert instance.build_dir == os.path.join('links', 'path', 'test_0')
+        assert testplan.link_dir_counter == 1
 
 
 TESTDATA_14 = [

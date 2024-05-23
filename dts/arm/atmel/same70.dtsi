@@ -71,14 +71,13 @@
 
 			#address-cells = <1>;
 			#size-cells = <1>;
+			#erase-block-cells = <2>;
 
 			flash0: flash@400000 {
-				compatible = "soc-nv-flash";
-
+				compatible = "atmel,sam-flash", "soc-nv-flash";
 				write-block-size = <16>;
 				erase-block-size = <8192>;
 			};
-
 		};
 
 		wdt: watchdog@400e1850 {
@@ -426,8 +425,6 @@
 			clocks = <&pmc PMC_TYPE_PERIPHERAL 35>;
 			divider = <6>;
 			bosch,mram-cfg = <0x0 28 8 3 3 0 1 1>;
-			sample-point = <875>;
-			sample-point-data = <875>;
 			status = "disabled";
 		};
 
@@ -439,8 +436,6 @@
 			clocks = <&pmc PMC_TYPE_PERIPHERAL 37>;
 			divider = <6>;
 			bosch,mram-cfg = <0x0 28 8 3 3 0 1 1>;
-			sample-point = <875>;
-			sample-point-data = <875>;
 			status = "disabled";
 		};
 

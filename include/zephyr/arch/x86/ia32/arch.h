@@ -45,7 +45,7 @@
  */
 #if defined(CONFIG_USERSPACE)
 #define GS_TLS_SEG	(0x38 | 0x03)
-#elif defined(CONFIG_HW_STACK_PROTECTION)
+#elif defined(CONFIG_X86_STACK_PROTECTION)
 #define GS_TLS_SEG	(0x28 | 0x03)
 #else
 #define GS_TLS_SEG	(0x18 | 0x03)
@@ -266,8 +266,8 @@ static inline void arch_irq_direct_pm(void)
  * tracing/tracing.h cannot be included here due to circular dependency
  */
 #if defined(CONFIG_TRACING)
-extern void sys_trace_isr_enter(void);
-extern void sys_trace_isr_exit(void);
+void sys_trace_isr_enter(void);
+void sys_trace_isr_exit(void);
 #endif
 
 static inline void arch_isr_direct_header(void)
@@ -287,7 +287,7 @@ static inline void arch_isr_direct_header(void)
  *	  cannot be referenced from a public header, so we move it to an
  *	  external function.
  */
-extern void arch_isr_direct_footer_swap(unsigned int key);
+void arch_isr_direct_footer_swap(unsigned int key);
 
 static inline void arch_isr_direct_footer(int swap)
 {

@@ -600,10 +600,8 @@ our $api_defines = qr{(?x:
 	_GNU_SOURCE|
 	_ISOC11_SOURCE|
 	_ISOC99_SOURCE|
-	_POSIX_C_SOURCE|
 	_POSIX_SOURCE|
 	_SVID_SOURCE|
-	_XOPEN_SOURCE|
 	_XOPEN_SOURCE_EXTENDED
 )};
 
@@ -3546,7 +3544,7 @@ sub process {
 			# known declaration macros
 		      $sline =~ /^\+\s+$declaration_macros/ ||
 			# start of struct or union or enum
-		      $sline =~ /^\+\s+(?:static\s+)?(?:const\s+)?(?:union|struct|enum|typedef)\b/ ||
+		      $sline =~ /^\+\s+(?:volatile\s+)?(?:static\s+)?(?:const\s+)?(?:union|struct|enum|typedef)\b/ ||
 			# start or end of block or continuation of declaration
 		      $sline =~ /^\+\s+(?:$|[\{\}\.\#\"\?\:\(\[])/ ||
 			# bitfield continuation
@@ -5004,6 +5002,7 @@ sub process {
 #	only fix matches surrounded by parentheses to avoid incorrect
 #	conversions like "FOO < baz() + 5" being "misfixed" to "baz() > FOO + 5"
 		if ($perl_version_ok &&
+			!($line =~ /^\+(.*)($Constant|[A-Z_][A-Z0-9_]*)\s*($Compare)\s*(.*)($Constant|[A-Z_][A-Z0-9_]*)(.*)/) &&
 		    $line =~ /^\+(.*)\b($Constant|[A-Z_][A-Z0-9_]*)\s*($Compare)\s*($LvalOrFunc)/) {
 			my $lead = $1;
 			my $const = $2;
@@ -6549,7 +6548,7 @@ sub process {
 
 		if ($line =~ /#\s*define\s+$api_defines/) {
 			ERROR("API_DEFINE",
-			      "do not specify a non-Zephyr API for libc\n" . "$here$rawline\n");
+			      "do not specify non-standard feature test macros for embedded code\n" . "$here$rawline\n");
 		}
 
 # check for IS_ENABLED() without CONFIG_<FOO> ($rawline for comments too)

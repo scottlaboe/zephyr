@@ -7,9 +7,6 @@
 
 /** @file lwm2m.h
  *
- * @defgroup lwm2m_api LwM2M high-level API
- * @ingroup networking
- * @{
  * @brief LwM2M high-level API
  *
  * @details
@@ -19,6 +16,12 @@
  *
  * @note For more information refer to Technical Specification
  * OMA-TS-LightweightM2M_Core-V1_1_1-20190617-A
+ *
+ * @defgroup lwm2m_api LwM2M high-level API
+ * @since 1.9
+ * @version 0.8.0
+ * @ingroup networking
+ * @{
  */
 
 #ifndef ZEPHYR_INCLUDE_NET_LWM2M_H_
@@ -281,7 +284,9 @@ struct lwm2m_ctx {
 struct lwm2m_time_series_elem {
 	/** Cached data Unix timestamp */
 	time_t t;
+	/** Element value */
 	union {
+		/** @cond INTERNAL_HIDDEN */
 		uint8_t u8;
 		uint16_t u16;
 		uint32_t u32;
@@ -293,6 +298,7 @@ struct lwm2m_time_series_elem {
 		time_t time;
 		double f;
 		bool b;
+		/** @endcond */
 	};
 };
 
@@ -327,6 +333,10 @@ typedef void *(*lwm2m_engine_get_data_cb_t)(uint16_t obj_inst_id,
  * make use of this callback to pass the data back to the client or LwM2M
  * objects.
  *
+ * On a block-wise transfers the handler is called multiple times with the data blocks
+ * and increasing offset. The last block has the last_block flag set to true.
+ * Beginning of the block transfer has the offset set to 0.
+ *
  * A function of this type can be registered via:
  * lwm2m_engine_register_validate_callback()
  * lwm2m_engine_register_post_write_callback()
@@ -342,6 +352,7 @@ typedef void *(*lwm2m_engine_get_data_cb_t)(uint16_t obj_inst_id,
  *                       false.
  * @param[in] total_size Expected total size of data for a block transfer.
  *                       For non-block transfers this is 0.
+ * @param[in] offset Offset of the data block. For non-block transfers this is always 0.
  *
  * @return Callback returns a negative error code (errno.h) indicating
  *         reason of failure or 0 for success.
@@ -349,7 +360,7 @@ typedef void *(*lwm2m_engine_get_data_cb_t)(uint16_t obj_inst_id,
 typedef int (*lwm2m_engine_set_data_cb_t)(uint16_t obj_inst_id,
 					  uint16_t res_id, uint16_t res_inst_id,
 					  uint8_t *data, uint16_t data_len,
-					  bool last_block, size_t total_size);
+					  bool last_block, size_t total_size, size_t offset);
 
 /**
  * @brief Asynchronous event notification callback.
@@ -1204,6 +1215,52 @@ int lwm2m_engine_set_time(const char *pathstr, time_t value);
  * @return 0 for success or negative in case of error.
  */
 int lwm2m_set_time(const struct lwm2m_obj_path *path, time_t value);
+
+/**
+ * @brief LwM2M resource item structure
+ *
+ * Value type must match the target resource as no type conversion are
+ * done and the value is just memcopied.
+ *
+ * Following C types are used for resource types:
+ * * BOOL is uint8_t
+ * * U8 is uint8_t
+ * * S8 is int8_t
+ * * U16 is uint16_t
+ * * S16 is int16_t
+ * * U32 is uint32_t
+ * * S32 is int32_t
+ * * S64 is int64_t
+ * * TIME is time_t
+ * * FLOAT is double
+ * * OBJLNK is struct lwm2m_objlnk
+ * * STRING is char * and the null-terminator should be included in the size.
+ * * OPAQUE is any binary data. When null-terminated string is written in OPAQUE
+ *   resource, the terminator should not be included in size.
+ *
+ */
+struct lwm2m_res_item {
+	/** Pointer to LwM2M path as a struct */
+	struct lwm2m_obj_path *path;
+	/** Pointer to resource value */
+	void *value;
+	/** Size of the value. For string resources, it should contain the null-terminator. */
+	uint16_t size;
+};
+
+/**
+ * @brief Set multiple resource (instance) values
+ *
+ * NOTE: Value type must match the target resource as this function
+ * does not do any type conversion.
+ * See struct @ref lwm2m_res_item for list of resource types.
+ *
+ * @param[in] res_list LwM2M resource item list
+ * @param[in] res_list_size Length of resource list
+ *
+ * @return 0 for success or negative in case of error.
+ */
+int lwm2m_set_bulk(const struct lwm2m_res_item res_list[], size_t res_list_size);
 
 /**
  * @brief Get resource (instance) value (opaque buffer)
@@ -2091,21 +2148,37 @@ void lwm2m_acknowledge(struct lwm2m_ctx *client_ctx);
  * lwm2m_rd_client_start()
  */
 enum lwm2m_rd_client_event {
+	/** Invalid event */
 	LWM2M_RD_CLIENT_EVENT_NONE,
+	/** Bootstrap registration failure */
 	LWM2M_RD_CLIENT_EVENT_BOOTSTRAP_REG_FAILURE,
+	/** Bootstrap registration complete */
 	LWM2M_RD_CLIENT_EVENT_BOOTSTRAP_REG_COMPLETE,
+	/** Bootstrap transfer complete */
 	LWM2M_RD_CLIENT_EVENT_BOOTSTRAP_TRANSFER_COMPLETE,
+	/** Registration failure */
 	LWM2M_RD_CLIENT_EVENT_REGISTRATION_FAILURE,
+	/** Registration complete */
 	LWM2M_RD_CLIENT_EVENT_REGISTRATION_COMPLETE,
+	/** Registration timeout */
 	LWM2M_RD_CLIENT_EVENT_REG_TIMEOUT,
+	/** Registration update complete */
 	LWM2M_RD_CLIENT_EVENT_REG_UPDATE_COMPLETE,
+	/** De-registration failure */
 	LWM2M_RD_CLIENT_EVENT_DEREGISTER_FAILURE,
+	/** Disconnected */
 	LWM2M_RD_CLIENT_EVENT_DISCONNECT,
+	/** Queue mode RX off */
 	LWM2M_RD_CLIENT_EVENT_QUEUE_MODE_RX_OFF,
+	/** Engine suspended */
 	LWM2M_RD_CLIENT_EVENT_ENGINE_SUSPENDED,
+	/** Network error */
 	LWM2M_RD_CLIENT_EVENT_NETWORK_ERROR,
+	/** Registration update */
 	LWM2M_RD_CLIENT_EVENT_REG_UPDATE,
+	/** De-register */
 	LWM2M_RD_CLIENT_EVENT_DEREGISTER,
+	/** Server disabled */
 	LWM2M_RD_CLIENT_EVENT_SERVER_DISABLED,
 };
 
@@ -2217,9 +2290,9 @@ char *lwm2m_path_log_buf(char *buf, struct lwm2m_obj_path *path);
  * lwm2m_send_cb()
  */
 enum lwm2m_send_status {
-	LWM2M_SEND_STATUS_SUCCESS,
-	LWM2M_SEND_STATUS_FAILURE,
-	LWM2M_SEND_STATUS_TIMEOUT,
+	LWM2M_SEND_STATUS_SUCCESS,  /**< Succeed */
+	LWM2M_SEND_STATUS_FAILURE,  /**< Failure */
+	LWM2M_SEND_STATUS_TIMEOUT,  /**< Timeout */
 };
 
 /**

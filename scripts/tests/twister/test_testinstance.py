@@ -72,8 +72,16 @@ def test_check_build_or_run(
     assert run == r
 
     with mock.patch('os.name', 'nt'):
+        # path to QEMU binary is not in QEMU_BIN_PATH environment variable
         run = testinstance.check_runnable()
         assert not run
+
+        # mock path to QEMU binary in QEMU_BIN_PATH environment variable
+        with mock.patch('os.environ', {'QEMU_BIN_PATH': ''}):
+            run = testinstance.check_runnable()
+            _, r = expected
+            assert run == r
+
 
 TESTDATA_PART_2 = [
     (True, True, True, ["demo_board_2"], "native",
@@ -91,9 +99,9 @@ TESTDATA_PART_2 = [
     (False, False, False, ["demo_board_2"], 'native',
      ["CONFIG_LOG=y"], 'CONFIG_LOG=y'),
     (False, False, False, ["demo_board_2"], 'native',
-     ["arch:x86_demo:CONFIG_LOG=y"], 'CONFIG_LOG=y'),
+     ["arch:x86:CONFIG_LOG=y"], 'CONFIG_LOG=y'),
     (False, False, False, ["demo_board_2"], 'native',
-     ["arch:arm_demo:CONFIG_LOG=y"], ''),
+     ["arch:arm:CONFIG_LOG=y"], ''),
     (False, False, False, ["demo_board_2"], 'native',
      ["platform:demo_board_2:CONFIG_LOG=y"], 'CONFIG_LOG=y'),
     (False, False, False, ["demo_board_2"], 'native',
@@ -207,6 +215,7 @@ def test_testinstance_init(all_testsuites_dict, class_testplan, platforms_list, 
     testsuite = class_testplan.testsuites.get(testsuite_path)
     testsuite.detailed_test_id = detailed_test_id
     class_testplan.platforms = platforms_list
+    print(class_testplan.platforms)
     platform = class_testplan.get_platform("demo_board_2")
 
     testinstance = TestInstance(testsuite, platform, class_testplan.env.outdir)
@@ -215,6 +224,37 @@ def test_testinstance_init(all_testsuites_dict, class_testplan, platforms_list, 
         assert testinstance.build_dir == os.path.join(class_testplan.env.outdir, platform.name, testsuite_path)
     else:
         assert testinstance.build_dir == os.path.join(class_testplan.env.outdir, platform.name, testsuite.source_dir_rel, testsuite.name)
+
+
+@pytest.mark.parametrize('testinstance', [{'testsuite_kind': 'sample'}], indirect=True)
+def test_testinstance_record(testinstance):
+    testinstance.testcases = [mock.Mock()]
+    recording = [ {'field_1':  'recording_1_1', 'field_2': 'recording_1_2'},
+                  {'field_1':  'recording_2_1', 'field_2': 'recording_2_2'}
+                ]
+    with mock.patch(
+        'builtins.open',
+        mock.mock_open(read_data='')
+    ) as mock_file, \
+        mock.patch(
+        'csv.DictWriter.writerow',
+        mock.Mock()
+    ) as mock_writeheader, \
+        mock.patch(
+        'csv.DictWriter.writerows',
+        mock.Mock()
+    ) as mock_writerows:
+        testinstance.record(recording)
+
+    print(mock_file.mock_calls)
+
+    mock_file.assert_called_with(
+        os.path.join(testinstance.build_dir, 'recording.csv'),
+        'wt'
+    )
+
+    mock_writeheader.assert_has_calls([mock.call({ k:k for k in recording[0]})])
+    mock_writerows.assert_has_calls([mock.call(recording)])
 
 
 @pytest.mark.parametrize('testinstance', [{'testsuite_kind': 'sample'}], indirect=True)
