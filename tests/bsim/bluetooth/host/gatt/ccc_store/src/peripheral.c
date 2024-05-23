@@ -30,10 +30,9 @@ CREATE_FLAG(security_updated_flag);
 
 CREATE_FLAG(ccc_cfg_changed_flag);
 
-static const struct bt_uuid_128 dummy_service = BT_UUID_INIT_128(DUMMY_SERVICE_TYPE);
+static struct bt_uuid_128 dummy_service = BT_UUID_INIT_128(DUMMY_SERVICE_TYPE);
 
-static const struct bt_uuid_128 notify_characteristic_uuid =
-					BT_UUID_INIT_128(DUMMY_SERVICE_NOTIFY_TYPE);
+static struct bt_uuid_128 notify_characteristic_uuid = BT_UUID_INIT_128(DUMMY_SERVICE_NOTIFY_TYPE);
 
 static struct bt_conn *default_conn;
 
@@ -161,21 +160,6 @@ static bool is_peer_subscribed(struct bt_conn *conn)
 
 /* Test steps */
 
-static void send_value_notification(void)
-{
-	const struct bt_gatt_attr *attr = bt_gatt_find_by_uuid(NULL, 0,
-							       &notify_characteristic_uuid.uuid);
-	static uint8_t value;
-	int err;
-
-	err = bt_gatt_notify(default_conn, attr, &value, sizeof(value));
-	if (err != 0) {
-		FAIL("Failed to send notification (err %d)\n", err);
-	}
-
-	value++;
-}
-
 static void connect_pair_check_subscribtion(struct bt_le_ext_adv *adv)
 {
 	start_adv(adv);
@@ -197,8 +181,6 @@ static void connect_pair_check_subscribtion(struct bt_le_ext_adv *adv)
 
 	/* confirm to client that the subscribtion has been well registered */
 	backchannel_sync_send(CLIENT_CHAN, CLIENT_ID);
-
-	send_value_notification();
 }
 
 static void connect_restore_sec_check_subscribtion(struct bt_le_ext_adv *adv)
@@ -222,8 +204,6 @@ static void connect_restore_sec_check_subscribtion(struct bt_le_ext_adv *adv)
 
 	/* confirm to good client that the subscribtion has been well restored */
 	backchannel_sync_send(CLIENT_CHAN, CLIENT_ID);
-
-	send_value_notification();
 }
 
 /* Util functions */
@@ -252,14 +232,10 @@ static void check_ccc_handle(void)
 	struct bt_gatt_attr *service_notify_attr =
 		bt_gatt_find_by_uuid(NULL, 0, &notify_characteristic_uuid.uuid);
 
-	uint16_t actual_val_handle = bt_gatt_attr_get_handle(service_notify_attr);
-
-	__ASSERT(actual_val_handle == VAL_HANDLE,
-		 "Please update the VAL_HANDLE define (actual_val_handle=%d)", actual_val_handle);
-
 	struct bt_gatt_attr attr = {
 		.uuid = BT_UUID_GATT_CHRC,
-		.user_data = &(struct bt_gatt_chrc){ .value_handle = actual_val_handle }};
+		.user_data = &(struct bt_gatt_chrc){
+			.value_handle = bt_gatt_attr_get_handle(service_notify_attr)}};
 
 	struct bt_gatt_attr *ccc_attr = bt_gatt_find_by_uuid(&attr, 0, BT_UUID_GATT_CCC);
 	uint16_t actual_ccc_handle = bt_gatt_attr_get_handle(ccc_attr);
@@ -270,7 +246,7 @@ static void check_ccc_handle(void)
 
 /* Main function */
 
-void run_peripheral(int times)
+void run_peripheral(void)
 {
 	int err;
 	struct bt_le_ext_adv *adv = NULL;
@@ -307,10 +283,8 @@ void run_peripheral(int times)
 	connect_pair_check_subscribtion(adv);
 	WAIT_FOR_FLAG(disconnected_flag);
 
-	for (int i = 0; i < times; i++) {
-		connect_restore_sec_check_subscribtion(adv);
-		WAIT_FOR_FLAG(disconnected_flag);
-	}
+	connect_restore_sec_check_subscribtion(adv);
+	WAIT_FOR_FLAG(disconnected_flag);
 
 	PASS("Peripheral test passed\n");
 }

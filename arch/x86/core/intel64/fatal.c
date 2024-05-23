@@ -15,8 +15,6 @@ LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
  */
 __weak bool z_x86_do_kernel_nmi(const z_arch_esf_t *esf)
 {
-	ARG_UNUSED(esf);
-
 	return false;
 }
 

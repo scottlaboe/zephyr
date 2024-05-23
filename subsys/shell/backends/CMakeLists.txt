@@ -24,8 +24,3 @@ zephyr_sources_ifdef(
   CONFIG_SHELL_BACKEND_MQTT
   shell_mqtt.c
 )
-
-zephyr_sources_ifdef(
-  CONFIG_SHELL_BACKEND_RPMSG
-  shell_rpmsg.c
-)

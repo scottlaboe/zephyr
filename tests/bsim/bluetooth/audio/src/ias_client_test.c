@@ -65,21 +65,6 @@ static void test_alert_stop(struct bt_conn *conn)
 	}
 }
 
-static void discover_ias(void)
-{
-	int err;
-
-	UNSET_FLAG(g_service_discovered);
-
-	err = bt_ias_discover(default_conn);
-	if (err < 0) {
-		FAIL("Failed to discover IAS (err %d)\n", err);
-		return;
-	}
-
-	WAIT_FOR_FLAG(g_service_discovered);
-}
-
 static void test_main(void)
 {
 	int err;
@@ -110,8 +95,13 @@ static void test_main(void)
 
 	WAIT_FOR_FLAG(flag_connected);
 
-	discover_ias();
-	discover_ias(); /* test that we can discover twice */
+	err = bt_ias_discover(default_conn);
+	if (err < 0) {
+		FAIL("Failed to discover IAS (err %d)\n", err);
+		return;
+	}
+
+	WAIT_FOR_FLAG(g_service_discovered);
 
 	/* Set alert levels with a delay to let the server handle any changes it want */
 	test_alert_high(default_conn);

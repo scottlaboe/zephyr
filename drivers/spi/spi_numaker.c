@@ -189,16 +189,6 @@ static int spi_numaker_txrx(const struct device *dev)
 		}
 
 		LOG_DBG("%s --> TX [0x%x] done", __func__, tx_frame);
-	} else {
-		/* Write dummy data to TX register */
-		SPI_WRITE_TX(dev_cfg->spi, 0x00U);
-		time_out_cnt = SystemCoreClock; /* 1 second time-out */
-		while (SPI_IS_BUSY(dev_cfg->spi)) {
-			if (--time_out_cnt == 0) {
-				LOG_ERR("Wait for SPI time-out");
-				return -EIO;
-			}
-		}
 	}
 
 	/* Read received data */
@@ -283,10 +273,8 @@ static int spi_numaker_release(const struct device *dev, const struct spi_config
 	return 0;
 }
 
-static const struct spi_driver_api spi_numaker_driver_api = {
-	.transceive = spi_numaker_transceive,
-	.release = spi_numaker_release
-};
+static struct spi_driver_api spi_numaker_driver_api = {.transceive = spi_numaker_transceive,
+						       .release = spi_numaker_release};
 
 static int spi_numaker_init(const struct device *dev)
 {

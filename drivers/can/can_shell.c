@@ -28,15 +28,13 @@ struct can_shell_mode_mapping {
 #define CAN_SHELL_MODE_MAPPING(_name, _mode) { .name = _name, .mode = _mode }
 
 static const struct can_shell_mode_mapping can_shell_mode_map[] = {
-	/* zephyr-keep-sorted-start */
+	/* Array sorted alphabetically based on name */
 	CAN_SHELL_MODE_MAPPING("fd",              CAN_MODE_FD),
 	CAN_SHELL_MODE_MAPPING("listen-only",     CAN_MODE_LISTENONLY),
 	CAN_SHELL_MODE_MAPPING("loopback",        CAN_MODE_LOOPBACK),
-	CAN_SHELL_MODE_MAPPING("manual-recovery", CAN_MODE_MANUAL_RECOVERY),
 	CAN_SHELL_MODE_MAPPING("normal",          CAN_MODE_NORMAL),
 	CAN_SHELL_MODE_MAPPING("one-shot",        CAN_MODE_ONE_SHOT),
 	CAN_SHELL_MODE_MAPPING("triple-sampling", CAN_MODE_3_SAMPLES),
-	/* zephyr-keep-sorted-stop */
 };
 
 K_MSGQ_DEFINE(can_shell_tx_msgq, sizeof(struct can_shell_tx_event),
@@ -204,7 +202,7 @@ static const char *can_shell_state_to_string(enum can_state state)
 	}
 }
 
-static void can_shell_print_extended_modes(const struct shell *sh, can_mode_t cap)
+static void can_shell_print_capabilities(const struct shell *sh, can_mode_t cap)
 {
 	int bit;
 	int i;
@@ -275,14 +273,13 @@ static int cmd_can_stop(const struct shell *sh, size_t argc, char **argv)
 static int cmd_can_show(const struct shell *sh, size_t argc, char **argv)
 {
 	const struct device *dev = device_get_binding(argv[1]);
-	const struct device *phy;
 	const struct can_timing *timing_min;
 	const struct can_timing *timing_max;
 	struct can_bus_err_cnt err_cnt;
 	enum can_state state;
-	uint32_t bitrate_max;
-	int max_std_filters;
-	int max_ext_filters;
+	uint32_t max_bitrate = 0;
+	int max_std_filters = 0;
+	int max_ext_filters = 0;
 	uint32_t core_clock;
 	can_mode_t cap;
 	int err;
@@ -298,7 +295,11 @@ static int cmd_can_show(const struct shell *sh, size_t argc, char **argv)
 		return err;
 	}
 
-	bitrate_max = can_get_bitrate_max(dev);
+	err = can_get_max_bitrate(dev, &max_bitrate);
+	if (err != 0 && err != -ENOSYS) {
+		shell_error(sh, "failed to get maximum bitrate (err %d)", err);
+		return err;
+	}
 
 	max_std_filters = can_get_max_filters(dev, false);
 	if (max_std_filters < 0 && max_std_filters != -ENOSYS) {
@@ -325,16 +326,12 @@ static int cmd_can_show(const struct shell *sh, size_t argc, char **argv)
 	}
 
 	shell_print(sh, "core clock:      %d Hz", core_clock);
-	shell_print(sh, "max bitrate:     %d bps", bitrate_max);
+	shell_print(sh, "max bitrate:     %d bps", max_bitrate);
 	shell_print(sh, "max std filters: %d", max_std_filters);
 	shell_print(sh, "max ext filters: %d", max_ext_filters);
 
 	shell_fprintf(sh, SHELL_NORMAL, "capabilities:    normal ");
-	can_shell_print_extended_modes(sh, cap);
-	shell_fprintf(sh, SHELL_NORMAL, "\n");
-
-	shell_fprintf(sh, SHELL_NORMAL, "mode:            normal ");
-	can_shell_print_extended_modes(sh, can_get_mode(dev));
+	can_shell_print_capabilities(sh, cap);
 	shell_fprintf(sh, SHELL_NORMAL, "\n");
 
 	shell_print(sh, "state:           %s", can_shell_state_to_string(state));
@@ -364,9 +361,6 @@ static int cmd_can_show(const struct shell *sh, size_t argc, char **argv)
 			    timing_min->phase_seg2, timing_max->phase_seg2,
 			    timing_min->prescaler, timing_max->prescaler);
 	}
-
-	phy = can_get_transceiver(dev);
-	shell_print(sh, "transceiver:     %s", phy != NULL ? phy->name : "passive/none");
 
 #ifdef CONFIG_CAN_STATS
 	shell_print(sh, "statistics:");
@@ -675,7 +669,7 @@ static int cmd_can_send(const struct shell *sh, size_t argc, char **argv)
 	static unsigned int frame_counter;
 	unsigned int frame_no;
 	struct can_frame frame;
-	uint32_t id_mask;
+	uint32_t max_id;
 	int argidx = 2;
 	uint32_t val;
 	char *endptr;
@@ -689,7 +683,7 @@ static int cmd_can_send(const struct shell *sh, size_t argc, char **argv)
 	}
 
 	/* Defaults */
-	id_mask = CAN_STD_ID_MASK;
+	max_id = CAN_MAX_STD_ID;
 	frame.flags = 0;
 	frame.dlc = 0;
 
@@ -700,7 +694,7 @@ static int cmd_can_send(const struct shell *sh, size_t argc, char **argv)
 			break;
 		} else if (strcmp(argv[argidx], "-e") == 0) {
 			frame.flags |= CAN_FRAME_IDE;
-			id_mask = CAN_EXT_ID_MASK;
+			max_id = CAN_MAX_EXT_ID;
 			argidx++;
 		} else if (strcmp(argv[argidx], "-r") == 0) {
 			frame.flags |= CAN_FRAME_RTR;
@@ -731,7 +725,7 @@ static int cmd_can_send(const struct shell *sh, size_t argc, char **argv)
 		return -EINVAL;
 	}
 
-	if (val > id_mask) {
+	if (val > max_id) {
 		shell_error(sh, "CAN ID 0x%0*x out of range",
 			    (frame.flags & CAN_FRAME_IDE) != 0 ? 8 : 3,
 			    val);
@@ -794,7 +788,7 @@ static int cmd_can_filter_add(const struct shell *sh, size_t argc, char **argv)
 {
 	const struct device *dev = device_get_binding(argv[1]);
 	struct can_filter filter;
-	uint32_t id_mask;
+	uint32_t max_id;
 	int argidx = 2;
 	uint32_t val;
 	char *endptr;
@@ -806,8 +800,8 @@ static int cmd_can_filter_add(const struct shell *sh, size_t argc, char **argv)
 	}
 
 	/* Defaults */
-	id_mask = CAN_STD_ID_MASK;
-	filter.flags = 0U;
+	max_id = CAN_MAX_STD_ID;
+	filter.flags = CAN_FILTER_DATA;
 
 	/* Parse options */
 	while (argidx < argc && strncmp(argv[argidx], "-", 1) == 0) {
@@ -816,7 +810,17 @@ static int cmd_can_filter_add(const struct shell *sh, size_t argc, char **argv)
 			break;
 		} else if (strcmp(argv[argidx], "-e") == 0) {
 			filter.flags |= CAN_FILTER_IDE;
-			id_mask = CAN_EXT_ID_MASK;
+			max_id = CAN_MAX_EXT_ID;
+			argidx++;
+		} else if (strcmp(argv[argidx], "-f") == 0) {
+			filter.flags |= CAN_FILTER_FDF;
+			argidx++;
+		} else if (strcmp(argv[argidx], "-r") == 0) {
+			filter.flags |= CAN_FILTER_RTR;
+			argidx++;
+		} else if (strcmp(argv[argidx], "-R") == 0) {
+			filter.flags &= ~(CAN_FILTER_DATA);
+			filter.flags |= CAN_FILTER_RTR;
 			argidx++;
 		} else {
 			shell_error(sh, "unsupported argument %s", argv[argidx]);
@@ -838,7 +842,7 @@ static int cmd_can_filter_add(const struct shell *sh, size_t argc, char **argv)
 		return -EINVAL;
 	}
 
-	if (val > id_mask) {
+	if (val > max_id) {
 		shell_error(sh, "CAN ID 0x%0*x out of range",
 			    (filter.flags & CAN_FILTER_IDE) != 0 ? 8 : 3,
 			    val);
@@ -855,7 +859,7 @@ static int cmd_can_filter_add(const struct shell *sh, size_t argc, char **argv)
 			return -EINVAL;
 		}
 
-		if (val > id_mask) {
+		if (val > max_id) {
 			shell_error(sh, "CAN ID mask 0x%0*x out of range",
 				    (filter.flags & CAN_FILTER_IDE) != 0 ? 8 : 3,
 				    val);
@@ -863,7 +867,7 @@ static int cmd_can_filter_add(const struct shell *sh, size_t argc, char **argv)
 		}
 
 	} else {
-		val = id_mask;
+		val = max_id;
 	}
 
 	filter.mask = val;
@@ -873,11 +877,15 @@ static int cmd_can_filter_add(const struct shell *sh, size_t argc, char **argv)
 		return err;
 	}
 
-	shell_print(sh, "adding filter with %s (%d-bit) CAN ID 0x%0*x, CAN ID mask 0x%0*x",
+	shell_print(sh, "adding filter with %s (%d-bit) CAN ID 0x%0*x, "
+		    "CAN ID mask 0x%0*x, data frames %d, RTR frames %d, CAN FD frames %d",
 		    (filter.flags & CAN_FILTER_IDE) != 0 ? "extended" : "standard",
 		    (filter.flags & CAN_FILTER_IDE) != 0 ? 29 : 11,
 		    (filter.flags & CAN_FILTER_IDE) != 0 ? 8 : 3, filter.id,
-		    (filter.flags & CAN_FILTER_IDE) != 0 ? 8 : 3, filter.mask);
+		    (filter.flags & CAN_FILTER_IDE) != 0 ? 8 : 3, filter.mask,
+		    (filter.flags & CAN_FILTER_DATA) != 0 ? 1 : 0,
+		    (filter.flags & CAN_FILTER_RTR) != 0 ? 1 : 0,
+		    (filter.flags & CAN_FILTER_FDF) != 0 ? 1 : 0);
 
 	err = can_add_rx_filter_msgq(dev, &can_shell_rx_msgq, &filter);
 	if (err < 0) {
@@ -995,9 +1003,12 @@ SHELL_DYNAMIC_CMD_CREATE(dsub_can_device_name_mode, cmd_can_device_name_mode);
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_can_filter_cmds,
 	SHELL_CMD_ARG(add, &dsub_can_device_name,
 		"Add rx filter\n"
-		"Usage: can filter add <device> [-e] <CAN ID> [CAN ID mask]\n"
-		"-e  use extended (29-bit) CAN ID/CAN ID mask\n",
-		cmd_can_filter_add, 3, 2),
+		"Usage: can filter add <device> [-e] [-f] [-r] [-R] <CAN ID> [CAN ID mask]\n"
+		"-e  use extended (29-bit) CAN ID/CAN ID mask\n"
+		"-f  match CAN FD format frames\n"
+		"-r  also match Remote Transmission Request (RTR) frames\n"
+		"-R  only match Remote Transmission Request (RTR) frames",
+		cmd_can_filter_add, 3, 5),
 	SHELL_CMD_ARG(remove, &dsub_can_device_name,
 		"Remove rx filter\n"
 		"Usage: can filter remove <device> <filter_id>",
@@ -1052,9 +1063,9 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_can_cmds,
 		"CAN rx filter commands\n"
 		"Usage: can filter <add|remove> <device> ...",
 		NULL),
-	SHELL_COND_CMD_ARG(CONFIG_CAN_MANUAL_RECOVERY_MODE,
+	SHELL_EXPR_CMD_ARG(!IS_ENABLED(CONFIG_CAN_AUTO_BUS_OFF_RECOVERY),
 		recover, &dsub_can_device_name,
-		"Manually recover CAN controller from bus-off state\n"
+		"Recover CAN controller from bus-off state\n"
 		"Usage: can recover <device> [timeout ms]",
 		cmd_can_recover, 2, 1),
 	SHELL_SUBCMD_SET_END

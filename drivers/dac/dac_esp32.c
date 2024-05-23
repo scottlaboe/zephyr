@@ -13,7 +13,9 @@
 #include <hal/rtc_io_types.h>
 #include <hal/rtc_io_hal.h>
 #include <hal/rtc_io_ll.h>
-#include "driver/dac.h"
+#include <hal/dac_hal.h>
+#include <hal/dac_types.h>
+#include "driver/dac_common.h"
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(esp32_dac, CONFIG_DAC_LOG_LEVEL);
@@ -39,7 +41,7 @@ static int dac_esp32_channel_setup(const struct device *dev,
 {
 	ARG_UNUSED(dev);
 
-	if (channel_cfg->channel_id > SOC_DAC_CHAN_NUM) {
+	if (channel_cfg->channel_id > DAC_CHANNEL_MAX) {
 		LOG_ERR("Channel %d is not valid", channel_cfg->channel_id);
 		return -EINVAL;
 	}

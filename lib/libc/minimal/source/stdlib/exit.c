@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <zephyr/kernel.h>
 
-FUNC_NORETURN void _exit(int status)
+void _exit(int status)
 {
 	printk("exit\n");
 	while (1) {

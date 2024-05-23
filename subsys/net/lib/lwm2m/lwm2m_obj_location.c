@@ -117,4 +117,4 @@ static int ipso_location_init(void)
 	return ret;
 }
 
-LWM2M_CORE_INIT(ipso_location_init);
+SYS_INIT(ipso_location_init, APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

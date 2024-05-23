@@ -223,7 +223,7 @@ static int cmd_dfd_start(const struct shell *sh, size_t argc, char *argv[])
 	}
 
 	if (argc > 4) {
-		params.apply = shell_strtobool(argv[4], 0, &err);
+		params.apply = strcmp(argv[4], "true") ? false : true;
 	} else {
 		params.apply = true;
 	}

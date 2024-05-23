@@ -45,18 +45,14 @@ static void prdec(struct _pfr *r, long v)
 	char digs[11 * sizeof(long)/4];
 	int i = sizeof(digs) - 1;
 
-	digs[i] = 0;
-	--i;
+	digs[i--] = 0;
 	while (v || i == 9) {
-		digs[i] = '0' + (v % 10);
-		--i;
+		digs[i--] = '0' + (v % 10);
 		v /= 10;
 	}
 
-	++i;
-	while (digs[i] != '\0') {
+	while (digs[++i] != '\0') {
 		pc(r, digs[i]);
-		++i;
 	}
 }
 
@@ -105,10 +101,8 @@ static int vpf(struct _pfr *r, const char *f, va_list ap)
 		case 's': {
 			char *s = va_arg(ap, char *);
 
-			while (*s != '\0') {
-				pc(r, *s);
-				++s;
-			}
+			while (*s != '\0')
+				pc(r, *s++);
 			break;
 		}
 		case 'p':
@@ -123,9 +117,8 @@ static int vpf(struct _pfr *r, const char *f, va_list ap)
 				int d = (v >> (i*4)) & 0xf;
 
 				sig += !!d;
-				if (sig || i == 0) {
+				if (sig || i == 0)
 					pc(r, "0123456789abcdef"[d]);
-				}
 			}
 			break;
 		}
@@ -149,7 +142,7 @@ static int vpf(struct _pfr *r, const char *f, va_list ap)
 
 static inline int snprintf(char *buf, unsigned long len, const char *f, ...)
 {
-	int ret;
+	int ret = 0;
 	struct _pfr r = { .buf = buf, .len = len };
 
 	CALL_VPF(&r);
@@ -158,7 +151,7 @@ static inline int snprintf(char *buf, unsigned long len, const char *f, ...)
 
 static inline int sprintf(char *buf, const char *f, ...)
 {
-	int ret;
+	int ret = 0;
 	struct _pfr r = { .buf = buf, .len = 0x7fffffff };
 
 	CALL_VPF(&r);
@@ -167,7 +160,7 @@ static inline int sprintf(char *buf, const char *f, ...)
 
 static inline int printf(const char *f, ...)
 {
-	int ret;
+	int ret = 0;
 	struct _pfr r = {0};
 
 	CALL_VPF(&r);

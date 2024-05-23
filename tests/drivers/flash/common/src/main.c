@@ -14,6 +14,9 @@
 #define TEST_AREA_DEV_NODE	DT_INST(0, nordic_qspi_nor)
 #elif defined(CONFIG_SPI_NOR)
 #define TEST_AREA_DEV_NODE	DT_INST(0, jedec_spi_nor)
+#elif defined(CONFIG_TRUSTED_EXECUTION_NONSECURE)
+/* SoC embedded NVM */
+#define TEST_AREA	slot1_ns_partition
 #else
 #define TEST_AREA	storage_partition
 #endif
@@ -43,22 +46,20 @@
 #endif
 
 #define EXPECTED_SIZE	512
+#define CANARY		0xff
 
 static const struct device *const flash_dev = TEST_AREA_DEVICE;
 static struct flash_pages_info page_info;
 static uint8_t __aligned(4) expected[EXPECTED_SIZE];
-static const struct flash_parameters *flash_params;
-static uint8_t erase_value;
 
 static void *flash_driver_setup(void)
 {
 	int rc;
 
-	TC_PRINT("Test will run on device %s\n", flash_dev->name);
 	zassert_true(device_is_ready(flash_dev));
 
-	flash_params = flash_get_parameters(flash_dev);
-	erase_value = flash_params->erase_value;
+	const struct flash_parameters *flash_params =
+			flash_get_parameters(flash_dev);
 
 	/* For tests purposes use page (in nrf_qspi_nor page = 64 kB) */
 	flash_get_page_info_by_offs(flash_dev, TEST_AREA_OFFSET,
@@ -72,12 +73,8 @@ static void *flash_driver_setup(void)
 	zassert_equal(rc, 0, "Cannot read flash");
 
 	/* Fill test buffer with random data */
-	for (int i = 0, val = 0; i < EXPECTED_SIZE; i++, val++) {
-		/* Skip erase value */
-		if (val == erase_value) {
-			val++;
-		}
-		expected[i] = val;
+	for (int i = 0; i < EXPECTED_SIZE; i++) {
+		expected[i] = i;
 	}
 
 	/* Check if tested region fits in flash */
@@ -88,7 +85,7 @@ static void *flash_driver_setup(void)
 	bool is_buf_clear = true;
 
 	for (off_t i = 0; i < EXPECTED_SIZE; i++) {
-		if (buf[i] != erase_value) {
+		if (buf[i] != flash_params->erase_value) {
 			is_buf_clear = false;
 			break;
 		}
@@ -111,7 +108,6 @@ ZTEST(flash_driver, test_read_unaligned_address)
 {
 	int rc;
 	uint8_t buf[EXPECTED_SIZE];
-	const uint8_t canary = erase_value;
 
 	rc = flash_write(flash_dev,
 			 page_info.start_offset,
@@ -125,8 +121,8 @@ ZTEST(flash_driver, test_read_unaligned_address)
 			/* buffer offset; leave space for buffer guard */
 			for (off_t buf_o = 1; buf_o < 5; buf_o++) {
 				/* buffer overflow protection */
-				buf[buf_o - 1] = canary;
-				buf[buf_o + len] = canary;
+				buf[buf_o - 1] = CANARY;
+				buf[buf_o + len] = CANARY;
 				memset(buf + buf_o, 0, len);
 				rc = flash_read(flash_dev,
 						page_info.start_offset + ad_o,
@@ -138,10 +134,10 @@ ZTEST(flash_driver, test_read_unaligned_address)
 					0, "Flash read failed at len=%d, "
 					"ad_o=%d, buf_o=%d", len, ad_o, buf_o);
 				/* check buffer guards */
-				zassert_equal(buf[buf_o - 1], canary,
+				zassert_equal(buf[buf_o - 1], CANARY,
 					"Buffer underflow at len=%d, "
 					"ad_o=%d, buf_o=%d", len, ad_o, buf_o);
-				zassert_equal(buf[buf_o + len], canary,
+				zassert_equal(buf[buf_o + len], CANARY,
 					"Buffer overflow at len=%d, "
 					"ad_o=%d, buf_o=%d", len, ad_o, buf_o);
 			}

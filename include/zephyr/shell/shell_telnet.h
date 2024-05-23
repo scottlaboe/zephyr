@@ -7,7 +7,6 @@
 #ifndef SHELL_TELNET_H__
 #define SHELL_TELNET_H__
 
-#include <zephyr/net/socket.h>
 #include <zephyr/shell/shell.h>
 
 #ifdef __cplusplus
@@ -15,9 +14,6 @@ extern "C" {
 #endif
 
 extern const struct shell_transport_api shell_telnet_transport_api;
-
-#define SHELL_TELNET_POLLFD_COUNT 3
-#define SHELL_TELNET_MAX_CMD_SIZE 3
 
 /** Line buffer structure. */
 struct shell_telnet_line_buf {
@@ -39,19 +35,11 @@ struct shell_telnet {
 	/** Buffer for outgoing line. */
 	struct shell_telnet_line_buf line_out;
 
-	/** Array for sockets used by the telnet service. */
-	struct zsock_pollfd fds[SHELL_TELNET_POLLFD_COUNT];
+	/** Network context of TELNET client. */
+	struct net_context *client_ctx;
 
-	/** Input buffer. */
-	uint8_t rx_buf[CONFIG_SHELL_CMD_BUFF_SIZE];
-
-	/** Number of data bytes within the input buffer. */
-	size_t rx_len;
-
-	/** Mutex protecting the input buffer access. */
-	struct k_mutex rx_lock;
-	uint8_t cmd_buf[SHELL_TELNET_MAX_CMD_SIZE];
-	uint8_t cmd_len;
+	/** RX packet FIFO. */
+	struct k_fifo rx_fifo;
 
 	/** The delayed work is used to send non-lf terminated output that has
 	 *  been around for "too long". This will prove to be useful

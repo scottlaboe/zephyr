@@ -18,7 +18,6 @@ extern "C" {
 #endif
 
 void nsi_handle_cmd_line(int argc, char *argv[]);
-void nsi_register_extra_args(int argc, char *argv[]);
 
 #ifdef __cplusplus
 }

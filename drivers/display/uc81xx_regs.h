@@ -106,31 +106,14 @@
 #define UC8179_CDI_DDX1				BIT(1)
 #define UC8179_CDI_DDX0				BIT(0)
 
-struct uc81xx_tres8 {
-	uint8_t hres;
-	uint8_t vres;
-} __packed;
-
-BUILD_ASSERT(sizeof(struct uc81xx_tres8) == 2);
-
-struct uc81xx_ptl8 {
-	uint8_t hrst;
-	uint8_t hred;
-	uint8_t vrst;
-	uint8_t vred;
-	uint8_t flags;
-} __packed;
-
-BUILD_ASSERT(sizeof(struct uc81xx_ptl8) == 5);
-
-struct uc81xx_tres16 {
+struct uc81xx_tres {
 	uint16_t hres;
 	uint16_t vres;
 } __packed;
 
-BUILD_ASSERT(sizeof(struct uc81xx_tres16) == 4);
+BUILD_ASSERT(sizeof(struct uc81xx_tres) == 4);
 
-struct uc81xx_ptl16 {
+struct uc81xx_ptl {
 	uint16_t hrst;
 	uint16_t hred;
 	uint16_t vrst;
@@ -138,9 +121,10 @@ struct uc81xx_ptl16 {
 	uint8_t flags;
 } __packed;
 
-BUILD_ASSERT(sizeof(struct uc81xx_ptl16) == 9);
+BUILD_ASSERT(sizeof(struct uc81xx_ptl) == 9);
 
 #define UC81XX_PTL_FLAG_PT_SCAN			BIT(0)
+
 
 /* Time constants in ms */
 #define UC81XX_RESET_DELAY			10U

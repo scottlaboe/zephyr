@@ -31,6 +31,7 @@ if(NOT Python3_EXECUTABLE)
                                  "import sys; sys.stdout.write('.'.join([str(x) for x in sys.version_info[:2]]))"
                          RESULT_VARIABLE result
                          OUTPUT_VARIABLE version
+                         ERROR_QUIET
                          OUTPUT_STRIP_TRAILING_WHITESPACE)
 
        if(version VERSION_LESS PYTHON_MINIMUM_REQUIRED)

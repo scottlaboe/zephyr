@@ -130,7 +130,7 @@ static int cmd_handle(struct net_buf *cmd, const struct cmd_handler *handlers, s
 	}
 
 	if (evt) {
-		bt_recv(evt);
+		bt_recv_prio(evt);
 	}
 
 	return err;

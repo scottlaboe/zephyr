@@ -13,6 +13,7 @@ from gdbstubs.gdbstub import GdbStub
 
 logger = logging.getLogger("gdbstub")
 
+
 class RegNum():
     ZERO = 0
     RA = 1
@@ -51,7 +52,6 @@ class RegNum():
 
 class GdbStub_RISC_V(GdbStub):
     ARCH_DATA_BLK_STRUCT    = "<IIIIIIIIIIIIIIIIII"
-    ARCH_DATA_BLK_STRUCT_2  = "<QQQQQQQQQQQQQQQQQQ"
 
     GDB_SIGNAL_DEFAULT = 7
 
@@ -66,12 +66,7 @@ class GdbStub_RISC_V(GdbStub):
 
     def parse_arch_data_block(self):
         arch_data_blk = self.logfile.get_arch_data()['data']
-        self.arch_data_ver = self.logfile.get_arch_data()['hdr_ver']
-
-        if self.arch_data_ver == 1:
-            tu = struct.unpack(self.ARCH_DATA_BLK_STRUCT, arch_data_blk)
-        elif self.arch_data_ver == 2:
-            tu = struct.unpack(self.ARCH_DATA_BLK_STRUCT_2, arch_data_blk)
+        tu = struct.unpack(self.ARCH_DATA_BLK_STRUCT, arch_data_blk)
 
         self.registers = dict()
 
@@ -95,7 +90,7 @@ class GdbStub_RISC_V(GdbStub):
         self.registers[RegNum.PC] = tu[17]
 
     def handle_register_group_read_packet(self):
-        reg_fmt = "<I" if self.arch_data_ver == 1 else "<Q"
+        reg_fmt = "<I"
 
         idx = 0
         pkt = b''
@@ -107,8 +102,7 @@ class GdbStub_RISC_V(GdbStub):
             else:
                 # Register not in coredump -> unknown value
                 # Send in "xxxxxxxx"
-                length = 8 if self.arch_data_ver == 1 else 16
-                pkt += b'x' * length
+                pkt += b'x' * 8
 
             idx += 1
 
@@ -117,5 +111,4 @@ class GdbStub_RISC_V(GdbStub):
     def handle_register_single_read_packet(self, pkt):
         # Mark registers as "<unavailable>". 'p' packets are not sent for the registers
         # currently handled in this file so we can safely reply "xxxxxxxx" here.
-        length = 8 if self.arch_data_ver == 1 else 16
-        self.put_gdb_packet(b'x' * length)
+        self.put_gdb_packet(b'x' * 8)

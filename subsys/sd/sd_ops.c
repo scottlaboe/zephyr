@@ -1,5 +1,5 @@
 /*
- * Copyright 2022,2024 NXP
+ * Copyright 2022 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,16 +19,14 @@ LOG_MODULE_DECLARE(sd, CONFIG_SD_LOG_LEVEL);
 /* Read card status. Return 0 if card is inactive */
 int sdmmc_read_status(struct sd_card *card)
 {
-	struct sdhc_command cmd;
+	struct sdhc_command cmd = {0};
 	int ret;
 
 	cmd.opcode = SD_SEND_STATUS;
-	cmd.arg = 0;
 	if (!card->host_props.is_spi) {
 		cmd.arg = (card->relative_addr << 16U);
 	}
 	cmd.response_type = (SD_RSP_TYPE_R1 | SD_SPI_RSP_TYPE_R2);
-	cmd.retries = CONFIG_SD_CMD_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
 
 	ret = sdhc_request(card->sdhc, &cmd, NULL);
@@ -65,28 +63,21 @@ int sdmmc_read_status(struct sd_card *card)
 int sdmmc_wait_ready(struct sd_card *card)
 {
 	int ret, timeout = CONFIG_SD_DATA_TIMEOUT * 1000;
+	bool busy = true;
 
 	do {
-		if (!sdhc_card_busy(card->sdhc)) {
+		busy = sdhc_card_busy(card->sdhc);
+		if (!busy) {
 			/* Check card status */
 			ret = sd_retry(sdmmc_read_status, card, CONFIG_SD_RETRY_COUNT);
-			if (ret == 0) {
-				return 0;
-			}
-			if (ret == -ETIMEDOUT) {
-				/* If this check timed out, then the total
-				 * time elapsed in microseconds is
-				 * SD_CMD_TIMEOUT * SD_RETRY_COUNT * 1000
-				 */
-				timeout -= (CONFIG_SD_CMD_TIMEOUT *
-					    CONFIG_SD_RETRY_COUNT) * 1000;
-			}
+			busy = (ret != 0);
+		} else {
+			/* Delay 125us before polling again */
+			k_busy_wait(125);
+			timeout -= 125;
 		}
-		/* Delay 125us before polling again */
-		k_busy_wait(125);
-		timeout -= 125;
-	} while (timeout > 0);
-	return -EBUSY;
+	} while (busy && (timeout > 0));
+	return busy;
 }
 
 static inline void sdmmc_decode_csd(struct sd_csd *csd, uint32_t *raw_csd, uint32_t *blk_count,
@@ -204,8 +195,8 @@ static inline void sdmmc_decode_cid(struct sd_cid *cid, uint32_t *raw_cid)
 /* Reads card id/csd register (in SPI mode) */
 static int sdmmc_spi_read_cxd(struct sd_card *card, uint32_t opcode, uint32_t *cxd)
 {
-	struct sdhc_command cmd;
-	struct sdhc_data data;
+	struct sdhc_command cmd = {0};
+	struct sdhc_data data = {0};
 	int ret, i;
 	/* Use internal card buffer for data transfer */
 	uint32_t *cxd_be = (uint32_t *)card->card_buffer;
@@ -213,11 +204,9 @@ static int sdmmc_spi_read_cxd(struct sd_card *card, uint32_t opcode, uint32_t *c
 	cmd.opcode = opcode;
 	cmd.arg = 0;
 	cmd.response_type = SD_SPI_RSP_TYPE_R1;
-	cmd.retries = CONFIG_SD_CMD_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
 
 	/* CID/CSD is 16 bytes */
-	data.block_addr = 0;        /* Unused set to 0 */
 	data.block_size = 16;
 	data.blocks = 1U;
 	data.data = cxd_be;
@@ -237,13 +226,12 @@ static int sdmmc_spi_read_cxd(struct sd_card *card, uint32_t opcode, uint32_t *c
 /* Reads card id/csd register (native SD mode */
 static int sdmmc_read_cxd(struct sd_card *card, uint32_t opcode, uint32_t rca, uint32_t *cxd)
 {
-	struct sdhc_command cmd;
+	struct sdhc_command cmd = {0};
 	int ret;
 
 	cmd.opcode = opcode;
 	cmd.arg = (rca << 16);
 	cmd.response_type = SD_RSP_TYPE_R2;
-	cmd.retries = CONFIG_SD_CMD_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
 
 	ret = sdhc_request(card->sdhc, &cmd, NULL);
@@ -260,7 +248,7 @@ static int sdmmc_read_cxd(struct sd_card *card, uint32_t opcode, uint32_t rca, u
 int sdmmc_read_csd(struct sd_card *card)
 {
 	int ret;
-	uint32_t csd[4];
+	uint32_t csd[4] = {0};
 	/* Keep CSD on stack for reduced RAM usage */
 	struct sd_csd card_csd = {0};
 
@@ -283,7 +271,7 @@ int sdmmc_read_csd(struct sd_card *card)
 /* Reads card identification register, and decodes it */
 int card_read_cid(struct sd_card *card)
 {
-	uint32_t cid[4];
+	uint32_t cid[4] = {0};
 	int ret;
 #if defined(CONFIG_SDMMC_STACK) || defined(CONFIG_SDIO_STACK)
 	/* Keep CID on stack for reduced RAM usage */
@@ -320,12 +308,12 @@ int card_read_cid(struct sd_card *card)
 
 /*
  * Implements signal voltage switch procedure described in section 3.6.1 of
- * SD host controller specification.
+ * SD specification.
  */
 int sdmmc_switch_voltage(struct sd_card *card)
 {
 	int ret, sd_clock;
-	struct sdhc_command cmd;
+	struct sdhc_command cmd = {0};
 
 	/* Check to make sure card supports 1.8V */
 	if (!(card->flags & SD_1800MV_FLAG)) {
@@ -337,7 +325,6 @@ int sdmmc_switch_voltage(struct sd_card *card)
 	cmd.opcode = SD_VOL_SWITCH;
 	cmd.arg = 0U;
 	cmd.response_type = SD_RSP_TYPE_R1;
-	cmd.retries = CONFIG_SD_CMD_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
 	ret = sdhc_request(card->sdhc, &cmd, NULL);
 	if (ret) {
@@ -410,13 +397,12 @@ int sdmmc_switch_voltage(struct sd_card *card)
  */
 int sdmmc_request_rca(struct sd_card *card)
 {
-	struct sdhc_command cmd;
+	struct sdhc_command cmd = {0};
 	int ret;
 
 	cmd.opcode = SD_SEND_RELATIVE_ADDR;
 	cmd.arg = 0;
 	cmd.response_type = SD_RSP_TYPE_R6;
-	cmd.retries = CONFIG_SD_CMD_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
 	/* Issue CMD3 until card responds with nonzero RCA */
 	do {
@@ -437,13 +423,12 @@ int sdmmc_request_rca(struct sd_card *card)
  */
 int sdmmc_select_card(struct sd_card *card)
 {
-	struct sdhc_command cmd;
+	struct sdhc_command cmd = {0};
 	int ret;
 
 	cmd.opcode = SD_SELECT_CARD;
 	cmd.arg = ((card->relative_addr) << 16U);
 	cmd.response_type = SD_RSP_TYPE_R1;
-	cmd.retries = CONFIG_SD_CMD_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
 
 	ret = sdhc_request(card->sdhc, &cmd, NULL);
@@ -462,13 +447,12 @@ int sdmmc_select_card(struct sd_card *card)
 /* Helper to send SD app command */
 int card_app_command(struct sd_card *card, int relative_card_address)
 {
-	struct sdhc_command cmd;
+	struct sdhc_command cmd = {0};
 	int ret;
 
 	cmd.opcode = SD_APP_CMD;
 	cmd.arg = relative_card_address << 16U;
 	cmd.response_type = (SD_RSP_TYPE_R1 | SD_SPI_RSP_TYPE_R1);
-	cmd.retries = CONFIG_SD_CMD_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
 	ret = sdhc_request(card->sdhc, &cmd, NULL);
 	if (ret) {
@@ -491,8 +475,8 @@ int card_app_command(struct sd_card *card, int relative_card_address)
 static int card_read(struct sd_card *card, uint8_t *rbuf, uint32_t start_block, uint32_t num_blocks)
 {
 	int ret;
-	struct sdhc_command cmd;
-	struct sdhc_data data;
+	struct sdhc_command cmd = {0};
+	struct sdhc_data data = {0};
 
 	/*
 	 * Note: The SD specification allows for CMD23 to be sent before a
@@ -514,8 +498,8 @@ static int card_read(struct sd_card *card, uint8_t *rbuf, uint32_t start_block, 
 		cmd.arg = start_block;
 	}
 	cmd.response_type = (SD_RSP_TYPE_R1 | SD_SPI_RSP_TYPE_R1);
-	cmd.retries = CONFIG_SD_DATA_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
+	cmd.retries = CONFIG_SD_DATA_RETRIES;
 
 	data.block_addr = start_block;
 	data.block_size = card->block_size;
@@ -535,6 +519,7 @@ static int card_read(struct sd_card *card, uint8_t *rbuf, uint32_t start_block, 
 	ret = sdmmc_wait_ready(card);
 	if (ret) {
 		LOG_ERR("Card did not return to ready state");
+		k_mutex_unlock(&card->lock);
 		return -ETIMEDOUT;
 	}
 	return 0;
@@ -555,7 +540,7 @@ int card_read_blocks(struct sd_card *card, uint8_t *rbuf, uint32_t start_block, 
 		LOG_WRN("SDIO does not support MMC commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -612,8 +597,8 @@ int card_read_blocks(struct sd_card *card, uint8_t *rbuf, uint32_t start_block, 
 static int card_query_written(struct sd_card *card, uint32_t *num_written)
 {
 	int ret;
-	struct sdhc_command cmd;
-	struct sdhc_data data;
+	struct sdhc_command cmd = {0};
+	struct sdhc_data data = {0};
 	uint32_t *blocks = (uint32_t *)card->card_buffer;
 
 	ret = card_app_command(card, card->relative_addr);
@@ -625,10 +610,8 @@ static int card_query_written(struct sd_card *card, uint32_t *num_written)
 	cmd.opcode = SD_APP_SEND_NUM_WRITTEN_BLK;
 	cmd.arg = 0;
 	cmd.response_type = (SD_RSP_TYPE_R1 | SD_SPI_RSP_TYPE_R1);
-	cmd.retries = CONFIG_SD_CMD_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
 
-	data.block_addr = 0;        /* Unused set to 0 */
 	data.block_size = 4U;
 	data.blocks = 1U;
 	data.data = blocks;
@@ -655,8 +638,8 @@ static int card_write(struct sd_card *card, const uint8_t *wbuf, uint32_t start_
 {
 	int ret;
 	uint32_t blocks;
-	struct sdhc_command cmd;
-	struct sdhc_data data;
+	struct sdhc_command cmd = {0};
+	struct sdhc_data data = {0};
 
 	/*
 	 * See the note in card_read() above. We will not issue CMD23
@@ -670,8 +653,8 @@ static int card_write(struct sd_card *card, const uint8_t *wbuf, uint32_t start_
 		cmd.arg = start_block;
 	}
 	cmd.response_type = (SD_RSP_TYPE_R1 | SD_SPI_RSP_TYPE_R1);
-	cmd.retries = CONFIG_SD_DATA_RETRIES;
 	cmd.timeout_ms = CONFIG_SD_CMD_TIMEOUT;
+	cmd.retries = CONFIG_SD_DATA_RETRIES;
 
 	data.block_addr = start_block;
 	data.block_size = card->block_size;
@@ -721,7 +704,7 @@ int card_write_blocks(struct sd_card *card, const uint8_t *wbuf, uint32_t start_
 		LOG_WRN("SDIO does not support MMC commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -773,13 +756,6 @@ int card_write_blocks(struct sd_card *card, const uint8_t *wbuf, uint32_t start_
 /* IO Control handler for SD MMC */
 int card_ioctl(struct sd_card *card, uint8_t cmd, void *buf)
 {
-	int ret;
-
-	ret = k_mutex_lock(&card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
-	if (ret) {
-		LOG_WRN("Could not get SD card mutex");
-		return ret;
-	}
 	switch (cmd) {
 	case DISK_IOCTL_GET_SECTOR_COUNT:
 		(*(uint32_t *)buf) = card->block_count;
@@ -793,10 +769,9 @@ int card_ioctl(struct sd_card *card, uint8_t cmd, void *buf)
 		 * Note that SD stack does not support enabling caching, so
 		 * cache flush is not required here
 		 */
-		ret = sdmmc_wait_ready(card);
+		return sdmmc_wait_ready(card);
 	default:
-		ret = -ENOTSUP;
+		return -ENOTSUP;
 	}
-	k_mutex_unlock(&card->lock);
-	return ret;
+	return 0;
 }

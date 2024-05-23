@@ -15,6 +15,10 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(bt_hci_driver_b91);
 
+#define HCI_CMD                 0x01
+#define HCI_ACL                 0x02
+#define HCI_EVT                 0x04
+
 #define HCI_BT_B91_TIMEOUT K_MSEC(2000)
 
 static K_SEM_DEFINE(hci_send_sem, 1, 1);
@@ -24,7 +28,7 @@ static bool is_hci_event_discardable(const uint8_t *evt_data)
 	uint8_t evt_type = evt_data[0];
 
 	switch (evt_type) {
-#if defined(CONFIG_BT_CLASSIC)
+#if defined(CONFIG_BT_BREDR)
 	case BT_HCI_EVT_INQUIRY_RESULT_WITH_RSSI:
 	case BT_HCI_EVT_EXTENDED_INQUIRY_RESULT:
 		return true;
@@ -144,11 +148,11 @@ static void hci_b91_host_rcv_pkt(uint8_t *data, uint16_t len)
 	len -= sizeof(pkt_indicator);
 
 	switch (pkt_indicator) {
-	case BT_HCI_H4_EVT:
+	case HCI_EVT:
 		buf = bt_b91_evt_recv(data, len);
 		break;
 
-	case BT_HCI_H4_ACL:
+	case HCI_ACL:
 		buf = bt_b91_acl_recv(data, len);
 		break;
 
@@ -182,11 +186,11 @@ static int bt_b91_send(struct net_buf *buf)
 
 	switch (bt_buf_get_type(buf)) {
 	case BT_BUF_ACL_OUT:
-		type = BT_HCI_H4_ACL;
+		type = HCI_ACL;
 		break;
 
 	case BT_BUF_CMD:
-		type = BT_HCI_H4_CMD;
+		type = HCI_CMD;
 		break;
 
 	default:

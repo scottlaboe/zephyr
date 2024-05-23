@@ -76,8 +76,6 @@ elseif("${ARCH}" STREQUAL "sparc")
   include(${CMAKE_CURRENT_LIST_DIR}/target_sparc.cmake)
 elseif("${ARCH}" STREQUAL "mips")
   include(${CMAKE_CURRENT_LIST_DIR}/target_mips.cmake)
-elseif("${ARCH}" STREQUAL "xtensa")
-  include(${CMAKE_CURRENT_LIST_DIR}/target_xtensa.cmake)
 endif()
 
 if(SYSROOT_DIR)

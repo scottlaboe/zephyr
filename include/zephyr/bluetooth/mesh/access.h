@@ -506,8 +506,7 @@ struct bt_mesh_model_op {
  *  @param _pub       Model publish parameters.
  *  @param _user_data User data for the model.
  *  @param _cb        Callback structure, or NULL to keep no callbacks.
- *  @param _metadata  Metadata structure. Used if @kconfig{CONFIG_BT_MESH_LARGE_COMP_DATA_SRV}
- *		      is enabled.
+ *  @param _metadata  Metadata structure.
  */
 #if defined(CONFIG_BT_MESH_LARGE_COMP_DATA_SRV)
 #define BT_MESH_MODEL_METADATA_CB(_id, _op, _pub, _user_data, _cb, _metadata)                    \
@@ -561,10 +560,8 @@ struct bt_mesh_model_op {
  *  @param _pub       Model publish parameters.
  *  @param _user_data User data for the model.
  *  @param _cb        Callback structure, or NULL to keep no callbacks.
- *  @param _metadata  Metadata structure. Used if @kconfig{CONFIG_BT_MESH_LARGE_COMP_DATA_SRV}
- *		      is enabled.
+ *  @param _metadata  Metadata structure.
  */
-#if defined(CONFIG_BT_MESH_LARGE_COMP_DATA_SRV)
 #define BT_MESH_MODEL_VND_METADATA_CB(_company, _id, _op, _pub, _user_data, _cb, _metadata)      \
 {                                                                            \
 	.vnd.company = (_company),                                           \
@@ -580,10 +577,7 @@ struct bt_mesh_model_op {
 	.cb = _cb,                                                           \
 	.metadata = _metadata,                                               \
 }
-#else
-#define BT_MESH_MODEL_VND_METADATA_CB(_company, _id, _op, _pub, _user_data, _cb, _metadata)      \
-	BT_MESH_MODEL_VND_CB(_company, _id, _op, _pub, _user_data, _cb)
-#endif
+
 /**
  *  @brief Composition data SIG model entry.
  *
@@ -719,8 +713,6 @@ struct bt_mesh_model_pub {
 	uint8_t  period_div:4, /**< Divisor for the Period. */
 		 count:4;      /**< Transmissions left. */
 
-	uint8_t delayable:1;   /**< Use random delay for publishing. */
-
 	uint32_t period_start; /**< Start of the current period. */
 
 	/** @brief Publication buffer, containing the publication message.
@@ -783,7 +775,7 @@ struct bt_mesh_models_metadata_entry {
 	const uint16_t id;
 
 	/* Pointer to raw data */
-	const void * const data;
+	void *data;
 };
 
 /**
@@ -930,7 +922,7 @@ struct bt_mesh_model {
 
 #if defined(CONFIG_BT_MESH_LARGE_COMP_DATA_SRV) || defined(__DOXYGEN__)
 	/* Pointer to the array of model metadata entries. */
-	const struct bt_mesh_models_metadata_entry * const metadata;
+	struct bt_mesh_models_metadata_entry **metadata;
 #endif
 };
 
@@ -1019,7 +1011,7 @@ const struct bt_mesh_elem *bt_mesh_model_elem(const struct bt_mesh_model *mod);
  *          if no SIG model with the given ID exists in the given element.
  */
 const struct bt_mesh_model *bt_mesh_model_find(const struct bt_mesh_elem *elem,
-					       uint16_t id);
+					 uint16_t id);
 
 /** @brief Find a vendor model.
  *
@@ -1031,7 +1023,7 @@ const struct bt_mesh_model *bt_mesh_model_find(const struct bt_mesh_elem *elem,
  *          if no vendor model with the given ID exists in the given element.
  */
 const struct bt_mesh_model *bt_mesh_model_find_vnd(const struct bt_mesh_elem *elem,
-						   uint16_t company, uint16_t id);
+					     uint16_t company, uint16_t id);
 
 /** @brief Get whether the model is in the primary element of the device.
  *

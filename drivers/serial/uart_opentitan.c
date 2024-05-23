@@ -7,6 +7,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/arch/cpu.h>
 #include <zephyr/drivers/uart.h>
+#include <soc.h>
 #include <zephyr/irq.h>
 
 /* Register offsets within the UART device register space. */

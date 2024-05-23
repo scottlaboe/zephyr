@@ -16,8 +16,6 @@
 /**
  * @brief Entropy Interface
  * @defgroup entropy_interface Entropy Interface
- * @since 1.10
- * @version 1.0.0
  * @ingroup io_interfaces
  * @{
  */

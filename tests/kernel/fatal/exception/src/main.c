@@ -18,10 +18,6 @@
 #include "test_syscalls.h"
 #endif
 
-#if defined(CONFIG_DEMAND_PAGING)
-#include <zephyr/kernel/mm/demand_paging.h>
-#endif
-
 #if defined(CONFIG_X86) && defined(CONFIG_X86_MMU)
 #define STACKSIZE (8192)
 #else
@@ -56,20 +52,20 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *pEsf)
 
 	if (expected_reason == -1) {
 		printk("Was not expecting a crash\n");
-		TC_END_REPORT(TC_FAIL);
+		printk("PROJECT EXECUTION FAILED\n");
 		k_fatal_halt(reason);
 	}
 
 	if (k_current_get() != &alt_thread) {
 		printk("Wrong thread crashed\n");
-		TC_END_REPORT(TC_FAIL);
+		printk("PROJECT EXECUTION FAILED\n");
 		k_fatal_halt(reason);
 	}
 
 	if (reason != expected_reason) {
 		printk("Wrong crash type got %d expected %d\n", reason,
 		       expected_reason);
-		TC_END_REPORT(TC_FAIL);
+		printk("PROJECT EXECUTION FAILED\n");
 		k_fatal_halt(reason);
 	}
 
@@ -465,7 +461,7 @@ static void *fatal_setup(void)
 
 	obj_size = K_THREAD_STACK_SIZEOF(overflow_stack);
 #if defined(CONFIG_USERSPACE)
-	obj_size = K_THREAD_STACK_LEN(obj_size);
+	obj_size = Z_THREAD_STACK_SIZE_ADJUST(obj_size);
 #endif
 
 	k_mem_region_align(&pin_addr, &pin_size,
@@ -477,7 +473,7 @@ static void *fatal_setup(void)
 
 	obj_size = K_THREAD_STACK_SIZEOF(alt_stack);
 #if defined(CONFIG_USERSPACE)
-	obj_size = K_THREAD_STACK_LEN(obj_size);
+	obj_size = Z_THREAD_STACK_SIZE_ADJUST(obj_size);
 #endif
 
 	k_mem_region_align(&pin_addr, &pin_size,

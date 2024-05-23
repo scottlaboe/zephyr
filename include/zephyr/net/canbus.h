@@ -4,12 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/** @file
- *  @brief CAN bus socket API definitions.
- */
-
-#ifndef ZEPHYR_INCLUDE_NET_CANBUS_H_
-#define ZEPHYR_INCLUDE_NET_CANBUS_H_
+#ifndef ZEPHYR_INCLUDE_NET_CAN_H_
+#define ZEPHYR_INCLUDE_NET_CAN_H_
 
 #include <zephyr/types.h>
 #include <zephyr/net/net_ip.h>
@@ -56,4 +52,4 @@ BUILD_ASSERT(offsetof(struct canbus_api, iface_api) == 0);
 }
 #endif
 
-#endif /* ZEPHYR_INCLUDE_NET_CANBUS_H_ */
+#endif /* ZEPHYR_INCLUDE_NET_CAN_H_ */

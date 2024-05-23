@@ -16,8 +16,6 @@
 /**
  * @brief IPM Interface
  * @defgroup ipm_interface IPM Interface
- * @since 1.0
- * @version 1.0.0
  * @ingroup io_interfaces
  * @{
  */

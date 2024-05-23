@@ -20,7 +20,6 @@
 #include <kernel_arch_interface.h>
 #include <zephyr/linker/linker-defs.h>
 #include <zephyr/sys/util.h>
-#include <zephyr/kernel/mm/demand_paging.h>
 
 void *location_to_flash(uintptr_t location)
 {
@@ -45,7 +44,7 @@ int k_mem_paging_backing_store_location_get(struct z_page_frame *pf,
 					    bool page_fault)
 {
 	/* Simply returns the virtual address */
-	*location = POINTER_TO_UINT(z_page_frame_to_virt(pf));
+	*location = POINTER_TO_UINT(pf->addr);
 
 	return 0;
 }

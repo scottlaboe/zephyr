@@ -72,6 +72,5 @@ size_t get_partition_size(uintptr_t id)
 
 	sectors_info(name, &sector_size, &sector_count);
 
-	/* Assume that partition occupies sectors from CONFIG_EXT2_DISK_STARTING_SECTOR to last. */
-	return sector_size * (sector_count - CONFIG_EXT2_DISK_STARTING_SECTOR);
+	return sector_size * sector_count;
 }

@@ -6,7 +6,6 @@
 
 #include <zephyr/ztest.h>
 #include <zephyr/kernel/mm.h>
-#include <zephyr/kernel/mm/demand_paging.h>
 #include <zephyr/timing/timing.h>
 #include <mmu.h>
 #include <zephyr/linker/sections.h>
@@ -73,7 +72,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *pEsf)
 		ztest_test_pass();
 	} else {
 		printk("Unexpected fault during test");
-		TC_END_REPORT(TC_FAIL);
+		printk("PROJECT EXECUTION FAILED\n");
 		k_fatal_halt(reason);
 	}
 }

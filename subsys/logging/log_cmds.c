@@ -11,9 +11,6 @@
 #include <zephyr/sys/iterable_sections.h>
 #include <string.h>
 
-#define FRONTEND_NAME frontend
-#define FRONTEND_STR STRINGIFY(frontend)
-
 typedef int (*log_backend_cmd_t)(const struct shell *sh,
 				 const struct log_backend *backend,
 				 size_t argc,
@@ -79,14 +76,6 @@ static int shell_backend_cmd_execute(const struct shell *sh,
 	 * be found at -1 (log backend <name> command).
 	 */
 	char const *name = argv[-1];
-	size_t slen = sizeof(FRONTEND_STR);
-
-	if (IS_ENABLED(CONFIG_LOG_FRONTEND) &&
-	    strncmp(name, FRONTEND_STR, slen) == 0) {
-		func(sh, NULL, argc, argv);
-		return 0;
-	}
-
 	const struct log_backend *backend = backend_find(name);
 
 	if (backend != NULL) {
@@ -95,7 +84,6 @@ static int shell_backend_cmd_execute(const struct shell *sh,
 		shell_error(sh, "Invalid backend: %s", name);
 		return -ENOEXEC;
 	}
-
 	return 0;
 }
 
@@ -108,7 +96,7 @@ static int log_status(const struct shell *sh,
 	uint32_t dynamic_lvl;
 	uint32_t compiled_lvl;
 
-	if (backend && !log_backend_is_active(backend)) {
+	if (!log_backend_is_active(backend)) {
 		shell_warn(sh, "Logs are halted!");
 	}
 
@@ -118,13 +106,10 @@ static int log_status(const struct shell *sh,
 	      "----------------------------------------------------------\r\n");
 
 	for (int16_t i = 0U; i < modules_cnt; i++) {
-		if (IS_ENABLED(CONFIG_LOG_FRONTEND) && !backend) {
-			dynamic_lvl = log_frontend_filter_get(i, true);
-			compiled_lvl = log_frontend_filter_get(i, false);
-		} else {
-			dynamic_lvl = log_filter_get(backend, Z_LOG_LOCAL_DOMAIN_ID, i, true);
-			compiled_lvl = log_filter_get(backend, Z_LOG_LOCAL_DOMAIN_ID, i, false);
-		}
+		dynamic_lvl = log_filter_get(backend, Z_LOG_LOCAL_DOMAIN_ID,
+					     i, true);
+		compiled_lvl = log_filter_get(backend, Z_LOG_LOCAL_DOMAIN_ID,
+					      i, false);
 
 		shell_fprintf(sh, SHELL_NORMAL, "%-40s | %-7s | %s\r\n",
 			      log_source_name_get(Z_LOG_LOCAL_DOMAIN_ID, i),
@@ -178,20 +163,16 @@ static void filters_set(const struct shell *sh,
 	bool all = argc ? false : true;
 	int cnt = all ? log_src_cnt_get(Z_LOG_LOCAL_DOMAIN_ID) : argc;
 
-	if (backend && !backend->cb->active) {
+	if (!backend->cb->active) {
 		shell_warn(sh, "Backend not active.");
 	}
 
 	for (i = 0; i < cnt; i++) {
 		id = all ? i : module_id_get(argv[i]);
 		if (id >= 0) {
-			uint32_t set_lvl;
-
-			if (IS_ENABLED(CONFIG_LOG_FRONTEND) && !backend) {
-				set_lvl = log_frontend_filter_set(id, level);
-			} else {
-				set_lvl = log_filter_set(backend, Z_LOG_LOCAL_DOMAIN_ID, id, level);
-			}
+			uint32_t set_lvl = log_filter_set(backend,
+						       Z_LOG_LOCAL_DOMAIN_ID,
+						       id, level);
 
 			if (set_lvl != level) {
 				const char *name;
@@ -309,13 +290,7 @@ static int log_halt(const struct shell *sh,
 		    size_t argc,
 		    char **argv)
 {
-	if (backend || !IS_ENABLED(CONFIG_LOG_FRONTEND)) {
-		log_backend_deactivate(backend);
-		return 0;
-	}
-
-	shell_warn(sh, "Not supported for frontend");
-
+	log_backend_deactivate(backend);
 	return 0;
 }
 
@@ -341,13 +316,7 @@ static int log_go(const struct shell *sh,
 		  size_t argc,
 		  char **argv)
 {
-	if (backend || !IS_ENABLED(CONFIG_LOG_FRONTEND)) {
-		log_backend_activate(backend, backend->cb->ctx);
-		return 0;
-	}
-
-	shell_warn(sh, "Not supported for frontend");
-
+	log_backend_activate(backend, backend->cb->ctx);
 	return 0;
 }
 
@@ -382,11 +351,6 @@ static int cmd_log_backends_list(const struct shell *sh,
 			      backend->cb->id);
 
 	}
-
-	if (IS_ENABLED(CONFIG_LOG_FRONTEND)) {
-		shell_print(sh, "%s", FRONTEND_STR);
-	}
-
 	return 0;
 }
 
@@ -445,15 +409,12 @@ static void backend_name_get(size_t idx, struct shell_static_entry *entry)
 
 	STRUCT_SECTION_COUNT(log_backend, &section_count);
 
-
 	if (idx < section_count) {
 		struct log_backend *backend = NULL;
 
 		STRUCT_SECTION_GET(log_backend, idx, &backend);
 		__ASSERT_NO_MSG(backend != NULL);
 		entry->syntax = backend->name;
-	} else if (IS_ENABLED(CONFIG_LOG_FRONTEND) && (idx == section_count)) {
-		entry->syntax = FRONTEND_STR;
 	}
 }
 
@@ -477,8 +438,6 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		       cmd_log_self_status),
 	SHELL_COND_CMD(CONFIG_LOG_MODE_DEFERRED, mem, NULL, "Logger memory usage",
 		       cmd_log_mem),
-	SHELL_COND_CMD(CONFIG_LOG_FRONTEND, FRONTEND_NAME, &sub_log_backend,
-		"Frontend control", NULL),
 	SHELL_SUBCMD_SET_END);
 
 SHELL_CMD_REGISTER(log, &sub_log_stat, "Commands for controlling logger",

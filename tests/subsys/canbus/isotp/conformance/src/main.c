@@ -306,7 +306,8 @@ static int add_rx_msgq(uint32_t id, uint32_t mask)
 {
 	int filter_id;
 	struct can_filter filter = {
-		.flags = (id > 0x7FF) ? CAN_FILTER_IDE : 0,
+		.flags = CAN_FILTER_DATA | ((id > 0x7FF) ? CAN_FILTER_IDE : 0) |
+			 (IS_ENABLED(CONFIG_TEST_USE_CAN_FD_MODE) ? CAN_FILTER_FDF : 0),
 		.id = id,
 		.mask = mask
 	};

@@ -18,11 +18,6 @@
 #include <zephyr/cache.h>
 #include <stdbool.h>
 
-/* Not Write-through bit */
-#define X86_REG_CR0_NW BIT(29)
-/* Cache Disable bit */
-#define X86_REG_CR0_CD BIT(30)
-
 static inline void z_x86_wbinvd(void)
 {
 	__asm__ volatile("wbinvd;\n\t" : : : "memory");
@@ -30,28 +25,25 @@ static inline void z_x86_wbinvd(void)
 
 void arch_dcache_enable(void)
 {
-	unsigned long cr0 = 0;
+	uint32_t cr0;
 
 	/* Enable write-back caching by clearing the NW and CD bits */
-	__asm__ volatile("mov %%cr0, %0;\n\t"
-			 "and %1, %0;\n\t"
-			 "mov %0, %%cr0;\n\t"
-			 : "=r" (cr0)
-			 : "i" (~(X86_REG_CR0_NW | X86_REG_CR0_CD)));
+	__asm__ volatile("movl %%cr0, %0;\n\t"
+			"andl $0x9fffffff, %0;\n\t"
+			"movl %0, %%cr0;\n\t"
+			: "=r" (cr0));
 }
 
 void arch_dcache_disable(void)
 {
-	unsigned long cr0 = 0;
+	uint32_t cr0;
 
 	/* Enter the no-fill mode by setting NW=0 and CD=1 */
-	__asm__ volatile("mov %%cr0, %0;\n\t"
-			 "and %1, %0;\n\t"
-			 "or %2, %0;\n\t"
-			 "mov %0, %%cr0;\n\t"
-			 : "=r" (cr0)
-			 : "i" (~(X86_REG_CR0_NW)),
-			   "i" (X86_REG_CR0_CD));
+	__asm__ volatile("movl %%cr0, %0;\n\t"
+			"andl $0xdfffffff, %0;\n\t"
+			"orl $0x40000000, %0;\n\t"
+			"movl %0, %%cr0;\n\t"
+			: "=r" (cr0));
 
 	/* Flush all caches */
 	z_x86_wbinvd();

@@ -5,8 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <version.h>
-
 #include <zephyr/sys/printk.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/init.h>
@@ -18,7 +16,7 @@
 #include <zephyr/kernel.h>
 #include <kernel_internal.h>
 #include <stdlib.h>
-#if defined(CONFIG_SYS_HEAP_RUNTIME_STATS) && (K_HEAP_MEM_POOL_SIZE > 0)
+#if defined(CONFIG_SYS_HEAP_RUNTIME_STATS) && (CONFIG_HEAP_MEM_POOL_SIZE > 0)
 #include <zephyr/sys/sys_heap.h>
 #endif
 #if defined(CONFIG_LOG_RUNTIME_FILTERING)
@@ -34,10 +32,15 @@
 static int cmd_kernel_version(const struct shell *sh,
 			      size_t argc, char **argv)
 {
+	uint32_t version = sys_kernel_version_get();
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	shell_print(sh, "Zephyr version %s", KERNEL_VERSION_STRING);
+	shell_print(sh, "Zephyr version %d.%d.%d",
+		      SYS_KERNEL_VER_MAJOR(version),
+		      SYS_KERNEL_VER_MINOR(version),
+		      SYS_KERNEL_VER_PATCHLEVEL(version));
 	return 0;
 }
 
@@ -194,12 +197,11 @@ static int cmd_kernel_threads(const struct shell *sh,
 	shell_print(sh, "Scheduler: %u since last call", sys_clock_elapsed());
 	shell_print(sh, "Threads:");
 
-	/*
-	 * Use the unlocked version as the callback itself might call
-	 * arch_irq_unlock.
-	 */
+#ifdef CONFIG_SMP
 	k_thread_foreach_unlocked(shell_tdata_dump, (void *)sh);
-
+#else
+	k_thread_foreach(shell_tdata_dump, (void *)sh);
+#endif
 	return 0;
 }
 
@@ -243,11 +245,11 @@ static int cmd_kernel_stacks(const struct shell *sh,
 
 	memset(pad, ' ', MAX((THREAD_MAX_NAM_LEN - strlen("IRQ 00")), 1));
 
-	/*
-	 * Use the unlocked version as the callback itself might call
-	 * arch_irq_unlock.
-	 */
+#ifdef CONFIG_SMP
 	k_thread_foreach_unlocked(shell_stack_dump, (void *)sh);
+#else
+	k_thread_foreach(shell_stack_dump, (void *)sh);
+#endif
 
 	/* Placeholder logic for interrupt stack until we have better
 	 * kernel support, including dumping arch-specific exception-related
@@ -257,7 +259,7 @@ static int cmd_kernel_stacks(const struct shell *sh,
 
 	for (int i = 0; i < num_cpus; i++) {
 		size_t unused;
-		const uint8_t *buf = K_KERNEL_STACK_BUFFER(z_interrupt_stacks[i]);
+		const uint8_t *buf = Z_KERNEL_STACK_BUFFER(z_interrupt_stacks[i]);
 		size_t size = K_KERNEL_STACK_SIZEOF(z_interrupt_stacks[i]);
 		int err = z_stack_space_get(buf, size, &unused);
 
@@ -274,7 +276,7 @@ static int cmd_kernel_stacks(const struct shell *sh,
 }
 #endif
 
-#if defined(CONFIG_SYS_HEAP_RUNTIME_STATS) && (K_HEAP_MEM_POOL_SIZE > 0)
+#if defined(CONFIG_SYS_HEAP_RUNTIME_STATS) && (CONFIG_HEAP_MEM_POOL_SIZE > 0)
 extern struct sys_heap _system_heap;
 
 static int cmd_kernel_heap(const struct shell *sh,
@@ -398,7 +400,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_kernel,
 	SHELL_CMD(stacks, NULL, "List threads stack usage.", cmd_kernel_stacks),
 	SHELL_CMD(threads, NULL, "List kernel threads.", cmd_kernel_threads),
 #endif
-#if defined(CONFIG_SYS_HEAP_RUNTIME_STATS) && (K_HEAP_MEM_POOL_SIZE > 0)
+#if defined(CONFIG_SYS_HEAP_RUNTIME_STATS) && (CONFIG_HEAP_MEM_POOL_SIZE > 0)
 	SHELL_CMD(heap, NULL, "System heap usage statistics.", cmd_kernel_heap),
 #endif
 	SHELL_CMD_ARG(uptime, NULL, "Kernel uptime. Can be called with the -p or --pretty options",

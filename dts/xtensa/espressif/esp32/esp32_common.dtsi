@@ -271,14 +271,6 @@
 			};
 		};
 
-		touch: touch@3ff48858 {
-			compatible = "espressif,esp32-touch";
-			reg = <0x3ff48858 0x38>;
-			interrupts = <RTC_CORE_INTR_SOURCE>;
-			interrupt-parent = <&intc>;
-			status = "disabled";
-		};
-
 		i2c0: i2c@3ff53000 {
 			compatible = "espressif,esp32-i2c";
 			#address-cells = <1>;
@@ -354,6 +346,7 @@
 			interrupts = <TWAI_INTR_SOURCE>;
 			interrupt-parent = <&intc>;
 			clocks = <&rtc ESP32_TWAI_MODULE>;
+			sample-point = <875>;
 			status = "disabled";
 		};
 
@@ -425,26 +418,5 @@
 			status = "disabled";
 		};
 
-		sdhc: sdhc@3ff68000 {
-			compatible = "espressif,esp32-sdhc";
-			reg = <0x3ff68000 0x1000>;
-			interrupts = <SDIO_HOST_INTR_SOURCE>;
-			interrupt-parent = <&intc>;
-			clocks = <&rtc ESP32_SDMMC_MODULE>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			sdhc0: sdhc@0 {
-				compatible = "espressif,esp32-sdhc-slot";
-				reg = <0>;
-				status = "disabled";
-			};
-
-			sdhc1: sdhc@1 {
-				compatible = "espressif,esp32-sdhc-slot";
-				reg = <1>;
-				status = "disabled";
-			};
-		};
 	};
 };

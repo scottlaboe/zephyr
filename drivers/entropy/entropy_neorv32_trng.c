@@ -9,12 +9,10 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/syscon.h>
 #include <zephyr/drivers/entropy.h>
-#include <zephyr/logging/log.h>
 #include <zephyr/pm/device.h>
 #include <zephyr/sys/sys_io.h>
 
-#include <soc.h>
-
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(neorv32_trng, CONFIG_ENTROPY_LOG_LEVEL);
 
 /* TRNG CTRL register bits */

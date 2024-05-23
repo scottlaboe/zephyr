@@ -19,13 +19,13 @@
 #define BT_UUID_CUSTOM_SERVICE_VAL \
 	BT_UUID_128_ENCODE(0x12345678, 0x1234, 0x5678, 0x1234, 0x56789abcdef0)
 
-static const struct bt_uuid_128 primary_service_uuid = BT_UUID_INIT_128(
+static struct bt_uuid_128 primary_service_uuid = BT_UUID_INIT_128(
 	BT_UUID_CUSTOM_SERVICE_VAL);
 
-static const struct bt_uuid_128 read_characteristic_uuid = BT_UUID_INIT_128(
+static struct bt_uuid_128 read_characteristic_uuid = BT_UUID_INIT_128(
 	BT_UUID_128_ENCODE(0x12345678, 0x1234, 0x5678, 0x1234, 0x56789abcdef1));
 
-static const struct bt_uuid_128 write_characteristic_uuid = BT_UUID_INIT_128(
+static struct bt_uuid_128 write_characteristic_uuid = BT_UUID_INIT_128(
 	BT_UUID_128_ENCODE(0x12345678, 0x1234, 0x5678, 0x1234, 0x56789abcdef2));
 
 static int signed_value;
@@ -74,8 +74,7 @@ static const struct bt_data ad[] = {
 };
 
 static const struct bt_data sd[] = {
-	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_CUSTOM_SERVICE_VAL),
-	BT_DATA(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME, sizeof(CONFIG_BT_DEVICE_NAME) - 1),
+	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_CUSTOM_SERVICE_VAL)
 };
 
 static void connected(struct bt_conn *conn, uint8_t err)
@@ -120,7 +119,7 @@ static void bt_ready(void)
 	bond_count = 0;
 	bt_foreach_bond(BT_ID_DEFAULT, add_bonded_addr_to_filter_list, NULL);
 
-	adv_param = *BT_LE_ADV_CONN;
+	adv_param = *BT_LE_ADV_CONN_NAME;
 
 	/* If we have got at least one bond, activate the filter */
 	if (bond_count) {

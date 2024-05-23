@@ -49,4 +49,3 @@
 };
 
 /delete-node/ &i2c3;
-/delete-node/ &smbus3;

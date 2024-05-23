@@ -23,7 +23,6 @@
 #include <zephyr/init.h>
 #include <zephyr/linker/linker-defs.h>
 #include <ksched.h>
-#include <kthread.h>
 #include <string.h>
 #include <zephyr/sys/dlist.h>
 #include <kernel_internal.h>
@@ -36,7 +35,6 @@
 #include <zephyr/timing/timing.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/pm/device_runtime.h>
-#include <zephyr/internal/syscall_handler.h>
 LOG_MODULE_REGISTER(os, CONFIG_KERNEL_LOG_LEVEL);
 
 BUILD_ASSERT(CONFIG_MP_NUM_CPUS == CONFIG_MP_MAX_NUM_CPUS,
@@ -46,9 +44,8 @@ BUILD_ASSERT(CONFIG_MP_NUM_CPUS == CONFIG_MP_MAX_NUM_CPUS,
 __pinned_bss
 struct z_kernel _kernel;
 
-#ifdef CONFIG_PM
-__pinned_bss atomic_t _cpus_active;
-#endif
+__pinned_bss
+atomic_t _cpus_active;
 
 /* init/main and idle threads */
 K_THREAD_PINNED_STACK_DEFINE(z_main_stack, CONFIG_MAIN_STACK_SIZE);
@@ -61,57 +58,6 @@ struct k_thread z_idle_threads[CONFIG_MP_MAX_NUM_CPUS];
 static K_KERNEL_PINNED_STACK_ARRAY_DEFINE(z_idle_stacks,
 					  CONFIG_MP_MAX_NUM_CPUS,
 					  CONFIG_IDLE_STACK_SIZE);
-
-static void z_init_static_threads(void)
-{
-	STRUCT_SECTION_FOREACH(_static_thread_data, thread_data) {
-		z_setup_new_thread(
-			thread_data->init_thread,
-			thread_data->init_stack,
-			thread_data->init_stack_size,
-			thread_data->init_entry,
-			thread_data->init_p1,
-			thread_data->init_p2,
-			thread_data->init_p3,
-			thread_data->init_prio,
-			thread_data->init_options,
-			thread_data->init_name);
-
-		thread_data->init_thread->init_data = thread_data;
-	}
-
-#ifdef CONFIG_USERSPACE
-	STRUCT_SECTION_FOREACH(k_object_assignment, pos) {
-		for (int i = 0; pos->objects[i] != NULL; i++) {
-			k_object_access_grant(pos->objects[i],
-					      pos->thread);
-		}
-	}
-#endif /* CONFIG_USERSPACE */
-
-	/*
-	 * Non-legacy static threads may be started immediately or
-	 * after a previously specified delay. Even though the
-	 * scheduler is locked, ticks can still be delivered and
-	 * processed. Take a sched lock to prevent them from running
-	 * until they are all started.
-	 *
-	 * Note that static threads defined using the legacy API have a
-	 * delay of K_FOREVER.
-	 */
-	k_sched_lock();
-	STRUCT_SECTION_FOREACH(_static_thread_data, thread_data) {
-		k_timeout_t init_delay = Z_THREAD_INIT_DELAY(thread_data);
-
-		if (!K_TIMEOUT_EQ(init_delay, K_FOREVER)) {
-			thread_schedule_new(thread_data->init_thread,
-					    init_delay);
-		}
-	}
-	k_sched_unlock();
-}
-#else
-#define z_init_static_threads() do { } while (false)
 #endif /* CONFIG_MULTITHREADING */
 
 extern const struct init_entry __init_start[];
@@ -130,12 +76,12 @@ enum init_level {
 	INIT_LEVEL_APPLICATION,
 #ifdef CONFIG_SMP
 	INIT_LEVEL_SMP,
-#endif /* CONFIG_SMP */
+#endif
 };
 
 #ifdef CONFIG_SMP
 extern const struct init_entry __init_SMP_start[];
-#endif /* CONFIG_SMP */
+#endif
 
 /*
  * storage space for the interrupt stack
@@ -175,8 +121,8 @@ static struct k_obj_core_stats_desc  kernel_stats_desc = {
 	.disable = NULL,
 	.enable  = NULL,
 };
-#endif /* CONFIG_OBJ_CORE_STATS_SYSTEM */
-#endif /* CONFIG_OBJ_CORE_SYSTEM */
+#endif
+#endif
 
 /* LCOV_EXCL_START
  *
@@ -247,7 +193,7 @@ void z_bss_zero(void)
 #ifdef CONFIG_COVERAGE_GCOV
 	z_early_memset(&__gcov_bss_start, 0,
 		       ((uintptr_t) &__gcov_bss_end - (uintptr_t) &__gcov_bss_start));
-#endif /* CONFIG_COVERAGE_GCOV */
+#endif
 }
 
 #ifdef CONFIG_LINKER_USE_BOOT_SECTION
@@ -281,7 +227,7 @@ void z_bss_zero_boot(void)
 __boot_func
 #else
 __pinned_func
-#endif /* CONFIG_LINKER_USE_BOOT_SECTION */
+#endif
 void z_bss_zero_pinned(void)
 {
 	z_early_memset(&lnkr_pinned_bss_start, 0,
@@ -295,44 +241,13 @@ void z_bss_zero_pinned(void)
 extern __thread volatile uintptr_t __stack_chk_guard;
 #else
 extern volatile uintptr_t __stack_chk_guard;
-#endif /* CONFIG_STACK_CANARIES_TLS */
+#endif
 #endif /* CONFIG_STACK_CANARIES */
 
 /* LCOV_EXCL_STOP */
 
 __pinned_bss
 bool z_sys_post_kernel;
-
-static int do_device_init(const struct init_entry *entry)
-{
-	const struct device *dev = entry->dev;
-	int rc = 0;
-
-	if (entry->init_fn.dev != NULL) {
-		rc = entry->init_fn.dev(dev);
-		/* Mark device initialized. If initialization
-		 * failed, record the error condition.
-		 */
-		if (rc != 0) {
-			if (rc < 0) {
-				rc = -rc;
-			}
-			if (rc > UINT8_MAX) {
-				rc = UINT8_MAX;
-			}
-			dev->state->init_res = rc;
-		}
-	}
-
-	dev->state->initialized = true;
-
-	if (rc == 0) {
-		/* Run automatic device runtime enablement */
-		(void)pm_device_runtime_auto_enable(dev);
-	}
-
-	return rc;
-}
 
 /**
  * @brief Execute all the init entry initialization functions at a given level
@@ -355,7 +270,7 @@ static void z_sys_init_run_level(enum init_level level)
 		__init_APPLICATION_start,
 #ifdef CONFIG_SMP
 		__init_SMP_start,
-#endif /* CONFIG_SMP */
+#endif
 		/* End marker */
 		__init_end,
 	};
@@ -365,41 +280,37 @@ static void z_sys_init_run_level(enum init_level level)
 		const struct device *dev = entry->dev;
 
 		if (dev != NULL) {
-			do_device_init(entry);
+			int rc = 0;
+
+			if (entry->init_fn.dev != NULL) {
+				rc = entry->init_fn.dev(dev);
+				/* Mark device initialized. If initialization
+				 * failed, record the error condition.
+				 */
+				if (rc != 0) {
+					if (rc < 0) {
+						rc = -rc;
+					}
+					if (rc > UINT8_MAX) {
+						rc = UINT8_MAX;
+					}
+					dev->state->init_res = rc;
+				}
+			}
+
+			dev->state->initialized = true;
+
+			if (rc == 0) {
+				/* Run automatic device runtime enablement */
+				(void)pm_device_runtime_auto_enable(dev);
+			}
 		} else {
 			(void)entry->init_fn.sys();
 		}
 	}
 }
 
-
-int z_impl_device_init(const struct device *dev)
-{
-	if (dev == NULL) {
-		return -ENOENT;
-	}
-
-	STRUCT_SECTION_FOREACH_ALTERNATE(_deferred_init, init_entry, entry) {
-		if (entry->dev == dev) {
-			return do_device_init(entry);
-		}
-	}
-
-	return -ENOENT;
-}
-
-#ifdef CONFIG_USERSPACE
-static inline int z_vrfy_device_init(const struct device *dev)
-{
-	K_OOPS(K_SYSCALL_OBJ_INIT(dev, K_OBJ_ANY));
-
-	return z_impl_device_init(dev);
-}
-#include <syscalls/device_init_mrsh.c>
-#endif
-
 extern void boot_banner(void);
-
 
 /**
  * @brief Mainline for kernel's background thread
@@ -425,15 +336,15 @@ static void bg_thread_main(void *unused1, void *unused2, void *unused3)
 	z_sys_post_kernel = true;
 
 	z_sys_init_run_level(INIT_LEVEL_POST_KERNEL);
-#if defined(CONFIG_STACK_POINTER_RANDOM) && (CONFIG_STACK_POINTER_RANDOM != 0)
+#if CONFIG_STACK_POINTER_RANDOM
 	z_stack_adjust_initialized = 1;
-#endif /* CONFIG_STACK_POINTER_RANDOM */
+#endif
 	boot_banner();
 
 #if defined(CONFIG_CPP)
 	void z_cpp_init_static(void);
 	z_cpp_init_static();
-#endif /* CONFIG_CPP */
+#endif
 
 	/* Final init level before app starts */
 	z_sys_init_run_level(INIT_LEVEL_APPLICATION);
@@ -442,14 +353,14 @@ static void bg_thread_main(void *unused1, void *unused2, void *unused3)
 
 #ifdef CONFIG_KERNEL_COHERENCE
 	__ASSERT_NO_MSG(arch_mem_coherent(&_kernel));
-#endif /* CONFIG_KERNEL_COHERENCE */
+#endif
 
 #ifdef CONFIG_SMP
 	if (!IS_ENABLED(CONFIG_SMP_BOOT_DELAY)) {
 		z_smp_init();
 	}
 	z_sys_init_run_level(INIT_LEVEL_SMP);
-#endif /* CONFIG_SMP */
+#endif
 
 #ifdef CONFIG_MMU
 	z_mem_manage_boot_finish();
@@ -459,13 +370,13 @@ static void bg_thread_main(void *unused1, void *unused2, void *unused3)
 
 	(void)main();
 
-	/* Mark non-essential since main() has no more work to do */
-	z_thread_essential_clear(&z_main_thread);
+	/* Mark nonessential since main() has no more work to do */
+	z_main_thread.base.user_options &= ~K_ESSENTIAL;
 
 #ifdef CONFIG_COVERAGE_DUMP
 	/* Dump coverage data once the main() has exited. */
 	gcov_coverage_dump();
-#endif /* CONFIG_COVERAGE_DUMP */
+#endif
 } /* LCOV_EXCL_LINE ... because we just dumped final coverage data */
 
 #if defined(CONFIG_MULTITHREADING)
@@ -482,7 +393,7 @@ static void init_idle_thread(int i)
 	snprintk(tname, 8, "idle %02d", i);
 #else
 	char *tname = "idle";
-#endif /* CONFIG_MP_MAX_NUM_CPUS */
+#endif
 
 #else
 	char *tname = NULL;
@@ -496,7 +407,7 @@ static void init_idle_thread(int i)
 
 #ifdef CONFIG_SMP
 	thread->base.is_idle = 1U;
-#endif /* CONFIG_SMP */
+#endif
 }
 
 void z_init_cpu(int id)
@@ -505,7 +416,7 @@ void z_init_cpu(int id)
 	_kernel.cpus[id].idle_thread = &z_idle_threads[id];
 	_kernel.cpus[id].id = id;
 	_kernel.cpus[id].irq_stack =
-		(K_KERNEL_STACK_BUFFER(z_interrupt_stacks[id]) +
+		(Z_KERNEL_STACK_BUFFER(z_interrupt_stacks[id]) +
 		 K_KERNEL_STACK_SIZEOF(z_interrupt_stacks[id]));
 #ifdef CONFIG_SCHED_THREAD_USAGE_ALL
 	_kernel.cpus[id].usage = &_kernel.usage[id];
@@ -513,13 +424,11 @@ void z_init_cpu(int id)
 		CONFIG_SCHED_THREAD_USAGE_AUTO_ENABLE;
 #endif
 
-#ifdef CONFIG_PM
 	/*
 	 * Increment number of CPUs active. The pm subsystem
 	 * will keep track of this from here.
 	 */
 	atomic_inc(&_cpus_active);
-#endif
 
 #ifdef CONFIG_OBJ_CORE_SYSTEM
 	k_obj_core_init_and_link(K_OBJ_CORE(&_kernel.cpus[id]), &obj_type_cpu);
@@ -562,7 +471,7 @@ static char *prepare_multithreading(void)
 	 *   to work as intended
 	 */
 	_kernel.ready_q.cache = &z_main_thread;
-#endif /* CONFIG_SMP */
+#endif
 	stack_ptr = z_setup_new_thread(&z_main_thread, z_main_stack,
 				       CONFIG_MAIN_STACK_SIZE, bg_thread_main,
 				       NULL, NULL, NULL,
@@ -589,7 +498,7 @@ static FUNC_NORETURN void switch_to_main_thread(char *stack_ptr)
 	 * will never be rescheduled in.
 	 */
 	z_swap_unlocked();
-#endif /* CONFIG_ARCH_HAS_CUSTOM_SWAP_TO_MAIN */
+#endif
 	CODE_UNREACHABLE; /* LCOV_EXCL_LINE */
 }
 #endif /* CONFIG_MULTITHREADING */
@@ -611,7 +520,7 @@ void __weak z_early_rand_get(uint8_t *buf, size_t length)
 			buf += rc;
 		}
 	}
-#endif /* CONFIG_ENTROPY_HAS_DRIVER */
+#endif
 
 	while (length > 0) {
 		uint32_t val;
@@ -653,8 +562,13 @@ FUNC_NORETURN void z_cstart(void)
 	LOG_CORE_INIT();
 
 #if defined(CONFIG_MULTITHREADING)
-	z_dummy_thread_init(&_thread_dummy);
-#endif /* CONFIG_MULTITHREADING */
+	/* Note: The z_ready_thread() call in prepare_multithreading() requires
+	 * a dummy thread even if CONFIG_ARCH_HAS_CUSTOM_SWAP_TO_MAIN=y
+	 */
+	struct k_thread dummy_thread;
+
+	z_dummy_thread_init(&dummy_thread);
+#endif
 	/* do any necessary initialization of static devices */
 	z_device_state_init();
 
@@ -673,7 +587,7 @@ FUNC_NORETURN void z_cstart(void)
 #ifdef CONFIG_TIMING_FUNCTIONS_NEED_AT_BOOT
 	timing_init();
 	timing_start();
-#endif /* CONFIG_TIMING_FUNCTIONS_NEED_AT_BOOT */
+#endif
 
 #ifdef CONFIG_MULTITHREADING
 	switch_to_main_thread(prepare_multithreading());
@@ -694,7 +608,7 @@ FUNC_NORETURN void z_cstart(void)
 	while (true) {
 	}
 	/* LCOV_EXCL_STOP */
-#endif /* ARCH_SWITCH_TO_MAIN_NO_MULTITHREADING */
+#endif
 #endif /* CONFIG_MULTITHREADING */
 
 	/*
@@ -716,7 +630,7 @@ static int init_cpu_obj_core_list(void)
 
 #ifdef CONFIG_OBJ_CORE_STATS_SYSTEM
 	k_obj_type_stats_init(&obj_type_cpu, &cpu_stats_desc);
-#endif /* CONFIG_OBJ_CORE_STATS_SYSTEM */
+#endif
 
 	return 0;
 }
@@ -730,13 +644,13 @@ static int init_kernel_obj_core_list(void)
 
 #ifdef CONFIG_OBJ_CORE_STATS_SYSTEM
 	k_obj_type_stats_init(&obj_type_kernel, &kernel_stats_desc);
-#endif /* CONFIG_OBJ_CORE_STATS_SYSTEM */
+#endif
 
 	k_obj_core_init_and_link(K_OBJ_CORE(&_kernel), &obj_type_kernel);
 #ifdef CONFIG_OBJ_CORE_STATS_SYSTEM
 	k_obj_core_stats_register(K_OBJ_CORE(&_kernel), _kernel.usage,
 				  sizeof(_kernel.usage));
-#endif /* CONFIG_OBJ_CORE_STATS_SYSTEM */
+#endif
 
 	return 0;
 }
@@ -746,4 +660,4 @@ SYS_INIT(init_cpu_obj_core_list, PRE_KERNEL_1,
 
 SYS_INIT(init_kernel_obj_core_list, PRE_KERNEL_1,
 	 CONFIG_KERNEL_INIT_PRIORITY_OBJECTS);
-#endif /* CONFIG_OBJ_CORE_SYSTEM */
+#endif

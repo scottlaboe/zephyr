@@ -100,7 +100,7 @@ uint8_t ll_sync_create(uint8_t options, uint8_t sid, uint8_t adv_addr_type,
 	struct ll_scan_set *scan_coded;
 	memq_link_t *link_sync_estab;
 	memq_link_t *link_sync_lost;
-	struct node_rx_pdu *node_rx;
+	struct node_rx_hdr *node_rx;
 	struct lll_sync *lll_sync;
 	struct ll_scan_set *scan;
 	struct ll_sync_set *sync;
@@ -180,8 +180,8 @@ uint8_t ll_sync_create(uint8_t options, uint8_t sid, uint8_t adv_addr_type,
 	}
 
 	/* Initialize sync context */
-	node_rx->hdr.link = link_sync_estab;
-	sync->node_rx_lost.rx.hdr.link = link_sync_lost;
+	node_rx->link = link_sync_estab;
+	sync->node_rx_lost.hdr.link = link_sync_lost;
 
 	/* Make sure that the node_rx_sync_establ hasn't got anything assigned. It is used to
 	 * mark when sync establishment is in progress.
@@ -200,10 +200,6 @@ uint8_t ll_sync_create(uint8_t options, uint8_t sid, uint8_t adv_addr_type,
 #endif
 	sync->skip = skip;
 	sync->is_stop = 0U;
-
-#if defined(CONFIG_BT_CTLR_SYNC_ISO)
-	sync->enc = 0U;
-#endif /* CONFIG_BT_CTLR_SYNC_ISO */
 
 	/* NOTE: Use timeout not zero to represent sync context used for sync
 	 * create.
@@ -360,9 +356,9 @@ uint8_t ll_sync_create_cancel(void **rx)
 		sync->timeout = 0U;
 	}
 
-	node_rx = sync->node_rx_sync_estab;
+	node_rx = (void *)sync->node_rx_sync_estab;
 	link_sync_estab = node_rx->hdr.link;
-	link_sync_lost = sync->node_rx_lost.rx.hdr.link;
+	link_sync_lost = sync->node_rx_lost.hdr.link;
 
 	ll_rx_link_release(link_sync_lost);
 	ll_rx_link_release(link_sync_estab);
@@ -386,7 +382,7 @@ uint8_t ll_sync_create_cancel(void **rx)
 	/* NOTE: Since NODE_RX_TYPE_SYNC is only generated from ULL context,
 	 *       pass ULL sync context as parameter.
 	 */
-	node_rx->rx_ftr.param = sync;
+	node_rx->hdr.rx_ftr.param = sync;
 
 	*rx = node_rx;
 
@@ -412,7 +408,7 @@ uint8_t ll_sync_terminate(uint16_t handle)
 	/* Stop periodic sync ticker timeouts */
 	err = ull_ticker_stop_with_mark(TICKER_ID_SCAN_SYNC_BASE + handle,
 					sync, &sync->lll);
-	LL_ASSERT_INFO2(err == 0 || err == -EALREADY, handle, err);
+	LL_ASSERT(err == 0 || err == -EALREADY);
 	if (err) {
 		return BT_HCI_ERR_CMD_DISALLOWED;
 	}
@@ -431,7 +427,7 @@ uint8_t ll_sync_terminate(uint16_t handle)
 		LL_ASSERT(!aux->parent);
 	}
 
-	link_sync_lost = sync->node_rx_lost.rx.hdr.link;
+	link_sync_lost = sync->node_rx_lost.hdr.link;
 	ll_rx_link_release(link_sync_lost);
 
 	/* Mark sync context not sync established */
@@ -568,15 +564,15 @@ void ull_sync_release(struct ll_sync_set *sync)
 
 	if (lll->node_cte_incomplete) {
 		const uint8_t release_cnt = 1U;
-		struct node_rx_pdu *node_rx;
+		struct node_rx_hdr *node_hdr;
 		memq_link_t *link;
 
-		node_rx = &lll->node_cte_incomplete->rx;
-		link = node_rx->hdr.link;
+		node_hdr = &lll->node_cte_incomplete->hdr;
+		link = node_hdr->link;
 
 		ll_rx_link_release(link);
 		ull_iq_report_link_inc_quota(release_cnt);
-		ull_df_iq_report_mem_release(node_rx);
+		ull_df_iq_report_mem_release(node_hdr);
 		ull_df_rx_iq_report_alloc(release_cnt);
 
 		lll->node_cte_incomplete = NULL;
@@ -661,7 +657,7 @@ bool ull_sync_setup_sid_match(struct ll_scan_set *scan, uint8_t sid)
 }
 
 void ull_sync_setup(struct ll_scan_set *scan, struct ll_scan_aux_set *aux,
-		    struct node_rx_pdu *node_rx, struct pdu_adv_sync_info *si)
+		    struct node_rx_hdr *node_rx, struct pdu_adv_sync_info *si)
 {
 	uint32_t ticks_slot_overhead;
 	uint32_t ticks_slot_offset;
@@ -675,10 +671,8 @@ void ull_sync_setup(struct ll_scan_set *scan, struct ll_scan_aux_set *aux,
 	struct lll_sync *lll;
 	uint16_t sync_handle;
 	uint32_t interval_us;
-	uint32_t overhead_us;
 	struct pdu_adv *pdu;
 	uint16_t interval;
-	uint32_t slot_us;
 	uint8_t chm_last;
 	uint32_t ret;
 	uint8_t sca;
@@ -802,7 +796,7 @@ void ull_sync_setup(struct ll_scan_set *scan, struct ll_scan_aux_set *aux,
 	rx = (void *)sync->node_rx_sync_estab;
 	rx->hdr.type = NODE_RX_TYPE_SYNC;
 	rx->hdr.handle = sync_handle;
-	rx->rx_ftr.param = scan;
+	rx->hdr.rx_ftr.param = scan;
 	se = (void *)rx->pdu;
 	se->interval = interval;
 	se->phy = lll->phy;
@@ -824,32 +818,7 @@ void ull_sync_setup(struct ll_scan_set *scan, struct ll_scan_aux_set *aux,
 	sync_offset_us -= EVENT_JITTER_US;
 	sync_offset_us -= ready_delay_us;
 
-	/* Minimum prepare tick offset + minimum preempt tick offset are the
-	 * overheads before ULL scheduling can setup radio for reception
-	 */
-	overhead_us = HAL_TICKER_TICKS_TO_US(HAL_TICKER_CNTR_CMP_OFFSET_MIN << 1);
-
-	/* CPU execution overhead to setup the radio for reception */
-	overhead_us += EVENT_OVERHEAD_END_US + EVENT_OVERHEAD_START_US;
-
-	/* If not sufficient CPU processing time, skip to receiving next
-	 * event.
-	 */
-	if ((sync_offset_us - ftr->radio_end_us) < overhead_us) {
-		sync_offset_us += interval_us;
-		lll->event_counter++;
-	}
-
 	interval_us -= lll->window_widening_periodic_us;
-
-	/* Calculate event time reservation */
-	slot_us = PDU_AC_MAX_US(PDU_AC_EXT_PAYLOAD_RX_SIZE, lll->phy);
-	slot_us += ready_delay_us;
-
-	/* Add implementation defined radio event overheads */
-	if (IS_ENABLED(CONFIG_BT_CTLR_EVENT_OVERHEAD_RESERVE_MAX)) {
-		slot_us += EVENT_OVERHEAD_START_US + EVENT_OVERHEAD_END_US;
-	}
 
 	/* TODO: active_to_start feature port */
 	sync->ull.ticks_active_to_start = 0U;
@@ -857,7 +826,10 @@ void ull_sync_setup(struct ll_scan_set *scan, struct ll_scan_aux_set *aux,
 		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_XTAL_US);
 	sync->ull.ticks_preempt_to_start =
 		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_PREEMPT_MIN_US);
-	sync->ull.ticks_slot = HAL_TICKER_US_TO_TICKS_CEIL(slot_us);
+	sync->ull.ticks_slot = HAL_TICKER_US_TO_TICKS_CEIL(
+		EVENT_OVERHEAD_START_US + ready_delay_us +
+		PDU_AC_MAX_US(PDU_AC_EXT_PAYLOAD_RX_SIZE, lll->phy) +
+		EVENT_OVERHEAD_END_US);
 
 	ticks_slot_offset = MAX(sync->ull.ticks_active_to_start,
 				sync->ull.ticks_prepare_to_start);
@@ -911,7 +883,7 @@ void ull_sync_setup_reset(struct ll_scan_set *scan)
 	}
 }
 
-void ull_sync_established_report(memq_link_t *link, struct node_rx_pdu *rx)
+void ull_sync_established_report(memq_link_t *link, struct node_rx_hdr *rx)
 {
 	struct node_rx_pdu *rx_establ;
 	struct ll_sync_set *sync;
@@ -936,7 +908,7 @@ void ull_sync_established_report(memq_link_t *link, struct node_rx_pdu *rx)
 #else
 	struct pdu_cte_info *rx_cte_info;
 
-	rx_cte_info = pdu_cte_info_get((struct pdu_adv *)rx->pdu);
+	rx_cte_info = pdu_cte_info_get((struct pdu_adv *)((struct node_rx_pdu *)rx)->pdu);
 	if (rx_cte_info != NULL) {
 		sync_status = lll_sync_cte_is_allowed(lll->cte_type, lll->filter_policy,
 						      rx_cte_info->time, rx_cte_info->type);
@@ -964,7 +936,7 @@ void ull_sync_established_report(memq_link_t *link, struct node_rx_pdu *rx)
 #endif /* !CONFIG_BT_CTLR_SYNC_PERIODIC_CTE_TYPE_FILTERING */
 
 		/* Prepare and dispatch sync notification */
-		rx_establ = sync->node_rx_sync_estab;
+		rx_establ = (void *)sync->node_rx_sync_estab;
 		rx_establ->hdr.type = NODE_RX_TYPE_SYNC;
 		rx_establ->hdr.handle = ull_sync_handle_get(sync);
 		se = (void *)rx_establ->pdu;
@@ -1005,10 +977,10 @@ void ull_sync_established_report(memq_link_t *link, struct node_rx_pdu *rx)
 		/* Change node type to appropriately handle periodic
 		 * advertising PDU report.
 		 */
-		rx->hdr.type = NODE_RX_TYPE_SYNC_REPORT;
+		rx->type = NODE_RX_TYPE_SYNC_REPORT;
 		ull_scan_aux_setup(link, rx);
 	} else {
-		rx->hdr.type = NODE_RX_TYPE_RELEASE;
+		rx->type = NODE_RX_TYPE_RELEASE;
 		ll_rx_put_sched(link, rx);
 	}
 }
@@ -1441,7 +1413,7 @@ static void sync_lost(void *param)
 	rx = (void *)&sync->node_rx_lost;
 	rx->hdr.handle = ull_sync_handle_get(sync);
 	rx->hdr.type = NODE_RX_TYPE_SYNC_LOST;
-	rx->rx_ftr.param = sync;
+	rx->hdr.rx_ftr.param = sync;
 
 	/* Enqueue the sync lost towards ULL context */
 	ll_rx_put_sched(rx->hdr.link, rx);
@@ -1496,6 +1468,7 @@ static struct pdu_cte_info *pdu_cte_info_get(struct pdu_adv *pdu)
 {
 	struct pdu_adv_com_ext_adv *com_hdr;
 	struct pdu_adv_ext_hdr *hdr;
+	uint8_t *dptr;
 
 	com_hdr = &pdu->adv_ext_ind;
 	hdr = &com_hdr->ext_hdr;
@@ -1503,6 +1476,9 @@ static struct pdu_cte_info *pdu_cte_info_get(struct pdu_adv *pdu)
 	if (!com_hdr->ext_hdr_len || (com_hdr->ext_hdr_len != 0 && !hdr->cte_info)) {
 		return NULL;
 	}
+
+	/* Skip flags in extended advertising header */
+	dptr = hdr->data;
 
 	/* Make sure there are no fields that are not allowd for AUX_SYNC_IND and AUX_CHAIN_IND */
 	LL_ASSERT(!hdr->adv_addr);

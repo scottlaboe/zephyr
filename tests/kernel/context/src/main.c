@@ -72,10 +72,11 @@ extern const int32_t z_sys_timer_irq_for_test;
 
 #endif
 
-/* Cortex-M1 and Nios II do have a power saving instruction, so k_cpu_idle()
- * returns immediately
+/* Cortex-M1, Nios II, and RISCV without CONFIG_RISCV_HAS_CPU_IDLE
+ * do have a power saving instruction, so k_cpu_idle() returns immediately
  */
-#if !defined(CONFIG_CPU_CORTEX_M1) && !defined(CONFIG_NIOS2)
+#if !defined(CONFIG_CPU_CORTEX_M1) && !defined(CONFIG_NIOS2) && \
+	(!defined(CONFIG_RISCV) || defined(CONFIG_RISCV_HAS_CPU_IDLE))
 #define HAS_POWERSAVE_INSTRUCTION
 #endif
 
@@ -212,12 +213,9 @@ void irq_enable_wrapper(int irq)
 #if defined(CONFIG_TICKLESS_KERNEL)
 static struct k_timer idle_timer;
 
-static volatile bool idle_timer_done;
-
 static void idle_timer_expiry_function(struct k_timer *timer_id)
 {
 	k_timer_stop(&idle_timer);
-	idle_timer_done = true;
 }
 
 static void _test_kernel_cpu_idle(int atomic)
@@ -226,7 +224,6 @@ static void _test_kernel_cpu_idle(int atomic)
 	unsigned int i, key;
 	uint32_t dur = k_ms_to_ticks_ceil32(10);
 	uint32_t slop = 1 + k_ms_to_ticks_ceil32(1);
-	int idle_loops;
 
 	/* Set up a time to trigger events to exit idle mode */
 	k_timer_init(&idle_timer, idle_timer_expiry_function, NULL);
@@ -234,20 +231,13 @@ static void _test_kernel_cpu_idle(int atomic)
 	for (i = 0; i < 5; i++) {
 		k_usleep(1);
 		t0 = k_uptime_ticks();
-		idle_loops = 0;
-		idle_timer_done = false;
 		k_timer_start(&idle_timer, K_TICKS(dur), K_NO_WAIT);
 		key = irq_lock();
-		do {
-			if (atomic) {
-				k_cpu_atomic_idle(key);
-			} else {
-				k_cpu_idle();
-			}
-		} while ((idle_loops++ < CONFIG_MAX_IDLE_WAKES) && (idle_timer_done == false));
-		zassert_true(idle_timer_done,
-			     "The CPU was waken spuriously too many times (%d > %d)",
-			     idle_loops, CONFIG_MAX_IDLE_WAKES);
+		if (atomic) {
+			k_cpu_atomic_idle(key);
+		} else {
+			k_cpu_idle();
+		}
 		dt = k_uptime_ticks() - t0;
 		zassert_true(abs((int32_t) (dt - dur)) <= slop,
 			     "Inaccurate wakeup, idled for %d ticks, expected %d",

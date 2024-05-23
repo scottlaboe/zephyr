@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -144,7 +143,7 @@ static inline void native_tty_stop_bits_set(struct termios *ter,
  * @brief Set the number of data bits in the termios structure
  *
  * @param ter
- * @param data_bits
+ * @param stop_bits
  *
  */
 static inline void native_tty_data_bits_set(struct termios *ter,
@@ -173,13 +172,6 @@ static inline void native_tty_data_bits_set(struct termios *ter,
 	/* Clear all bits that set the data size */
 	ter->c_cflag &= ~CSIZE;
 	ter->c_cflag |= data_bits_to_set;
-}
-
-int native_tty_poll_bottom(int fd)
-{
-	struct pollfd pfd = { .fd = fd, .events = POLLIN };
-
-	return poll(&pfd, 1, 0);
 }
 
 int native_tty_open_tty_bottom(const char *pathname)

@@ -32,8 +32,6 @@
 /**
  * @brief DSP Interface
  * @defgroup math_dsp DSP Interface
- * @since 3.3
- * @version 0.1.0
  */
 
 #include <zephyr/dsp/types.h>

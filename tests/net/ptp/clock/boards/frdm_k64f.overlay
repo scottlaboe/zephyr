@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-&enet_ptp_clock {
-	status = "okay";
+&enet {
+
+	ptp {
+		status = "ok";
+	};
 };

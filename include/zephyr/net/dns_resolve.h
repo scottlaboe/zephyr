@@ -13,10 +13,8 @@
 #ifndef ZEPHYR_INCLUDE_NET_DNS_RESOLVE_H_
 #define ZEPHYR_INCLUDE_NET_DNS_RESOLVE_H_
 
-#include <zephyr/kernel.h>
 #include <zephyr/net/net_ip.h>
-#include <zephyr/net/socket_poll.h>
-#include <zephyr/net/net_core.h>
+#include <zephyr/net/net_context.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,13 +88,9 @@ enum dns_query_type {
  * Address info struct is passed to callback that gets all the results.
  */
 struct dns_addrinfo {
-	/** IP address information */
 	struct sockaddr ai_addr;
-	/** Length of the ai_addr field */
 	socklen_t       ai_addrlen;
-	/** Address family of the address information */
-	uint8_t         ai_family;
-	/** Canonical name of the address */
+	uint8_t            ai_family;
 	char            ai_canonname[DNS_MAX_NAME_SIZE + 1];
 };
 
@@ -163,27 +157,22 @@ typedef void (*dns_resolve_cb_t)(enum dns_resolve_status status,
 				 struct dns_addrinfo *info,
 				 void *user_data);
 
-/** @cond INTERNAL_HIDDEN */
-
 enum dns_resolve_context_state {
 	DNS_RESOLVE_CONTEXT_ACTIVE,
 	DNS_RESOLVE_CONTEXT_DEACTIVATING,
 	DNS_RESOLVE_CONTEXT_INACTIVE,
 };
 
-/** @endcond */
-
 /**
  * DNS resolve context structure.
  */
 struct dns_resolve_context {
-	/** List of configured DNS servers */
 	struct {
 		/** DNS server information */
 		struct sockaddr dns_server;
 
 		/** Connection to the DNS server */
-		int sock;
+		struct net_context *net_ctx;
 
 		/** Is this server mDNS one */
 		uint8_t is_mdns : 1;
@@ -191,16 +180,6 @@ struct dns_resolve_context {
 		/** Is this server LLMNR one */
 		uint8_t is_llmnr : 1;
 	} servers[CONFIG_DNS_RESOLVER_MAX_SERVERS + DNS_MAX_MCAST_SERVERS];
-
-/** @cond INTERNAL_HIDDEN */
-#if (IS_ENABLED(CONFIG_NET_IPV6) && IS_ENABLED(CONFIG_NET_IPV4))
-#define DNS_RESOLVER_MAX_POLL (2 * (CONFIG_DNS_RESOLVER_MAX_SERVERS + DNS_MAX_MCAST_SERVERS))
-#else
-#define DNS_RESOLVER_MAX_POLL (1 * (CONFIG_DNS_RESOLVER_MAX_SERVERS + DNS_MAX_MCAST_SERVERS))
-#endif
-	/** Socket polling for each server connection */
-	struct zsock_pollfd fds[DNS_RESOLVER_MAX_POLL];
-/** @endcond */
 
 	/** Prevent concurrent access */
 	struct k_mutex lock;
@@ -297,15 +276,6 @@ struct dns_resolve_context {
 int dns_resolve_init(struct dns_resolve_context *ctx,
 		     const char *dns_servers_str[],
 		     const struct sockaddr *dns_servers_sa[]);
-
-/**
- * @brief Init DNS resolving context with default Kconfig options.
- *
- * @param ctx DNS context.
- *
- * @return 0 if ok, <0 if error.
- */
-int dns_resolve_init_default(struct dns_resolve_context *ctx);
 
 /**
  * @brief Close DNS resolving context.
@@ -485,12 +455,12 @@ static inline int dns_cancel_addr_info(uint16_t dns_id)
 /**
  * @brief Initialize DNS subsystem.
  */
-#if defined(CONFIG_DNS_RESOLVER_AUTO_INIT)
+#if defined(CONFIG_DNS_RESOLVER)
 void dns_init_resolver(void);
 
 #else
 #define dns_init_resolver(...)
-#endif /* CONFIG_DNS_RESOLVER_AUTO_INIT */
+#endif /* CONFIG_DNS_RESOLVER */
 
 /** @endcond */
 

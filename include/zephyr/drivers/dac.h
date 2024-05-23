@@ -21,8 +21,6 @@ extern "C" {
 /**
  * @brief DAC driver APIs
  * @defgroup dac_interface DAC driver APIs
- * @since 2.3
- * @version 0.8.0
  * @ingroup io_interfaces
  * @{
  */

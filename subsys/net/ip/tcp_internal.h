@@ -32,10 +32,6 @@ extern "C" {
 
 enum tcp_conn_option {
 	TCP_OPT_NODELAY	= 1,
-	TCP_OPT_KEEPALIVE = 2,
-	TCP_OPT_KEEPIDLE = 3,
-	TCP_OPT_KEEPINTVL = 4,
-	TCP_OPT_KEEPCNT = 5,
 };
 
 /**
@@ -447,21 +443,6 @@ static inline void net_tcp_reply_rst(struct net_pkt *pkt)
 	ARG_UNUSED(pkt);
 }
 #endif
-
-/**
- * @brief Get the TCP connection endpoint information.
- *
- * @param context Network context
- * @param local TCP connection local socket information is copied here
- * @param peer TCP connection peer socket information is copied here
- * @param addrlen Size of the sockaddr struct. Copied size is returned.
- *
- * @return <0 if there was an error, 0 if ok
- */
-int net_tcp_endpoint_copy(struct net_context *ctx,
-			  struct sockaddr *local,
-			  struct sockaddr *peer,
-			  socklen_t *addrlen);
 
 #ifdef __cplusplus
 }

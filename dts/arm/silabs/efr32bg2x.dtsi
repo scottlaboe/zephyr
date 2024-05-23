@@ -23,7 +23,6 @@
 			compatible = "silabs,hfxo";
 			clock-frequency = <DT_FREQ_K(38400)>;
 			ctune = <120>;
-			precision = <50>;
 		};
 	};
 

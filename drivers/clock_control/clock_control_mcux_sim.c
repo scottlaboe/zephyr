@@ -20,12 +20,6 @@ static int mcux_sim_on(const struct device *dev,
 {
 	clock_ip_name_t clock_ip_name = (clock_ip_name_t) sub_system;
 
-#ifdef CONFIG_ETH_NXP_ENET
-	if ((uint32_t)sub_system == KINETIS_SIM_ENET_CLK) {
-		clock_ip_name = kCLOCK_Enet0;
-	}
-#endif
-
 	CLOCK_EnableClock(clock_ip_name);
 
 	return 0;
@@ -50,12 +44,6 @@ static int mcux_sim_get_subsys_rate(const struct device *dev,
 	switch ((uint32_t) sub_system) {
 	case KINETIS_SIM_LPO_CLK:
 		clock_name = kCLOCK_LpoClk;
-		break;
-	case KINETIS_SIM_ENET_CLK:
-		clock_name = kCLOCK_CoreSysClk;
-		break;
-	case KINETIS_SIM_ENET_1588_CLK:
-		clock_name = kCLOCK_Osc0ErClk;
 		break;
 	default:
 		clock_name = (clock_name_t) sub_system;

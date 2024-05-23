@@ -7,13 +7,9 @@ project(bsim_test_rpa_peripheral)
 
 target_sources(app PRIVATE
 	src/bs_bt_utils.c
-	src/tester_rpa_rotation.c
-	src/tester_rpa_expired.c
+	src/tester.c
 	src/main.c
-	src/main_rpa_rotation.c
-	src/main_rpa_expired.c
-	src/dut_rpa_rotation.c
-	src/dut_rpa_expired.c
+	src/dut.c
 )
 
 zephyr_include_directories(

@@ -22,9 +22,7 @@ static int test_file_open_flags(void)
 	fd = open(THE_FILE, 0);
 	if (fd >= 0 || errno != ENOENT) {
 		TC_PRINT("Expected fail; fd = %d, errno = %d\n", fd, errno);
-		if (fd >= 0) {
-			close(fd);
-		}
+		close(fd);
 		return TC_FAIL;
 	}
 
@@ -32,18 +30,14 @@ static int test_file_open_flags(void)
 	fd = open(THE_FILE, O_RDONLY);
 	if (fd >= 0 || errno != ENOENT) {
 		TC_PRINT("Expected fail; fd = %d, errno = %d\n", fd, errno);
-		if (fd >= 0) {
-			close(fd);
-		}
+		close(fd);
 		return TC_FAIL;
 	}
 	TC_PRINT("Open on non-existent file, flags = O_WRONLY\n");
 	fd = open(THE_FILE, O_WRONLY);
 	if (fd >= 0 || errno != ENOENT) {
 		TC_PRINT("Expected fail; fd = %d, errno = %d\n", fd, errno);
-		if (fd >= 0) {
-			close(fd);
-		}
+		close(fd);
 		return TC_FAIL;
 	}
 
@@ -51,9 +45,7 @@ static int test_file_open_flags(void)
 	fd = open(THE_FILE, O_RDWR);
 	if (fd >= 0 || errno != ENOENT) {
 		TC_PRINT("Expected fail; fd = %d, errno = %d\n", fd, errno);
-		if (fd >= 0) {
-			close(fd);
-		}
+		close(fd);
 		return TC_FAIL;
 	}
 	/* end 1 */

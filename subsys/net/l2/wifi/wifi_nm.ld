@@ -4,4 +4,4 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-ITERABLE_SECTION_RAM(wifi_nm_instance, Z_LINK_ITERABLE_SUBALIGN)
+ITERABLE_SECTION_RAM(wifi_nm_instance, 4)

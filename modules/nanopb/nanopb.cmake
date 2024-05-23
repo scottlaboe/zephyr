@@ -4,19 +4,15 @@
 
 include_guard(GLOBAL)
 
-set(NANOPB_SRC_ROOT_FOLDER ${ZEPHYR_NANOPB_MODULE_DIR})
 list(APPEND CMAKE_MODULE_PATH ${ZEPHYR_NANOPB_MODULE_DIR}/extra)
 
-find_package(Nanopb REQUIRED)
-
-if(NOT PROTOBUF_PROTOC_EXECUTABLE)
+find_program(PROTOC protoc)
+if(NOT PROTOC)
   message(FATAL_ERROR "'protoc' not found, please ensure protoc is installed\
 and in path. See https://docs.zephyrproject.org/latest/samples/modules/nanopb/README.html")
-else()
-  message(STATUS "Found protoc: ${PROTOBUF_PROTOC_EXECUTABLE}")
 endif()
 
-add_custom_target(nanopb_generated_headers)
+find_package(Nanopb REQUIRED)
 
 # Usage:
 #   list(APPEND CMAKE_MODULE_PATH ${ZEPHYR_BASE}/modules/nanopb)
@@ -34,11 +30,4 @@ function(zephyr_nanopb_sources target)
 
   target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
   target_sources(${target} PRIVATE ${proto_srcs} ${proto_hdrs})
-
-  # Create unique target name for generated header list
-  string(MD5 unique_chars "${proto_hdrs}")
-  set(gen_target_name ${target}_proto_${unique_chars})
-
-  add_custom_target(${gen_target_name} DEPENDS ${proto_hdrs})
-  add_dependencies(nanopb_generated_headers ${gen_target_name})
 endfunction()

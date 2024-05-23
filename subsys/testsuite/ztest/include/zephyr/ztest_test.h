@@ -232,11 +232,8 @@ extern struct ztest_suite_node _ztest_suite_node_list_end[];
  * Default entry point for running or listing registered unit tests.
  *
  * @param state The current state of the machine as it relates to the test executable.
- * @param shuffle Shuffle tests
- * @param suite_iter Test suite repetitions.
- * @param case_iter Test case repetitions.
  */
-void ztest_run_all(const void *state, bool shuffle, int suite_iter, int case_iter);
+void ztest_run_all(const void *state);
 
 /**
  * The result of the current running test. It's possible that the setup function sets the result
@@ -268,25 +265,18 @@ enum ztest_phase {
  * Run the registered unit tests which return true from their predicate function.
  *
  * @param state The current state of the machine as it relates to the test executable.
- * @param shuffle Shuffle tests
- * @param suite_iter Test suite repetitions.
- * @param case_iter Test case repetitions.
  * @return The number of tests that ran.
  */
 
 #ifdef ZTEST_UNITTEST
-int z_impl_ztest_run_test_suites(const void *state, bool shuffle,
-				int suite_iter, int case_iter);
-
-static inline int ztest_run_test_suites(const void *state, bool shuffle,
-				int suite_iter, int case_iter)
+int z_impl_ztest_run_test_suites(const void *state);
+static inline int ztest_run_test_suites(const void *state)
 {
-	return z_impl_ztest_run_test_suites(state, shuffle, suite_iter, case_iter);
+	return z_impl_ztest_run_test_suites(state);
 }
 
 #else
-__syscall int ztest_run_test_suites(const void *state, bool shuffle,
-				int suite_iter, int case_iter);
+__syscall int ztest_run_test_suites(const void *state);
 #endif
 
 #ifdef ZTEST_UNITTEST
@@ -325,12 +315,9 @@ void ztest_verify_all_test_suites_ran(void);
  * checks for fast failures and initialization.
  *
  * @param name The name of the suite to run.
- * @param shuffle Shuffle tests
- * @param suite_iter Test suite repetitions.
- * @param case_iter Test case repetitions.
  * @return Negative value if the test suite never ran; otherwise, return the number of failures.
  */
-int z_ztest_run_test_suite(const char *name, bool shuffle, int suite_iter, int case_iter);
+int z_ztest_run_test_suite(const char *name);
 
 /**
  * @brief Returns next test within suite.
@@ -461,7 +448,7 @@ void ztest_skip_failed_assumption(void);
  * @brief Define a test function
  *
  * This macro behaves exactly the same as ZTEST(), but the function takes an argument for the
- * fixture of type `struct suite##_fixture*` named `fixture`.
+ * fixture of type `struct suite##_fixture*` named `this`.
  *
  * @param suite The name of the test suite to attach this test
  * @param fn The test function to call.
@@ -472,7 +459,7 @@ void ztest_skip_failed_assumption(void);
  * @brief Define a test function that should run as a user thread
  *
  * If CONFIG_USERSPACE is not enabled, this is functionally identical to ZTEST_F(). The test
- * function takes a single fixture argument of type `struct suite##_fixture*` named `fixture`.
+ * function takes a single fixture argument of type `struct suite##_fixture*` named `this`.
  *
  * @param suite The name of the test suite to attach this test
  * @param fn The test function to call.
@@ -546,19 +533,15 @@ void ztest_simple_1cpu_after(void *data);
  * @brief Run the specified test suite.
  *
  * @param suite Test suite to run.
- * @param shuffle Shuffle tests
- * @param suite_iter Test suite repetitions.
- * @param case_iter Test case repetitions.
  */
-#define ztest_run_test_suite(suite, shuffle, suite_iter, case_iter) \
-	z_ztest_run_test_suite(STRINGIFY(suite), shuffle, suite_iter, case_iter)
+#define ztest_run_test_suite(suite) z_ztest_run_test_suite(STRINGIFY(suite))
 
 /**
  * @brief Structure for architecture specific APIs
  *
  */
 struct ztest_arch_api {
-	void (*run_all)(const void *state, bool shuffle, int suite_iter, int case_iter);
+	void (*run_all)(const void *state);
 	bool (*should_suite_run)(const void *state, struct ztest_suite_node *suite);
 	bool (*should_test_run)(const char *suite, const char *test);
 };

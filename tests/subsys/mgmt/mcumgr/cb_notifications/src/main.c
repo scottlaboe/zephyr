@@ -248,7 +248,7 @@ static void cleanup_test(void *p)
 void test_main(void)
 {
 	while (test_state.test_set < CB_NOTIFICATION_TEST_SET_COUNT) {
-		ztest_run_all(&test_state, false, 1, 1);
+		ztest_run_all(&test_state);
 		++test_state.test_set;
 	}
 

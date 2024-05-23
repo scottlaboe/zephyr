@@ -222,4 +222,4 @@ static int lwm2m_connmon_init(void)
 	return ret;
 }
 
-LWM2M_CORE_INIT(lwm2m_connmon_init);
+SYS_INIT(lwm2m_connmon_init, APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

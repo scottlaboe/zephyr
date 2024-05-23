@@ -15,17 +15,15 @@ available under :zephyr_file:`doc/templates/board.tmpl`.
 
 .. toctree::
    :maxdepth: 2
-   :glob:
 
-   */index
-
-.. _boards-shields:
-
-Shields
-#######
-
-.. toctree::
-   :maxdepth: 1
-   :glob:
-
-   shields/**/*
+   arc/index.rst
+   arm/index.rst
+   arm64/index.rst
+   mips/index.rst
+   nios2/index.rst
+   posix/index.rst
+   riscv/index.rst
+   sparc/index.rst
+   x86/index.rst
+   xtensa/index.rst
+   shields/index.rst

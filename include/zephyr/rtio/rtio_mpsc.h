@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <zephyr/toolchain/common.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/kernel.h>
 

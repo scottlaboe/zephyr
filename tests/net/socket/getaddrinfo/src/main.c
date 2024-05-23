@@ -9,7 +9,6 @@ LOG_MODULE_REGISTER(net_test, CONFIG_NET_SOCKETS_LOG_LEVEL);
 
 #include <stdio.h>
 #include <zephyr/ztest_assert.h>
-#include <zephyr/sys/util.h>
 #include <zephyr/sys/sem.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/dns_resolve.h>
@@ -36,12 +35,6 @@ static struct sockaddr_in addr_v4;
 static struct sockaddr_in6 addr_v6;
 
 static int queries_received;
-static int expected_query_count =
-	CONFIG_NET_SOCKETS_DNS_BACKOFF_INTERVAL >= CONFIG_NET_SOCKETS_DNS_TIMEOUT ?
-	2 :
-	/* Calculate for both IPv4 and IPv6 so need to double the value */
-	2 * (LOG2CEIL(DIV_ROUND_UP(CONFIG_NET_SOCKETS_DNS_TIMEOUT,
-				   CONFIG_NET_SOCKETS_DNS_BACKOFF_INTERVAL) + 1));
 
 /* The semaphore is there to wait the data to be received. */
 static ZTEST_BMEM struct sys_sem wait_data;
@@ -110,7 +103,7 @@ static bool check_dns_query(uint8_t *buf, int buf_len)
 
 static int process_dns(void)
 {
-	struct zsock_pollfd pollfds[2];
+	struct pollfd pollfds[2];
 	struct sockaddr *addr;
 	socklen_t addr_len;
 	int ret, idx;
@@ -123,19 +116,19 @@ static int process_dns(void)
 	while (true) {
 		memset(pollfds, 0, sizeof(pollfds));
 		pollfds[0].fd = sock_v4;
-		pollfds[0].events = ZSOCK_POLLIN;
+		pollfds[0].events = POLLIN;
 		pollfds[1].fd = sock_v6;
-		pollfds[1].events = ZSOCK_POLLIN;
+		pollfds[1].events = POLLIN;
 
 		NET_DBG("Polling...");
 
-		ret = zsock_poll(pollfds, ARRAY_SIZE(pollfds), -1);
+		ret = poll(pollfds, ARRAY_SIZE(pollfds), -1);
 		if (ret <= 0) {
 			continue;
 		}
 
 		for (idx = 0; idx < ARRAY_SIZE(pollfds); idx++) {
-			if (pollfds[idx].revents & ZSOCK_POLLIN) {
+			if (pollfds[idx].revents & POLLIN) {
 				if (pollfds[idx].fd == sock_v4) {
 					addr_len = sizeof(addr_v4);
 					addr = (struct sockaddr *)&addr_v4;
@@ -144,9 +137,9 @@ static int process_dns(void)
 					addr = (struct sockaddr *)&addr_v6;
 				}
 
-				ret = zsock_recvfrom(pollfds[idx].fd,
-						     recv_buf, sizeof(recv_buf), 0,
-						     addr, &addr_len);
+				ret = recvfrom(pollfds[idx].fd,
+					       recv_buf, sizeof(recv_buf), 0,
+					       addr, &addr_len);
 				if (ret < 0) {
 					/* Socket error */
 					NET_ERR("DNS: Connection error (%d)",
@@ -200,13 +193,13 @@ static void *test_getaddrinfo_setup(void)
 		memcpy(&addr_v6, net_sin6(&addr), sizeof(struct sockaddr_in6));
 	}
 
-	addr_str = zsock_inet_ntop(AF_INET, &addr_v4.sin_addr, str, sizeof(str));
+	addr_str = inet_ntop(AF_INET, &addr_v4.sin_addr, str, sizeof(str));
 	NET_DBG("v4: [%s]:%d", addr_str, ntohs(addr_v4.sin_port));
 
 	sock_v4 = prepare_listen_sock_udp_v4(&addr_v4);
 	zassert_true(sock_v4 >= 0, "Invalid IPv4 socket");
 
-	addr_str = zsock_inet_ntop(AF_INET6, &addr_v6.sin6_addr, str, sizeof(str));
+	addr_str = inet_ntop(AF_INET6, &addr_v6.sin6_addr, str, sizeof(str));
 	NET_DBG("v6: [%s]:%d", addr_str, ntohs(addr_v6.sin6_port));
 
 	sock_v6 = prepare_listen_sock_udp_v6(&addr_v6);
@@ -225,7 +218,7 @@ static void *test_getaddrinfo_setup(void)
 
 ZTEST(net_socket_getaddrinfo, test_getaddrinfo_ok)
 {
-	struct zsock_addrinfo *res = NULL;
+	struct addrinfo *res = NULL;
 
 	queries_received = 0;
 
@@ -235,50 +228,53 @@ ZTEST(net_socket_getaddrinfo, test_getaddrinfo_ok)
 	 * that the query triggered a function call to process_dns() function
 	 * and that it could parse the DNS query.
 	 */
-	(void)zsock_getaddrinfo(QUERY_HOST, NULL, NULL, &res);
+	(void)getaddrinfo(QUERY_HOST, NULL, NULL, &res);
+
+	if (sys_sem_count_get(&wait_data) != 2) {
+		zassert_true(false, "Did not receive all queries");
+	}
 
 	(void)sys_sem_take(&wait_data, K_NO_WAIT);
 	(void)sys_sem_take(&wait_data, K_NO_WAIT);
 
-	zassert_equal(queries_received, expected_query_count,
-		      "Did not receive both IPv4 and IPv6 query (got %d, expected %d)",
-		      queries_received, expected_query_count);
+	zassert_equal(queries_received, 2,
+		      "Did not receive both IPv4 and IPv6 query");
 
-	zsock_freeaddrinfo(res);
+	freeaddrinfo(res);
 }
 
 ZTEST(net_socket_getaddrinfo, test_getaddrinfo_cancelled)
 {
-	struct zsock_addrinfo *res = NULL;
+	struct addrinfo *res = NULL;
 	int ret;
 
-	ret = zsock_getaddrinfo(QUERY_HOST, NULL, NULL, &res);
+	ret = getaddrinfo(QUERY_HOST, NULL, NULL, &res);
+
+	if (sys_sem_count_get(&wait_data) != 2) {
+		zassert_true(false, "Did not receive all queries");
+	}
 
 	(void)sys_sem_take(&wait_data, K_NO_WAIT);
 	(void)sys_sem_take(&wait_data, K_NO_WAIT);
-
-	zassert_equal(queries_received, expected_query_count,
-		      "Did not receive both IPv4 and IPv6 query (got %d, expected %d)",
-		      queries_received, expected_query_count);
 
 	/* Without a local DNS server this request will be canceled. */
 	zassert_equal(ret, DNS_EAI_CANCELED, "Invalid result");
 
-	zsock_freeaddrinfo(res);
+	freeaddrinfo(res);
 }
 
 ZTEST(net_socket_getaddrinfo, test_getaddrinfo_no_host)
 {
-	struct zsock_addrinfo *res = NULL;
+	struct addrinfo *res = NULL;
 	int ret;
 
-	ret = zsock_getaddrinfo(NULL, NULL, NULL, &res);
+	ret = getaddrinfo(NULL, NULL, NULL, &res);
 
 	zassert_equal(ret, DNS_EAI_SYSTEM, "Invalid result");
 	zassert_equal(errno, EINVAL, "Invalid errno");
 	zassert_is_null(res, "ai_addr is not NULL");
 
-	zsock_freeaddrinfo(res);
+	freeaddrinfo(res);
 }
 
 ZTEST(net_socket_getaddrinfo, test_getaddrinfo_num_ipv4)

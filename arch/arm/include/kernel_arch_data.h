@@ -26,10 +26,10 @@
 
 #if defined(CONFIG_CPU_CORTEX_M)
 #include <cortex_m/stack.h>
-#include <cortex_m/exception.h>
+#include <cortex_m/exc.h>
 #elif defined(CONFIG_CPU_AARCH32_CORTEX_R) || defined(CONFIG_CPU_AARCH32_CORTEX_A)
 #include <cortex_a_r/stack.h>
-#include <cortex_a_r/exception.h>
+#include <cortex_a_r/exc.h>
 #endif
 
 #ifndef _ASMLANGUAGE

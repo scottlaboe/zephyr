@@ -1954,17 +1954,15 @@
 /**
  * @brief Trace putting a device (asynchronously) call entry.
  * @param dev Device instance.
- * @param delay Time to delay the operation
  */
-#define sys_port_trace_pm_device_runtime_put_async_enter(dev, delay)
+#define sys_port_trace_pm_device_runtime_put_async_enter(dev)
 
 /**
  * @brief Trace putting a device (asynchronously) call exit.
  * @param dev Device instance.
- * @param delay Time to delay the operation.
  * @param ret Return value.
  */
-#define sys_port_trace_pm_device_runtime_put_async_exit(dev, delay, ret)
+#define sys_port_trace_pm_device_runtime_put_async_exit(dev, ret)
 
 /**
  * @brief Trace enabling device runtime PM call entry.

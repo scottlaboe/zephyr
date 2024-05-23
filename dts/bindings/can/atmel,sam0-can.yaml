@@ -13,9 +13,6 @@ properties:
   interrupts:
     required: true
 
-  interrupt-names:
-    required: true
-
   clocks:
     required: true
 

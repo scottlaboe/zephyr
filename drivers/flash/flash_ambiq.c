@@ -15,19 +15,15 @@
 
 LOG_MODULE_REGISTER(flash_ambiq, CONFIG_FLASH_LOG_LEVEL);
 
-#define SOC_NV_FLASH_NODE DT_INST(0, soc_nv_flash)
-#define SOC_NV_FLASH_ADDR DT_REG_ADDR(SOC_NV_FLASH_NODE)
-#define SOC_NV_FLASH_SIZE DT_REG_SIZE(SOC_NV_FLASH_NODE)
-#if (CONFIG_SOC_SERIES_APOLLO4X)
-#define MIN_WRITE_SIZE 16
-#else
-#define MIN_WRITE_SIZE 4
-#endif /* CONFIG_SOC_SERIES_APOLLO4X */
+#define SOC_NV_FLASH_NODE      DT_INST(0, soc_nv_flash)
+#define SOC_NV_FLASH_ADDR      DT_REG_ADDR(SOC_NV_FLASH_NODE)
+#define SOC_NV_FLASH_SIZE      DT_REG_SIZE(SOC_NV_FLASH_NODE)
+#define MIN_WRITE_SIZE         16
 #define FLASH_WRITE_BLOCK_SIZE MAX(DT_PROP(SOC_NV_FLASH_NODE, write_block_size), MIN_WRITE_SIZE)
 #define FLASH_ERASE_BLOCK_SIZE DT_PROP(SOC_NV_FLASH_NODE, erase_block_size)
 
 BUILD_ASSERT((FLASH_WRITE_BLOCK_SIZE & (MIN_WRITE_SIZE - 1)) == 0,
-	     "The flash write block size must be a multiple of MIN_WRITE_SIZE!");
+	     "The flash write block size must be a multiple of 16!");
 
 #define FLASH_ERASE_BYTE 0xFF
 #define FLASH_ERASE_WORD                                                                           \
@@ -81,7 +77,7 @@ static int flash_ambiq_write(const struct device *dev, off_t offset, const void 
 	ARG_UNUSED(dev);
 
 	int ret = 0;
-	unsigned int key = 0;
+	uint32_t critical = 0;
 	uint32_t aligned[FLASH_WRITE_BLOCK_SIZE / sizeof(uint32_t)] = {0};
 	uint32_t *src = (uint32_t *)data;
 
@@ -100,31 +96,22 @@ static int flash_ambiq_write(const struct device *dev, off_t offset, const void 
 
 	FLASH_SEM_TAKE();
 
-	key = irq_lock();
-
+	critical = am_hal_interrupt_master_disable();
 	for (int i = 0; i < len / FLASH_WRITE_BLOCK_SIZE; i++) {
 		for (int j = 0; j < FLASH_WRITE_BLOCK_SIZE / sizeof(uint32_t); j++) {
 			/* Make sure the source data is 4-byte aligned. */
 			aligned[j] = UNALIGNED_GET((uint32_t *)src);
 			src++;
 		}
-#if (CONFIG_SOC_SERIES_APOLLO4X)
 		ret = am_hal_mram_main_program(
 			AM_HAL_MRAM_PROGRAM_KEY, aligned,
 			(uint32_t *)(SOC_NV_FLASH_ADDR + offset + i * FLASH_WRITE_BLOCK_SIZE),
 			FLASH_WRITE_BLOCK_SIZE / sizeof(uint32_t));
-#elif (CONFIG_SOC_SERIES_APOLLO3X)
-		ret = am_hal_flash_program_main(
-			AM_HAL_FLASH_PROGRAM_KEY, aligned,
-			(uint32_t *)(SOC_NV_FLASH_ADDR + offset + i * FLASH_WRITE_BLOCK_SIZE),
-			FLASH_WRITE_BLOCK_SIZE / sizeof(uint32_t));
-#endif /* CONFIG_SOC_SERIES_APOLLO4X */
 		if (ret) {
 			break;
 		}
 	}
-
-	irq_unlock(key);
+	am_hal_interrupt_master_set(critical);
 
 	FLASH_SEM_GIVE();
 
@@ -141,42 +128,17 @@ static int flash_ambiq_erase(const struct device *dev, off_t offset, size_t len)
 		return -EINVAL;
 	}
 
+	/* The erase address and length alignment check will be done in HAL.*/
+
 	if (len == 0) {
 		return 0;
 	}
 
-#if (CONFIG_SOC_SERIES_APOLLO4X)
-	/* The erase address and length alignment check will be done in HAL.*/
-#elif (CONFIG_SOC_SERIES_APOLLO3X)
-	if ((offset % FLASH_ERASE_BLOCK_SIZE) != 0) {
-		LOG_ERR("offset 0x%lx is not on a page boundary", (long)offset);
-		return -EINVAL;
-	}
-
-	if ((len % FLASH_ERASE_BLOCK_SIZE) != 0) {
-		LOG_ERR("len %zu is not multiple of a page size", len);
-		return -EINVAL;
-	}
-#endif /* CONFIG_SOC_SERIES_APOLLO4X */
-
 	FLASH_SEM_TAKE();
 
-#if (CONFIG_SOC_SERIES_APOLLO4X)
 	ret = am_hal_mram_main_fill(AM_HAL_MRAM_PROGRAM_KEY, FLASH_ERASE_WORD,
 				    (uint32_t *)(SOC_NV_FLASH_ADDR + offset),
 				    (len / sizeof(uint32_t)));
-#elif (CONFIG_SOC_SERIES_APOLLO3X)
-	unsigned int key = 0;
-
-	key = irq_lock();
-
-	ret = am_hal_flash_page_erase(
-		AM_HAL_FLASH_PROGRAM_KEY,
-		AM_HAL_FLASH_ADDR2INST(((uint32_t)SOC_NV_FLASH_ADDR + offset)),
-		AM_HAL_FLASH_ADDR2PAGE(((uint32_t)SOC_NV_FLASH_ADDR + offset)));
-
-	irq_unlock(key);
-#endif /* CONFIG_SOC_SERIES_APOLLO4X */
 
 	FLASH_SEM_GIVE();
 

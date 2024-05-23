@@ -1,18 +1,7 @@
 # Copyright (c) 2023 Martin Kiepfer
 # SPDX-License-Identifier: Apache-2.0
 
-description: AXP192 GPIO Controller
-
-  AX192 features 5 native GPIOs. In addition the EXTEN pin can be configured
-  to be used as an IO as well.
-
-  Pin-Mapping is as follows
-    [0] GPIO0
-    [1] GPIO1
-    [2] GPIO2
-    [3] GPIO3
-    [4] GPIO4
-    [5] EXTEN
+description: PXA192 GPIO Controller
 
 compatible: "x-powers,axp192-gpio"
 
@@ -24,7 +13,7 @@ properties:
 
   ngpios:
     required: true
-    const: 6
+    const: 5
     description: |
       Number of GPIOs available on axp192.
 

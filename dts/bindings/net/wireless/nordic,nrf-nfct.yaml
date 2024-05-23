@@ -5,7 +5,7 @@ description: Nordic nRF family NFCT (Near Field Communication Tag)
 
 compatible: "nordic,nrf-nfct"
 
-include: [base.yaml, memory-region.yaml]
+include: base.yaml
 
 properties:
   reg:

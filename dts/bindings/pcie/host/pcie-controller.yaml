@@ -3,11 +3,7 @@
 
 # Common fields for PCIe bus controllers
 
-include: [base.yaml, acpi.yaml]
-
-description: Generic PCIe host controller
-
-compatible: "pcie-controller"
+include: base.yaml
 
 bus: pcie
 

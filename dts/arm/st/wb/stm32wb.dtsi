@@ -1,7 +1,6 @@
 /*
  * Copyright (c) 2019 Linaro Limited
  * Copyright (c) 2019 Centaur Analytics, Inc
- * Copyright (c) 2024 STMicroelectronics
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -286,8 +285,6 @@
 			interrupts = <41 0>;
 			clocks = <&rcc STM32_CLOCK_BUS_APB1 0x00000400>;
 			prescaler = <32768>;
-			alarms-count = <2>;
-			alrm-exti-line = <17>;
 			status = "disabled";
 
 			bbram: backup_regs {
@@ -549,22 +546,6 @@
 		compatible = "st,stm32wb-rf";
 		clocks = <&rcc STM32_CLOCK_BUS_AHB3 0x00100000>,
 				<&rcc STM32_SRC_LSE RFWKP_SEL(1)>;
-	};
-
-	smbus1: smbus1 {
-		compatible = "st,stm32-smbus";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		i2c = <&i2c1>;
-		status = "disabled";
-	};
-
-	smbus3: smbus3 {
-		compatible = "st,stm32-smbus";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		i2c = <&i2c3>;
-		status = "disabled";
 	};
 };
 

@@ -28,7 +28,7 @@
  * This routine prepares for the execution of and runs C code.
  */
 
-void z_prep_c(void)
+void _PrepC(void)
 {
 	z_bss_zero();
 	z_data_copy();

@@ -1,8 +1,7 @@
-.. zephyr:code-sample:: esp32-flash-memory-mapped
-   :name: ESP32 Flash Memory-Mapped
-   :relevant-api: flash_interface
+.. _flash_memory_mapped:
 
-   Write data into scratch area and read it using flash API and memory-mapped pointer.
+Espressif ESP32 Flash Memory-Mapped
+###################################
 
 Overview
 ********

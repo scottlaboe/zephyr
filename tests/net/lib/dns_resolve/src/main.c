@@ -89,7 +89,7 @@ static uint8_t *net_iface_get_mac(const struct device *dev)
 		data->mac_addr[2] = 0x5E;
 		data->mac_addr[3] = 0x00;
 		data->mac_addr[4] = 0x53;
-		data->mac_addr[5] = sys_rand8_get();
+		data->mac_addr[5] = sys_rand32_get();
 	}
 
 	data->ll_addr.addr = data->mac_addr;
@@ -348,7 +348,7 @@ ZTEST(dns_resolve, test_dns_query_server_count)
 			continue;
 		}
 
-		if (ctx->servers[i].sock < 0) {
+		if (!ctx->servers[i].net_ctx) {
 			continue;
 		}
 
@@ -369,7 +369,7 @@ ZTEST(dns_resolve, test_dns_query_ipv4_server_count)
 			continue;
 		}
 
-		if (ctx->servers[i].sock < 0) {
+		if (!ctx->servers[i].net_ctx) {
 			continue;
 		}
 
@@ -399,7 +399,7 @@ ZTEST(dns_resolve, test_dns_query_ipv6_server_count)
 			continue;
 		}
 
-		if (ctx->servers[i].sock < 0) {
+		if (!ctx->servers[i].net_ctx) {
 			continue;
 		}
 

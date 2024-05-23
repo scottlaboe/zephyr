@@ -19,6 +19,7 @@
 #include "host/testing.h"
 
 #include "mesh.h"
+#include "adv.h"
 #include "net.h"
 #include "lpn.h"
 #include "transport.h"
@@ -27,16 +28,10 @@
 #include "op_agg.h"
 #include "settings.h"
 #include "va.h"
-#include "delayable_msg.h"
 
 #define LOG_LEVEL CONFIG_BT_MESH_ACCESS_LOG_LEVEL
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(bt_mesh_access);
-
-/* 20 - 50ms */
-#define RANDOM_DELAY_SHORT 30
-/* 20 - 500ms */
-#define RANDOM_DELAY_LONG 480
 
 /* Model publication information for persistent storage. */
 struct mod_pub_val {
@@ -174,7 +169,7 @@ static void data_buf_add_le16_offset(struct net_buf_simple *buf,
 	}
 }
 
-static void data_buf_add_mem_offset(struct net_buf_simple *buf, const uint8_t *data, size_t len,
+static void data_buf_add_mem_offset(struct net_buf_simple *buf, uint8_t *data, size_t len,
 				    size_t *offset)
 {
 	if (*offset >= len) {
@@ -220,7 +215,7 @@ static size_t metadata_model_size(const struct bt_mesh_model *mod,
 
 	size += sizeof(uint8_t);
 
-	for (entry = mod->metadata; entry && entry->len; ++entry) {
+	for (entry = *mod->metadata; entry && entry->len; ++entry) {
 		size += sizeof(entry->len) + sizeof(entry->id) + entry->len;
 	}
 
@@ -286,7 +281,7 @@ static int metadata_add_model(const struct bt_mesh_model *mod,
 	count_ptr = data_buf_add_u8_offset(buf, 0, offset);
 
 	if (mod->metadata) {
-		for (entry = mod->metadata; entry && entry->data != NULL; ++entry) {
+		for (entry = *mod->metadata; entry && entry->data != NULL; ++entry) {
 			data_buf_add_le16_offset(buf, entry->len, offset);
 			data_buf_add_le16_offset(buf, entry->id, offset);
 			data_buf_add_mem_offset(buf, entry->data, entry->len, offset);
@@ -694,13 +689,13 @@ static int bt_mesh_comp_data_get_page_2(struct net_buf_simple *buf, size_t offse
 		data_buf_add_u8_offset(buf, dev_comp2->record[i].version.z, &offset);
 		data_buf_add_u8_offset(buf, dev_comp2->record[i].elem_offset_cnt, &offset);
 		if (dev_comp2->record[i].elem_offset_cnt) {
-			data_buf_add_mem_offset(buf, dev_comp2->record[i].elem_offset,
+			data_buf_add_mem_offset(buf, (uint8_t *)dev_comp2->record[i].elem_offset,
 						dev_comp2->record[i].elem_offset_cnt, &offset);
 		}
 
 		data_buf_add_le16_offset(buf, dev_comp2->record[i].data_len, &offset);
 		if (dev_comp2->record[i].data_len) {
-			data_buf_add_mem_offset(buf, dev_comp2->record[i].data,
+			data_buf_add_mem_offset(buf, (uint8_t *)dev_comp2->record[i].data,
 						dev_comp2->record[i].data_len, &offset);
 		}
 	}
@@ -766,16 +761,8 @@ static int32_t next_period(const struct bt_mesh_model *mod)
 
 		if (period && elapsed >= period) {
 			LOG_WRN("Retransmission interval is too short");
-
-			if (!!pub->delayable) {
-				LOG_WRN("Publication period is too short for"
-					" retransmissions");
-			}
-
-			/* Keep retransmitting the message with the interval sacrificing the
-			 * next publication period start.
-			 */
-			return BT_MESH_PUB_TRANSMIT_INT(mod->pub->retransmit);
+			/* Return smallest positive number since 0 means disabled */
+			return 1;
 		}
 	}
 
@@ -788,11 +775,6 @@ static int32_t next_period(const struct bt_mesh_model *mod)
 
 	if (elapsed >= period) {
 		LOG_WRN("Publication sending took longer than the period");
-
-		if (!!pub->delayable) {
-			LOG_WRN("Publication period is too short to be delayable");
-		}
-
 		/* Return smallest positive number since 0 means disabled */
 		return 1;
 	}
@@ -873,39 +855,6 @@ static int pub_period_start(struct bt_mesh_model_pub *pub)
 	return 0;
 }
 
-static uint16_t pub_delay_get(int random_delay_window)
-{
-	if (!IS_ENABLED(CONFIG_BT_MESH_DELAYABLE_PUBLICATION)) {
-		return 0;
-	}
-
-	uint16_t num = 0;
-
-	(void)bt_rand(&num, sizeof(num));
-
-	return 20 + (num % random_delay_window);
-}
-
-static int pub_delay_schedule(struct bt_mesh_model_pub *pub, int delay)
-{
-	uint16_t random;
-	int err;
-
-	if (!IS_ENABLED(CONFIG_BT_MESH_DELAYABLE_PUBLICATION)) {
-		return -ENOTSUP;
-	}
-
-	random = pub_delay_get(delay);
-	err = k_work_reschedule(&pub->timer, K_MSEC(random));
-	if (err < 0) {
-		LOG_ERR("Unable to delay publication (err %d)", err);
-		return err;
-	}
-
-	LOG_DBG("Publication delayed by %dms", random);
-	return 0;
-}
-
 static void mod_publish(struct k_work *work)
 {
 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
@@ -922,7 +871,7 @@ static void mod_publish(struct k_work *work)
 		return;
 	}
 
-	LOG_DBG("timestamp: %u", k_uptime_get_32());
+	LOG_DBG("%u", k_uptime_get_32());
 
 	if (pub->count) {
 		pub->count--;
@@ -939,13 +888,6 @@ static void mod_publish(struct k_work *work)
 		/* First publication in this period */
 		err = pub_period_start(pub);
 		if (err) {
-			return;
-		}
-
-		/* Delay the first publication in a period. */
-		if (!!pub->delayable && !pub_delay_schedule(pub, RANDOM_DELAY_SHORT)) {
-			/* Increment count as it would do BT_MESH_PUB_MSG_TOTAL */
-			pub->count++;
 			return;
 		}
 	}
@@ -1066,13 +1008,13 @@ int bt_mesh_comp_register(const struct bt_mesh_comp *comp)
 
 	err = 0;
 
-	if (MOD_REL_LIST_SIZE > 0) {
+	if (IS_ENABLED(CONFIG_BT_MESH_COMP_PAGE_1)) {
 		memset(mod_rel_list, 0, sizeof(mod_rel_list));
 	}
 
 	bt_mesh_model_foreach(mod_init, &err);
 
-	if (MOD_REL_LIST_SIZE > 0) {
+	if (IS_ENABLED(CONFIG_BT_MESH_COMP_PAGE_1)) {
 		int i;
 
 		MOD_REL_LIST_FOR_EACH(i) {
@@ -1482,18 +1424,17 @@ static int element_model_recv(struct bt_mesh_msg_ctx *ctx, struct net_buf_simple
 
 	op = find_op(elem, opcode, &model);
 	if (!op) {
-		LOG_DBG("No OpCode 0x%08x for elem 0x%02x", opcode, elem->rt->addr);
+		LOG_ERR("No OpCode 0x%08x for elem 0x%02x", opcode, elem->rt->addr);
 		return ACCESS_STATUS_WRONG_OPCODE;
 	}
 
 	if (!bt_mesh_model_has_key(model, ctx->app_idx)) {
-		LOG_DBG("Model at 0x%04x is not bound to app idx %d", elem->rt->addr, ctx->app_idx);
+		LOG_ERR("Wrong key");
 		return ACCESS_STATUS_WRONG_KEY;
 	}
 
 	if (!model_has_dst(model, ctx->recv_dst, ctx->uuid)) {
-		LOG_DBG("Dst addr 0x%02x is invalid for model at 0x%04x", ctx->recv_dst,
-			elem->rt->addr);
+		LOG_ERR("Invalid address 0x%02x", ctx->recv_dst);
 		return ACCESS_STATUS_INVALID_ADDRESS;
 	}
 
@@ -1503,10 +1444,6 @@ static int element_model_recv(struct bt_mesh_msg_ctx *ctx, struct net_buf_simple
 	} else if ((op->len < 0) && (buf->len != (size_t)(-op->len))) {
 		LOG_ERR("Invalid message size for OpCode 0x%08x", opcode);
 		return ACCESS_STATUS_MESSAGE_NOT_UNDERSTOOD;
-	}
-
-	if (IS_ENABLED(CONFIG_BT_MESH_ACCESS_DELAYABLE_MSG_CTX_ENABLED)) {
-		ctx->rnd_delay = true;
 	}
 
 	net_buf_simple_save(buf, &state);
@@ -1546,42 +1483,22 @@ int bt_mesh_model_recv(struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 
 		if (index >= dev_comp->elem_count) {
 			LOG_ERR("Invalid address 0x%02x", ctx->recv_dst);
-			return ACCESS_STATUS_INVALID_ADDRESS;
+			err = ACCESS_STATUS_INVALID_ADDRESS;
 		} else {
 			const struct bt_mesh_elem *elem = &dev_comp->elem[index];
 
 			err = element_model_recv(ctx, buf, elem, opcode);
 		}
 	} else {
-		err = ACCESS_STATUS_MESSAGE_NOT_UNDERSTOOD;
 		for (index = 0; index < dev_comp->elem_count; index++) {
 			const struct bt_mesh_elem *elem = &dev_comp->elem[index];
-			int err_elem;
 
-			err_elem = element_model_recv(ctx, buf, elem, opcode);
-			err = err_elem == ACCESS_STATUS_SUCCESS ? err_elem : err;
+			(void)element_model_recv(ctx, buf, elem, opcode);
 		}
 	}
 
 	if (IS_ENABLED(CONFIG_BT_MESH_ACCESS_LAYER_MSG) && msg_cb) {
 		msg_cb(opcode, ctx, buf);
-	}
-
-	return err;
-}
-
-int bt_mesh_access_recv(struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
-{
-	int err;
-
-	err = bt_mesh_model_recv(ctx, buf);
-
-	if (IS_ENABLED(CONFIG_BT_MESH_ACCESS_LAYER_MSG) && msg_cb) {
-		/* Mesh assumes that the application has processed the message.
-		 * Access layer returns success to trigger RPL update and prevent
-		 * replay attack over application.
-		 */
-		err = 0;
 	}
 
 	return err;
@@ -1601,15 +1518,6 @@ int bt_mesh_model_send(const struct bt_mesh_model *model, struct bt_mesh_msg_ctx
 		LOG_ERR("Model not bound to AppKey 0x%04x", ctx->app_idx);
 		return -EINVAL;
 	}
-
-#if defined CONFIG_BT_MESH_ACCESS_DELAYABLE_MSG
-	/* No sense to use delayable message for unicast loopback. */
-	if (ctx->rnd_delay &&
-	    !(bt_mesh_has_addr(ctx->addr) && BT_MESH_ADDR_IS_UNICAST(ctx->addr))) {
-		return bt_mesh_delayable_msg_manage(ctx, msg, bt_mesh_model_elem(model)->rt->addr,
-						    cb, cb_data);
-	}
-#endif
 
 	return bt_mesh_access_send(ctx, msg, bt_mesh_model_elem(model)->rt->addr, cb, cb_data);
 }
@@ -1648,18 +1556,6 @@ int bt_mesh_model_publish(const struct bt_mesh_model *model)
 
 	LOG_DBG("Publish Retransmit Count %u Interval %ums", pub->count,
 		BT_MESH_PUB_TRANSMIT_INT(pub->retransmit));
-
-	/* Delay the publication for longer time when the publication is triggered manually (section
-	 * 3.7.3.1):
-	 *
-	 * When the publication of a message is the result of a power-up, a state transition
-	 * progress update, or completion of a state transition, multiple nodes may be reporting the
-	 * state change at the same time. To reduce the probability of a message collision, these
-	 * messages should be sent with a random delay between 20 and 500 milliseconds.
-	 */
-	if (!!pub->delayable && !pub_delay_schedule(pub, RANDOM_DELAY_LONG)) {
-		return 0;
-	}
 
 	k_work_reschedule(&pub->timer, K_NO_WAIT);
 
@@ -1765,8 +1661,7 @@ static int mod_rel_register(const struct bt_mesh_model *base,
 			return 0;
 		}
 	}
-
-	LOG_ERR("CONFIG_BT_MESH_MODEL_EXTENSION_LIST_SIZE is too small");
+	LOG_ERR("Failed to extend");
 	return -ENOMEM;
 }
 
@@ -1806,11 +1701,8 @@ int bt_mesh_model_extend(const struct bt_mesh_model *extending_mod,
 	}
 
 register_extension:
-	if (MOD_REL_LIST_SIZE > 0) {
+	if (IS_ENABLED(CONFIG_BT_MESH_COMP_PAGE_1)) {
 		return mod_rel_register(base_mod, extending_mod, RELATION_TYPE_EXT);
-	} else if (IS_ENABLED(CONFIG_BT_MESH_COMP_PAGE_1)) {
-		LOG_ERR("CONFIG_BT_MESH_MODEL_EXTENSION_LIST_SIZE is too small");
-		return -ENOMEM;
 	}
 
 	return 0;
@@ -1822,7 +1714,7 @@ int bt_mesh_model_correspond(const struct bt_mesh_model *corresponding_mod,
 	int i, err;
 	uint8_t cor_id = 0;
 
-	if (MOD_REL_LIST_SIZE == 0) {
+	if (!IS_ENABLED(CONFIG_BT_MESH_COMP_PAGE_1)) {
 		return -ENOTSUP;
 	}
 
@@ -2405,6 +2297,7 @@ size_t bt_mesh_comp_page_size(uint8_t page)
 
 int bt_mesh_comp_store(void)
 {
+#if IS_ENABLED(CONFIG_BT_MESH_V1d1)
 	NET_BUF_SIMPLE_DEFINE(buf, CONFIG_BT_MESH_COMP_PST_BUF_SIZE);
 	int err;
 
@@ -2434,7 +2327,7 @@ int bt_mesh_comp_store(void)
 
 		LOG_DBG("Stored CDP%d", comp_data_pages[i].page);
 	}
-
+#endif
 	return 0;
 }
 
@@ -2668,21 +2561,8 @@ static void commit_mod(const struct bt_mesh_model *mod, const struct bt_mesh_ele
 		int32_t ms = bt_mesh_model_pub_period_get(mod);
 
 		if (ms > 0) {
-			/* Delay the first publication after power-up for longer time (section
-			 * 3.7.3.1):
-			 *
-			 * When the publication of a message is the result of a power-up, a state
-			 * transition progress update, or completion of a state transition, multiple
-			 * nodes may be reporting the state change at the same time. To reduce the
-			 * probability of a message collision, these messages should be sent with a
-			 * random delay between 20 and 500 milliseconds.
-			 */
-			uint16_t random;
-
-			random = !!mod->pub->delayable ? pub_delay_get(RANDOM_DELAY_LONG) : 0;
-
-			LOG_DBG("Starting publish timer (period %u ms, delay %u ms)", ms, random);
-			k_work_schedule(&mod->pub->timer, K_MSEC(ms + random));
+			LOG_DBG("Starting publish timer (period %u ms)", ms);
+			k_work_schedule(&mod->pub->timer, K_MSEC(ms));
 		}
 	}
 
@@ -2733,25 +2613,4 @@ uint8_t bt_mesh_comp_parse_page(struct net_buf_simple *buf)
 	}
 
 	return page;
-}
-
-void bt_mesh_access_init(void)
-{
-#if defined CONFIG_BT_MESH_ACCESS_DELAYABLE_MSG
-	bt_mesh_delayable_msg_init();
-#endif
-}
-
-void bt_mesh_access_suspend(void)
-{
-#if defined CONFIG_BT_MESH_ACCESS_DELAYABLE_MSG
-	bt_mesh_delayable_msg_stop();
-#endif
-}
-
-void bt_mesh_access_reset(void)
-{
-#if defined CONFIG_BT_MESH_ACCESS_DELAYABLE_MSG
-	bt_mesh_delayable_msg_stop();
-#endif
 }

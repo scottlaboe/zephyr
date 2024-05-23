@@ -235,9 +235,8 @@ void lwm2m_firmware_set_update_result(uint8_t result)
 }
 
 static int package_write_cb(uint16_t obj_inst_id, uint16_t res_id,
-			    uint16_t res_inst_id, uint8_t *data,
-			    uint16_t data_len, bool last_block,
-			    size_t total_size, size_t offset)
+			    uint16_t res_inst_id, uint8_t *data, uint16_t data_len,
+			    bool last_block, size_t total_size)
 {
 	uint8_t state;
 	int ret = 0;
@@ -271,7 +270,7 @@ static int package_write_cb(uint16_t obj_inst_id, uint16_t res_id,
 	write_callback = lwm2m_firmware_get_write_cb_inst(obj_inst_id);
 	if (write_callback) {
 		ret = write_callback(obj_inst_id, res_id, res_inst_id, data, data_len, last_block,
-				     total_size, offset);
+				     total_size);
 	}
 
 	if (ret >= 0) {
@@ -299,22 +298,20 @@ static int package_write_cb(uint16_t obj_inst_id, uint16_t res_id,
 }
 
 static int package_uri_write_cb(uint16_t obj_inst_id, uint16_t res_id,
-				uint16_t res_inst_id, uint8_t *data,
-				uint16_t data_len, bool last_block,
-				size_t total_size, size_t offset)
+				uint16_t res_inst_id, uint8_t *data, uint16_t data_len,
+				bool last_block, size_t total_size)
 {
 	LOG_DBG("PACKAGE_URI WRITE: %s", package_uri[obj_inst_id]);
 
 #ifdef CONFIG_LWM2M_FIRMWARE_UPDATE_PULL_SUPPORT
 	uint8_t state = lwm2m_firmware_get_update_state_inst(obj_inst_id);
-	bool empty_uri = data_len == 0 || strnlen(data, data_len) == 0;
 
 	if (state == STATE_IDLE) {
-		if (!empty_uri) {
+		if (data_len > 0) {
 			lwm2m_firmware_set_update_state_inst(obj_inst_id, STATE_DOWNLOADING);
 			lwm2m_firmware_start_transfer(obj_inst_id, package_uri[obj_inst_id]);
 		}
-	} else if (state == STATE_DOWNLOADED && empty_uri) {
+	} else if (state == STATE_DOWNLOADED && data_len == 0U) {
 		/* reset to state idle and result default */
 		lwm2m_firmware_set_update_result_inst(obj_inst_id, RESULT_DEFAULT);
 	}
@@ -509,4 +506,4 @@ static int lwm2m_firmware_init(void)
 	return ret;
 }
 
-LWM2M_CORE_INIT(lwm2m_firmware_init);
+SYS_INIT(lwm2m_firmware_init, APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

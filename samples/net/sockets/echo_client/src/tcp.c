@@ -63,10 +63,8 @@ static int send_tcp_data(struct data *data)
 		LOG_ERR("%s TCP: Failed to send data, errno %d", data->proto,
 			errno);
 	} else {
-		if (PRINT_PROGRESS) {
-			LOG_DBG("%s TCP: Sent %d bytes", data->proto,
-				data->tcp.expecting);
-		}
+		LOG_DBG("%s TCP: Sent %d bytes", data->proto,
+			data->tcp.expecting);
 	}
 
 	return ret;
@@ -90,7 +88,6 @@ static int compare_tcp_data(struct data *data, const char *buf, uint32_t receive
 static int start_tcp_proto(struct data *data, struct sockaddr *addr,
 			   socklen_t addrlen)
 {
-	int optval;
 	int ret;
 
 #if defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS)
@@ -162,14 +159,6 @@ static int start_tcp_proto(struct data *data, struct sockaddr *addr,
 	}
 #endif
 
-	/* Prefer IPv6 temporary addresses */
-	if (addr->sa_family == AF_INET6) {
-		optval = IPV6_PREFER_SRC_TMP;
-		(void)setsockopt(data->tcp.sock, IPPROTO_IPV6,
-				 IPV6_ADDR_PREFERENCES,
-				 &optval, sizeof(optval));
-	}
-
 	ret = connect(data->tcp.sock, addr, addrlen);
 	if (ret < 0) {
 		LOG_ERR("Cannot connect to TCP remote (%s): %d", data->proto,
@@ -212,11 +201,10 @@ static int process_tcp_proto(struct data *data)
 			continue;
 		}
 
-		if (PRINT_PROGRESS) {
-			/* Response complete */
-			LOG_DBG("%s TCP: Received and compared %d bytes, all ok",
-				data->proto, data->tcp.received);
-		}
+		/* Response complete */
+		LOG_DBG("%s TCP: Received and compared %d bytes, all ok",
+			data->proto, data->tcp.received);
+
 
 		if (++data->tcp.counter % 1000 == 0U) {
 			LOG_INF("%s TCP: Exchanged %u packets", data->proto,
@@ -242,8 +230,7 @@ int start_tcp(void)
 		inet_pton(AF_INET6, CONFIG_NET_CONFIG_PEER_IPV6_ADDR,
 			  &addr6.sin6_addr);
 
-		ret = start_tcp_proto(&conf.ipv6,
-				      (struct sockaddr *)&addr6,
+		ret = start_tcp_proto(&conf.ipv6, (struct sockaddr *)&addr6,
 				      sizeof(addr6));
 		if (ret < 0) {
 			return ret;

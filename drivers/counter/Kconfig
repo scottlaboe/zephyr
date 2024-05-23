@@ -60,8 +60,6 @@ source "drivers/counter/Kconfig.mcux_qtmr"
 
 source "drivers/counter/Kconfig.mcux_snvs"
 
-source "drivers/counter/Kconfig.mcux_tpm"
-
 source "drivers/counter/Kconfig.xec"
 
 source "drivers/counter/Kconfig.mcux_lptmr"
@@ -70,7 +68,7 @@ source "drivers/counter/Kconfig.maxim_ds3231"
 
 source "drivers/counter/Kconfig.native_posix"
 
-source "drivers/counter/Kconfig.nxp_pit"
+source "drivers/counter/Kconfig.mcux_pit"
 
 source "drivers/counter/Kconfig.xlnx"
 

@@ -25,7 +25,6 @@ enum ieee802154_openthread_hw_caps {
 	IEEE802154_OPENTHREAD_HW_MULTIPLE_CCA = BIT(IEEE802154_HW_CAPS_BITS_PRIV_START),
 };
 
-/** @brief TX mode */
 enum ieee802154_openthread_tx_mode {
 	/**
 	 * The @ref IEEE802154_OPENTHREAD_TX_MODE_TXTIME_MULTIPLE_CCA mode allows to send
@@ -94,7 +93,6 @@ enum ieee802154_openthread_config_type {
 /** OpenThread specific configuration data of ieee802154 driver. */
 struct ieee802154_openthread_config {
 	union {
-		/** Common configuration */
 		struct ieee802154_config common;
 
 		/** ``IEEE802154_OPENTHREAD_CONFIG_MAX_EXTRA_CCA_ATTEMPTS``
@@ -136,7 +134,6 @@ enum ieee802154_openthread_attr {
  */
 struct ieee802154_openthread_attr_value {
 	union {
-		/** Common attribute value */
 		struct ieee802154_attr_value common;
 
 		/** @brief Attribute value for @ref IEEE802154_OPENTHREAD_ATTR_T_RECCA */

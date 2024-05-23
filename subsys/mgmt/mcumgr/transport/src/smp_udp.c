@@ -13,8 +13,12 @@
 #include <assert.h>
 #include <zephyr/kernel.h>
 #include <zephyr/init.h>
+#if defined(CONFIG_POSIX_API)
+#include <zephyr/posix/unistd.h>
+#include <zephyr/posix/sys/socket.h>
+#else
 #include <zephyr/net/socket.h>
-#include <zephyr/net/net_if.h>
+#endif
 #include <zephyr/mgmt/mcumgr/mgmt/mgmt.h>
 #include <zephyr/mgmt/mcumgr/smp/smp.h>
 #include <zephyr/mgmt/mcumgr/transport/smp.h>
@@ -104,14 +108,10 @@ static int smp_udp4_tx(struct net_buf *nb)
 	int ret;
 	struct sockaddr *addr = net_buf_user_data(nb);
 
-	ret = zsock_sendto(smp_udp_configs.ipv4.sock, nb->data, nb->len, 0, addr, sizeof(*addr));
+	ret = sendto(smp_udp_configs.ipv4.sock, nb->data, nb->len, 0, addr, sizeof(*addr));
 
 	if (ret < 0) {
-		if (errno == ENOMEM) {
-			ret = MGMT_ERR_EMSGSIZE;
-		} else {
-			ret = MGMT_ERR_EINVAL;
-		}
+		ret = MGMT_ERR_EINVAL;
 	} else {
 		ret = MGMT_ERR_EOK;
 	}
@@ -128,14 +128,10 @@ static int smp_udp6_tx(struct net_buf *nb)
 	int ret;
 	struct sockaddr *addr = net_buf_user_data(nb);
 
-	ret = zsock_sendto(smp_udp_configs.ipv6.sock, nb->data, nb->len, 0, addr, sizeof(*addr));
+	ret = sendto(smp_udp_configs.ipv6.sock, nb->data, nb->len, 0, addr, sizeof(*addr));
 
 	if (ret < 0) {
-		if (errno == ENOMEM) {
-			ret = MGMT_ERR_EMSGSIZE;
-		} else {
-			ret = MGMT_ERR_EINVAL;
-		}
+		ret = MGMT_ERR_EINVAL;
 	} else {
 		ret = MGMT_ERR_EOK;
 	}
@@ -197,7 +193,7 @@ static int create_socket(enum proto_type proto, int *sock)
 	}
 #endif
 
-	tmp_sock = zsock_socket(addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
+	tmp_sock = socket(addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
 	err = errno;
 
 	if (tmp_sock < 0) {
@@ -207,12 +203,12 @@ static int create_socket(enum proto_type proto, int *sock)
 		return -err;
 	}
 
-	if (zsock_bind(tmp_sock, addr, sizeof(*addr)) < 0) {
+	if (bind(tmp_sock, addr, sizeof(*addr)) < 0) {
 		err = errno;
 		LOG_ERR("Could not bind to receive socket (%s), err: %i",
 			smp_udp_proto_to_name(proto), err);
 
-		zsock_close(tmp_sock);
+		close(tmp_sock);
 
 		return -err;
 	}
@@ -243,8 +239,9 @@ static void smp_udp_receive_thread(void *p1, void *p2, void *p3)
 		struct sockaddr addr;
 		socklen_t addr_len = sizeof(addr);
 
-		int len = zsock_recvfrom(conf->sock, conf->recv_buffer,
-					 CONFIG_MCUMGR_TRANSPORT_UDP_MTU, 0, &addr, &addr_len);
+		int len = recvfrom(conf->sock, conf->recv_buffer,
+				   CONFIG_MCUMGR_TRANSPORT_UDP_MTU,
+				   0, &addr, &addr_len);
 
 		if (len > 0) {
 			struct sockaddr *ud;
@@ -269,34 +266,27 @@ static void smp_udp_receive_thread(void *p1, void *p2, void *p3)
 	}
 }
 
-static void smp_udp_open_iface(struct net_if *iface, void *user_data)
+static void smp_udp_net_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event,
+				      struct net_if *iface)
 {
-	ARG_UNUSED(user_data);
+	ARG_UNUSED(cb);
+	ARG_UNUSED(iface);
 
-	if (net_if_is_up(iface)) {
+	if (mgmt_event == NET_EVENT_L4_CONNECTED) {
+		LOG_INF("Network connected");
 #ifdef CONFIG_MCUMGR_TRANSPORT_UDP_IPV4
-		if (net_if_flag_is_set(iface, NET_IF_IPV4) &&
-		    IS_THREAD_RUNNING(smp_udp_configs.ipv4.thread)) {
+		if (IS_THREAD_RUNNING(smp_udp_configs.ipv4.thread)) {
 			k_sem_give(&smp_udp_configs.ipv4.network_ready_sem);
 		}
 #endif
 
 #ifdef CONFIG_MCUMGR_TRANSPORT_UDP_IPV6
-		if (net_if_flag_is_set(iface, NET_IF_IPV6) &&
-		    IS_THREAD_RUNNING(smp_udp_configs.ipv6.thread)) {
+		if (IS_THREAD_RUNNING(smp_udp_configs.ipv6.thread)) {
 			k_sem_give(&smp_udp_configs.ipv6.network_ready_sem);
 		}
 #endif
-	}
-}
-
-static void smp_udp_net_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event,
-				      struct net_if *iface)
-{
-	ARG_UNUSED(cb);
-
-	if (mgmt_event == NET_EVENT_IF_UP) {
-		smp_udp_open_iface(iface, NULL);
+	} else if (mgmt_event == NET_EVENT_L4_DISCONNECTED) {
+		LOG_INF("Network disconnected");
 	}
 }
 
@@ -336,8 +326,8 @@ int smp_udp_open(void)
 #endif
 
 	if (started) {
-		/* One or more threads were started, check existing interfaces */
-		net_if_foreach(smp_udp_open_iface, NULL);
+		/* One or more threads were started, send interface notifications */
+		conn_mgr_mon_resend_status();
 	}
 
 	return 0;
@@ -350,7 +340,7 @@ int smp_udp_close(void)
 		k_thread_abort(&(smp_udp_configs.ipv4.thread));
 
 		if (smp_udp_configs.ipv4.sock >= 0) {
-			zsock_close(smp_udp_configs.ipv4.sock);
+			close(smp_udp_configs.ipv4.sock);
 			smp_udp_configs.ipv4.sock = -1;
 		}
 	} else {
@@ -363,7 +353,7 @@ int smp_udp_close(void)
 		k_thread_abort(&(smp_udp_configs.ipv6.thread));
 
 		if (smp_udp_configs.ipv6.sock >= 0) {
-			zsock_close(smp_udp_configs.ipv6.sock);
+			close(smp_udp_configs.ipv6.sock);
 			smp_udp_configs.ipv6.sock = -1;
 		}
 	} else {
@@ -423,7 +413,8 @@ static void smp_udp_start(void)
 	}
 #endif
 
-	net_mgmt_init_event_callback(&smp_udp_mgmt_cb, smp_udp_net_event_handler, NET_EVENT_IF_UP);
+	net_mgmt_init_event_callback(&smp_udp_mgmt_cb, smp_udp_net_event_handler,
+				     (NET_EVENT_L4_CONNECTED | NET_EVENT_L4_DISCONNECTED));
 	net_mgmt_add_event_callback(&smp_udp_mgmt_cb);
 
 #ifdef CONFIG_MCUMGR_TRANSPORT_UDP_AUTOMATIC_INIT

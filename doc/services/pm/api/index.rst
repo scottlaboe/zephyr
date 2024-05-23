@@ -1,7 +1,7 @@
 .. _pm_api:
 
-Power Management APIs
-#####################
+Power Management
+################
 
 System PM APIs
 **************
@@ -27,8 +27,6 @@ Device PM APIs
 **************
 
 .. doxygengroup:: subsys_pm_device
-
-.. _device_runtime_apis:
 
 Device Runtime PM APIs
 **********************

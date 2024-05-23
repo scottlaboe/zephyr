@@ -12,10 +12,9 @@ Driver design
 *************
 
 The driver is sliced up in 3 main parts:
-
-- NVMe controller: :zephyr_file:`drivers/disk/nvme/nvme_controller.c`
-- NVMe commands: :zephyr_file:`drivers/disk/nvme/nvme_cmd.c`
-- NVMe namespace: :zephyr_file:`drivers/disk/nvme/nvme_namespace.c`
+- NVMe controller :zephyr_file:`drivers/disk/nvme/nvme_controller.c`
+- NVMe commands :zephyr_file:`drivers/disk/nvme/nvme_cmd.c`
+- NVMe namespace :zephyr_file:`drivers/disk/nvme/nvme_namespace.c`
 
 Where the NVMe controller is the root of the device driver. This is the one that will get device driver instances.
 Note that this is only what DTS describes: the NVMe controller, and none of its namespaces (disks).
@@ -37,13 +36,18 @@ NVMe configuration
 DTS
 ===
 
-Any board exposing an NVMe disk should provide a DTS overlay to enable its use within Zephyr
+Any board exposing an NVMe disk should provide a DTS overlay to enable its use whitin Zephyr
 
 .. code-block:: devicetree
 
     #include <zephyr/dt-bindings/pcie/pcie.h>
     / {
         pcie0 {
+            #address-cells = <1>;
+            #size-cells = <1>;
+            compatible = "intel,pcie";
+            ranges;
+
             nvme0: nvme0 {
                 compatible = "nvme-controller";
                 vendor-id = <VENDOR_ID>;

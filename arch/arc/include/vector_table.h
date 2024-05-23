@@ -46,7 +46,7 @@ GTEXT(__ev_div_zero)
 GTEXT(__ev_dc_error)
 GTEXT(__ev_maligned)
 
-GTEXT(z_prep_c)
+GTEXT(_PrepC)
 GTEXT(_isr_wrapper)
 
 #else

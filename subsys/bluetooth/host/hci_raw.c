@@ -41,17 +41,14 @@ static uint8_t raw_mode;
 #endif
 
 NET_BUF_POOL_FIXED_DEFINE(hci_rx_pool, BT_BUF_RX_COUNT,
-			  BT_BUF_RX_SIZE, sizeof(struct bt_buf_data), NULL);
+			  BT_BUF_RX_SIZE, 8, NULL);
 NET_BUF_POOL_FIXED_DEFINE(hci_cmd_pool, CONFIG_BT_BUF_CMD_TX_COUNT,
-			  BT_BUF_CMD_SIZE(CONFIG_BT_BUF_CMD_TX_SIZE),
-			  sizeof(struct bt_buf_data), NULL);
+			  BT_BUF_CMD_SIZE(CONFIG_BT_BUF_CMD_TX_SIZE), 8, NULL);
 NET_BUF_POOL_FIXED_DEFINE(hci_acl_pool, CONFIG_BT_BUF_ACL_TX_COUNT,
-			  BT_BUF_ACL_SIZE(CONFIG_BT_BUF_ACL_TX_SIZE),
-			  sizeof(struct bt_buf_data), NULL);
+			  BT_BUF_ACL_SIZE(CONFIG_BT_BUF_ACL_TX_SIZE), 8, NULL);
 #if defined(CONFIG_BT_ISO)
 NET_BUF_POOL_FIXED_DEFINE(hci_iso_pool, CONFIG_BT_ISO_TX_BUF_COUNT,
-			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU),
-			  sizeof(struct bt_buf_data), NULL);
+			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU), 8, NULL);
 #endif /* CONFIG_BT_ISO */
 
 struct bt_dev_raw bt_dev;
@@ -177,6 +174,11 @@ struct net_buf *bt_buf_get_tx(enum bt_buf_type type, k_timeout_t timeout,
 	return buf;
 }
 
+struct net_buf *bt_buf_get_cmd_complete(k_timeout_t timeout)
+{
+	return bt_buf_get_rx(BT_BUF_EVT, timeout);
+}
+
 struct net_buf *bt_buf_get_evt(uint8_t evt, bool discardable, k_timeout_t timeout)
 {
 	return bt_buf_get_rx(BT_BUF_EVT, timeout);
@@ -213,6 +215,22 @@ int bt_recv(struct net_buf *buf)
 	net_buf_put(raw_rx, buf);
 
 	return 0;
+}
+
+int bt_recv_prio(struct net_buf *buf)
+{
+	if (bt_buf_get_type(buf) == BT_BUF_EVT) {
+		struct bt_hci_evt_hdr *hdr = (void *)buf->data;
+		uint8_t evt_flags = bt_hci_evt_get_flags(hdr->evt);
+
+		if ((evt_flags & BT_HCI_EVT_FLAG_RECV_PRIO) &&
+		    (evt_flags & BT_HCI_EVT_FLAG_RECV)) {
+			/* Avoid queuing the event twice */
+			return 0;
+		}
+	}
+
+	return bt_recv(buf);
 }
 
 static void bt_cmd_complete_ext(uint16_t op, uint8_t status)

@@ -77,8 +77,6 @@ int settings_nvs_dst(struct settings_nvs *cf)
 }
 
 #if CONFIG_SETTINGS_NVS_NAME_CACHE
-#define SETTINGS_NVS_CACHE_OVFL(cf) ((cf)->cache_total > ARRAY_SIZE((cf)->cache))
-
 static void settings_nvs_cache_add(struct settings_nvs *cf, const char *name,
 				   uint16_t name_id)
 {
@@ -134,22 +132,12 @@ static int settings_nvs_load(struct settings_store *cs,
 	ssize_t rc1, rc2;
 	uint16_t name_id = NVS_NAMECNT_ID;
 
-#if CONFIG_SETTINGS_NVS_NAME_CACHE
-	uint16_t cached = 0;
-
-	cf->loaded = false;
-#endif
-
 	name_id = cf->last_name_id + 1;
 
 	while (1) {
 
 		name_id--;
 		if (name_id == NVS_NAMECNT_ID) {
-#if CONFIG_SETTINGS_NVS_NAME_CACHE
-			cf->loaded = true;
-			cf->cache_total = cached;
-#endif
 			break;
 		}
 
@@ -201,7 +189,6 @@ static int settings_nvs_load(struct settings_store *cs,
 
 #if CONFIG_SETTINGS_NVS_NAME_CACHE
 		settings_nvs_cache_add(cf, name, name_id);
-		cached++;
 #endif
 
 		ret = settings_call_set_handler(
@@ -232,13 +219,10 @@ static int settings_nvs_save(struct settings_store *cs, const char *name,
 	delete = ((value == NULL) || (val_len == 0));
 
 #if CONFIG_SETTINGS_NVS_NAME_CACHE
-	bool name_in_cache = false;
-
 	name_id = settings_nvs_cache_match(cf, name, rdname, sizeof(rdname));
 	if (name_id != NVS_NAMECNT_ID) {
 		write_name_id = name_id;
 		write_name = false;
-		name_in_cache = true;
 		goto found;
 	}
 #endif
@@ -246,13 +230,6 @@ static int settings_nvs_save(struct settings_store *cs, const char *name,
 	name_id = cf->last_name_id + 1;
 	write_name_id = cf->last_name_id + 1;
 	write_name = true;
-
-#if CONFIG_SETTINGS_NVS_NAME_CACHE
-	/* We can skip reading NVS if we know that the cache wasn't overflowed. */
-	if (cf->loaded && !SETTINGS_NVS_CACHE_OVFL(cf)) {
-		goto found;
-	}
-#endif
 
 	while (1) {
 		name_id--;
@@ -277,6 +254,9 @@ static int settings_nvs_save(struct settings_store *cs, const char *name,
 		}
 
 		if (!delete) {
+#if CONFIG_SETTINGS_NVS_NAME_CACHE
+			settings_nvs_cache_add(cf, name, name_id);
+#endif
 			write_name_id = name_id;
 			write_name = false;
 		}
@@ -344,15 +324,6 @@ found:
 			return rc;
 		}
 	}
-
-#if CONFIG_SETTINGS_NVS_NAME_CACHE
-	if (!name_in_cache) {
-		settings_nvs_cache_add(cf, name, write_name_id);
-		if (cf->loaded && !SETTINGS_NVS_CACHE_OVFL(cf)) {
-			cf->cache_total++;
-		}
-	}
-#endif
 
 	return 0;
 }

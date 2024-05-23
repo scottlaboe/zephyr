@@ -42,6 +42,7 @@ static void mbox_callback(const struct device *dev, uint32_t channel,
 static int mbox_init(void)
 {
 	const struct device *dev;
+	struct mbox_channel channel;
 	int err;
 
 	dev = COND_CODE_1(CONFIG_MBOX, (DEVICE_DT_GET(DT_NODELABEL(mbox))), (NULL));
@@ -49,12 +50,14 @@ static int mbox_init(void)
 		return -ENODEV;
 	}
 
-	err = mbox_register_callback(dev, 2, mbox_callback, NULL);
+	mbox_init_channel(&channel, dev, 2);
+
+	err = mbox_register_callback(&channel, mbox_callback, NULL);
 	if (err < 0) {
 		return err;
 	}
 
-	return mbox_set_enabled(dev, 2, true);
+	return mbox_set_enabled(&channel, true);
 }
 
 int main(void)

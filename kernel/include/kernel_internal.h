@@ -24,9 +24,6 @@
 extern "C" {
 #endif
 
-/* Initialize per-CPU kernel data */
-void z_init_cpu(int id);
-
 /* Initialize a thread */
 void z_init_thread_base(struct _thread_base *thread_base, int priority,
 			uint32_t initial_state, unsigned int options);
@@ -43,7 +40,7 @@ static inline void z_data_copy(void)
 {
 	/* Do nothing */
 }
-#endif /* CONFIG_XIP */
+#endif
 
 #ifdef CONFIG_LINKER_USE_BOOT_SECTION
 void z_bss_zero_boot(void);
@@ -52,7 +49,7 @@ static inline void z_bss_zero_boot(void)
 {
 	/* Do nothing */
 }
-#endif /* CONFIG_LINKER_USE_BOOT_SECTION */
+#endif
 
 #ifdef CONFIG_LINKER_USE_PINNED_SECTION
 void z_bss_zero_pinned(void);
@@ -61,7 +58,7 @@ static inline void z_bss_zero_pinned(void)
 {
 	/* Do nothing */
 }
-#endif /* CONFIG_LINKER_USE_PINNED_SECTION */
+#endif
 
 FUNC_NORETURN void z_cstart(void);
 
@@ -110,6 +107,20 @@ static inline void *z_thread_malloc(size_t size)
 	return z_thread_aligned_alloc(0, size);
 }
 
+/* set and clear essential thread flag */
+
+extern void z_thread_essential_set(void);
+extern void z_thread_essential_clear(void);
+
+/* clean up when a thread is aborted */
+
+#if defined(CONFIG_THREAD_MONITOR)
+extern void z_thread_monitor_exit(struct k_thread *thread);
+#else
+#define z_thread_monitor_exit(thread) \
+	do {/* nothing */    \
+	} while (false)
+#endif /* CONFIG_THREAD_MONITOR */
 
 #ifdef CONFIG_USE_SWITCH
 /* This is a arch function traditionally, but when the switch-based
@@ -135,27 +146,27 @@ z_thread_return_value_set_with_data(struct k_thread *thread,
 extern void z_smp_init(void);
 #ifdef CONFIG_SYS_CLOCK_EXISTS
 extern void smp_timer_init(void);
-#endif /* CONFIG_SYS_CLOCK_EXISTS */
-#endif /* CONFIG_SMP */
+#endif
+#endif
 
 extern void z_early_rand_get(uint8_t *buf, size_t length);
 
-#if defined(CONFIG_STACK_POINTER_RANDOM) && (CONFIG_STACK_POINTER_RANDOM != 0)
+#if CONFIG_STACK_POINTER_RANDOM
 extern int z_stack_adjust_initialized;
-#endif /* CONFIG_STACK_POINTER_RANDOM */
+#endif
 
 extern struct k_thread z_main_thread;
 
 
 #ifdef CONFIG_MULTITHREADING
 extern struct k_thread z_idle_threads[CONFIG_MP_MAX_NUM_CPUS];
-#endif /* CONFIG_MULTITHREADING */
+#endif
 K_KERNEL_PINNED_STACK_ARRAY_DECLARE(z_interrupt_stacks, CONFIG_MP_MAX_NUM_CPUS,
 				    CONFIG_ISR_STACK_SIZE);
 
 #ifdef CONFIG_GEN_PRIV_STACKS
 extern uint8_t *z_priv_stack_find(k_thread_stack_t *stack);
-#endif /* CONFIG_GEN_PRIV_STACKS */
+#endif
 
 /* Calculate stack usage. */
 int z_stack_space_get(const uint8_t *stack_start, size_t size, size_t *unused_ptr);
@@ -189,7 +200,7 @@ struct gdb_ctx;
  * and synchronously communicate with gdb on host.
  */
 extern int z_gdb_main_loop(struct gdb_ctx *ctx);
-#endif /* CONFIG_GDBSTUB */
+#endif
 
 #ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
 void z_thread_mark_switched_in(void);
@@ -263,7 +274,7 @@ bool pm_system_suspend(int32_t ticks);
  */
 void pm_system_resume(void);
 
-#endif /* CONFIG_PM */
+#endif
 
 #ifdef CONFIG_DEMAND_PAGING_TIMING_HISTOGRAM
 /**
@@ -287,7 +298,7 @@ int z_thread_stats_query(struct k_obj_core *obj_core, void *stats);
 int z_thread_stats_reset(struct k_obj_core *obj_core);
 int z_thread_stats_disable(struct k_obj_core *obj_core);
 int z_thread_stats_enable(struct k_obj_core *obj_core);
-#endif /* CONFIG_OBJ_CORE_STATS_THREAD */
+#endif
 
 #ifdef CONFIG_OBJ_CORE_STATS_SYSTEM
 int z_cpu_stats_raw(struct k_obj_core *obj_core, void *stats);
@@ -295,36 +306,7 @@ int z_cpu_stats_query(struct k_obj_core *obj_core, void *stats);
 
 int z_kernel_stats_raw(struct k_obj_core *obj_core, void *stats);
 int z_kernel_stats_query(struct k_obj_core *obj_core, void *stats);
-#endif /* CONFIG_OBJ_CORE_STATS_SYSTEM */
-
-#if defined(CONFIG_THREAD_ABORT_NEED_CLEANUP)
-/**
- * Perform cleanup at the end of k_thread_abort().
- *
- * This performs additional cleanup steps at the end of k_thread_abort()
- * where these steps require that the thread is no longer running.
- * If the target thread is not the current running thread, the cleanup
- * steps will be performed immediately. However, if the target thread is
- * the current running thread (e.g. k_thread_abort(_current)), it defers
- * the cleanup steps to later when the work will be finished in another
- * context.
- *
- * @param thread Pointer to thread to be cleaned up.
- */
-void k_thread_abort_cleanup(struct k_thread *thread);
-
-/**
- * Check if thread is the same as the one waiting for cleanup.
- *
- * This is used to guard against reusing the same thread object
- * before the previous cleanup has finished. This will perform
- * the necessary cleanups before the thread object can be
- * reused. Should mainly be used during thread creation.
- *
- * @param thread Pointer to thread to be checked.
- */
-void k_thread_abort_cleanup_check_reuse(struct k_thread *thread);
-#endif /* CONFIG_THREAD_ABORT_NEED_CLEANUP */
+#endif
 
 #ifdef __cplusplus
 }

@@ -15,7 +15,6 @@
 	defined(CONFIG_BOARD_NUCLEO_F429ZI) || \
 	defined(CONFIG_BOARD_NUCLEO_F746ZG) || \
 	defined(CONFIG_BOARD_NUCLEO_F767ZI) || \
-	defined(CONFIG_BOARD_NUCLEO_F722ZE) || \
 	defined(CONFIG_BOARD_NUCLEO_G071RB) || \
 	defined(CONFIG_BOARD_NUCLEO_G431RB) || \
 	defined(CONFIG_BOARD_NUCLEO_G474RE) || \
@@ -45,7 +44,6 @@
 #elif defined(CONFIG_BOARD_TWR_KE18F) || \
 	defined(CONFIG_BOARD_FRDM_K64F) || \
 	defined(CONFIG_BOARD_FRDM_K22F) || \
-	defined(CONFIG_BOARD_FRDM_MCXN947) || \
 	defined(CONFIG_BOARD_SEEEDUINO_XIAO) || \
 	defined(CONFIG_BOARD_ARDUINO_MKRZERO) || \
 	defined(CONFIG_BOARD_ARDUINO_ZERO) || \
@@ -58,7 +56,7 @@
 #elif defined(CONFIG_BOARD_BL652_DVK) || \
 	defined(CONFIG_BOARD_BL653_DVK) || \
 	defined(CONFIG_BOARD_BL654_DVK) || \
-	defined(CONFIG_BOARD_BL5340_DVK)
+	defined(CONFIG_BOARD_BL5340_DVK_CPUAPP)
  /* Note external DAC MCP4725 is not populated on BL652_DVK, BL653_DVK and
   * BL654_DVK at factory
   */
@@ -70,7 +68,6 @@
 	defined(CONFIG_BOARD_ESP32_DEVKITC_WROVER) || \
 	defined(CONFIG_BOARD_ESP_WROVER_KIT) || \
 	defined(CONFIG_BOARD_ESP32S2_SAOLA) || \
-	defined(CONFIG_BOARD_ESP32S2_DEVKITC) || \
 	defined(CONFIG_BOARD_GD32A503V_EVAL) || \
 	defined(CONFIG_BOARD_GD32E103V_EVAL) || \
 	defined(CONFIG_BOARD_GD32F450I_EVAL) || \
@@ -87,12 +84,6 @@
 
 #define DAC_DEVICE_NODE		DT_NODELABEL(dacc)
 #define DAC_RESOLUTION		12
-#define DAC_CHANNEL_ID		0
-
-#elif defined(CONFIG_BOARD_RD_RW612_BGA)
-
-#define DAC_DEVICE_NODE		DT_NODELABEL(dac0)
-#define DAC_RESOLUTION		10
 #define DAC_CHANNEL_ID		0
 
 #else

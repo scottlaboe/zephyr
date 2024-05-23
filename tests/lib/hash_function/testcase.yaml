@@ -4,7 +4,7 @@
 
 common:
   integration_platforms:
-    - native_sim
+    - native_posix
 tests:
   libraries.hash_function.identity:
     # RNG seems to be broken on qemu_cortex_a53

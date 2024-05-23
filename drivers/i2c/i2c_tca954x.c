@@ -151,7 +151,7 @@ static int tca954x_channel_init(const struct device *dev)
 	return 0;
 }
 
-static const struct i2c_driver_api tca954x_api_funcs = {
+const struct i2c_driver_api tca954x_api_funcs = {
 	.configure = tca954x_configure,
 	.transfer = tca954x_transfer,
 };

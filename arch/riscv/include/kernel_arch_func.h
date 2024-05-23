@@ -69,12 +69,8 @@ arch_switch(void *switch_to, void **switched_from)
 #endif
 }
 
-/* Thin wrapper around z_riscv_fatal_error_csf */
 FUNC_NORETURN void z_riscv_fatal_error(unsigned int reason,
 				       const z_arch_esf_t *esf);
-
-FUNC_NORETURN void z_riscv_fatal_error_csf(unsigned int reason, const z_arch_esf_t *esf,
-					   const _callee_saved_t *csf);
 
 static inline bool arch_is_in_isr(void)
 {
@@ -99,8 +95,8 @@ int z_irq_do_offload(void);
 #endif
 
 #ifdef CONFIG_FPU_SHARING
-void arch_flush_local_fpu(void);
-void arch_flush_fpu_ipi(unsigned int cpu);
+void z_riscv_flush_local_fpu(void);
+void z_riscv_flush_fpu_ipi(unsigned int cpu);
 #endif
 
 #ifndef CONFIG_MULTITHREADING

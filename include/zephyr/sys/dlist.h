@@ -27,6 +27,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <zephyr/toolchain.h>
 
 #ifdef __cplusplus
 extern "C" {

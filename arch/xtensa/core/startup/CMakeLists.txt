@@ -10,8 +10,8 @@ if(CONFIG_XTENSA_RESET_VECTOR)
     )
 
   zephyr_library_sources(
-    memerror_vector.S
+    memerror-vector.S
     memctl_default.S
-    reset_vector.S
+    reset-vector.S
     )
 endif()

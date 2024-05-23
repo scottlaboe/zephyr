@@ -53,12 +53,6 @@ file which includes them.  See :ref:`west-manifest-import` for information on
 recommended ways to do this while still inheriting the mandatory modules from
 Zephyr's :file:`west.yml`.
 
-Use the template :file:`doc/develop/manifest/external/external.rst.tmpl` to add
-external modules to the list below:
+.. rst-class:: rst-columns
 
-.. toctree::
-   :titlesonly:
-   :maxdepth: 1
-   :glob:
-
-   external/*
+- TBD

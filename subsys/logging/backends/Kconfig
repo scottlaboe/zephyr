@@ -4,6 +4,7 @@
 menu "Backends"
 
 rsource "Kconfig.adsp"
+rsource "Kconfig.adsp_hda"
 rsource "Kconfig.adsp_mtrace"
 rsource "Kconfig.ble"
 rsource "Kconfig.efi_console"

@@ -70,7 +70,7 @@ extern "C" {
  * @param idle Hint to the driver that the system is about to enter
  *        the idle state immediately after setting the timeout
  */
-void sys_clock_set_timeout(int32_t ticks, bool idle);
+extern void sys_clock_set_timeout(int32_t ticks, bool idle);
 
 /**
  * @brief Timer idle exit notification
@@ -84,7 +84,7 @@ void sys_clock_set_timeout(int32_t ticks, bool idle);
  * This is allowed for compatibility, but not recommended.  The kernel
  * will figure that out on its own.
  */
-void sys_clock_idle_exit(void);
+extern void sys_clock_idle_exit(void);
 
 /**
  * @brief Announce time progress to the kernel
@@ -97,7 +97,7 @@ void sys_clock_idle_exit(void);
  *
  * @param ticks Elapsed time, in ticks
  */
-void sys_clock_announce(int32_t ticks);
+extern void sys_clock_announce(int32_t ticks);
 
 /**
  * @brief Ticks elapsed since last sys_clock_announce() call
@@ -107,7 +107,7 @@ void sys_clock_announce(int32_t ticks);
  * this with appropriate locking, the driver needs only provide an
  * instantaneous answer.
  */
-uint32_t sys_clock_elapsed(void);
+extern uint32_t sys_clock_elapsed(void);
 
 /**
  * @brief Disable system timer.
@@ -116,7 +116,7 @@ uint32_t sys_clock_elapsed(void);
  * The config @kconfig{CONFIG_SYSTEM_TIMER_HAS_DISABLE_SUPPORT} can be used to
  * check if the system timer has the capability of being disabled.
  */
-void sys_clock_disable(void);
+extern void sys_clock_disable(void);
 
 /**
  * @brief Hardware cycle counter

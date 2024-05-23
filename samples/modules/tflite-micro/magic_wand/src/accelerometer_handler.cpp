@@ -40,8 +40,13 @@ TfLiteStatus SetupAccelerometer()
 		return kTfLiteApplicationError;
 	}
 
-	MicroPrintf("Got accelerometer, name: %s\n", sensor->name);
-
+	if (sensor == NULL) {
+		MicroPrintf("Failed to get accelerometer, name: %s\n",
+				    sensor->name);
+	} else {
+		MicroPrintf("Got accelerometer, name: %s\n",
+				    sensor->name);
+	}
 	return kTfLiteOk;
 }
 

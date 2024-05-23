@@ -7,12 +7,8 @@
 
 #include <zephyr/drivers/video.h>
 
-#define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
-#include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(video_sw_generator);
-
-#define VIDEO_PATTERN_COLOR_BAR 0
-#define VIDEO_PATTERN_FPS       30
+#define VIDEO_PATTERN_COLOR_BAR	0
+#define VIDEO_PATTERN_FPS	30
 
 struct video_sw_generator_data {
 	const struct device *dev;
@@ -27,46 +23,14 @@ struct video_sw_generator_data {
 	struct k_poll_signal *signal;
 };
 
-static const struct video_format_cap fmts[] = {{
-						       .pixelformat = VIDEO_PIX_FMT_RGB565,
-						       .width_min = 64,
-						       .width_max = 1920,
-						       .height_min = 64,
-						       .height_max = 1080,
-						       .width_step = 1,
-						       .height_step = 1,
-					       }, {
-						       .pixelformat = VIDEO_PIX_FMT_XRGB32,
-						       .width_min = 64,
-						       .width_max = 1920,
-						       .height_min = 64,
-						       .height_max = 1080,
-						       .width_step = 1,
-						       .height_step = 1,
-					       },
-					       {0}};
-
-static int video_sw_generator_set_fmt(const struct device *dev, enum video_endpoint_id ep,
+static int video_sw_generator_set_fmt(const struct device *dev,
+				      enum video_endpoint_id ep,
 				      struct video_format *fmt)
 {
 	struct video_sw_generator_data *data = dev->data;
-	int i = 0;
 
 	if (ep != VIDEO_EP_OUT) {
 		return -EINVAL;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(fmts); ++i) {
-		if (fmt->pixelformat == fmts[i].pixelformat && fmt->width >= fmts[i].width_min &&
-		    fmt->width <= fmts[i].width_max && fmt->height >= fmts[i].height_min &&
-		    fmt->height <= fmts[i].height_max) {
-			break;
-		}
-	}
-
-	if (i == ARRAY_SIZE(fmts)) {
-		LOG_ERR("Unsupported pixel format or resolution");
-		return -ENOTSUP;
 	}
 
 	data->fmt = *fmt;
@@ -74,7 +38,8 @@ static int video_sw_generator_set_fmt(const struct device *dev, enum video_endpo
 	return 0;
 }
 
-static int video_sw_generator_get_fmt(const struct device *dev, enum video_endpoint_id ep,
+static int video_sw_generator_get_fmt(const struct device *dev,
+				      enum video_endpoint_id ep,
 				      struct video_format *fmt)
 {
 	struct video_sw_generator_data *data = dev->data;
@@ -92,9 +57,7 @@ static int video_sw_generator_stream_start(const struct device *dev)
 {
 	struct video_sw_generator_data *data = dev->data;
 
-	k_work_schedule(&data->buf_work, K_MSEC(1000 / VIDEO_PATTERN_FPS));
-
-	return 0;
+	return k_work_schedule(&data->buf_work, K_MSEC(33));
 }
 
 static int video_sw_generator_stream_stop(const struct device *dev)
@@ -107,27 +70,22 @@ static int video_sw_generator_stream_stop(const struct device *dev)
 }
 
 /* Black, Blue, Red, Purple, Green, Aqua, Yellow, White */
-uint16_t rgb565_colorbar_value[] = {0x0000, 0x001F, 0xF800, 0xF81F, 0x07E0, 0x07FF, 0xFFE0, 0xFFFF};
+uint16_t rgb565_colorbar_value[] = { 0x0000, 0x001F, 0xF800, 0xF81F,
+				  0x07E0, 0x07FF, 0xFFE0, 0xFFFF };
 
-uint32_t xrgb32_colorbar_value[] = {0xFF000000, 0xFF0000FF, 0xFFFF0000, 0xFFFF00FF,
-				    0xFF00FF00, 0xFF00FFFF, 0xFFFFFF00, 0xFFFFFFFF};
-
-static void __fill_buffer_colorbar(struct video_sw_generator_data *data, struct video_buffer *vbuf)
+static void __fill_buffer_colorbar(struct video_sw_generator_data *data,
+				   struct video_buffer *vbuf)
 {
 	int bw = data->fmt.width / 8;
 	int h, w, i = 0;
 
 	for (h = 0; h < data->fmt.height; h++) {
 		for (w = 0; w < data->fmt.width; w++) {
-			int color_idx = data->ctrl_vflip ? 7 - w / bw : w / bw;
+			int color_idx =  data->ctrl_vflip ? 7 - w / bw : w / bw;
 			if (data->fmt.pixelformat == VIDEO_PIX_FMT_RGB565) {
 				uint16_t *pixel = (uint16_t *)&vbuf->buffer[i];
 				*pixel = rgb565_colorbar_value[color_idx];
 				i += 2;
-			} else if (data->fmt.pixelformat == VIDEO_PIX_FMT_XRGB32) {
-				uint32_t *pixel = (uint32_t *)&vbuf->buffer[i];
-				*pixel = xrgb32_colorbar_value[color_idx];
-				i += 4;
 			}
 		}
 	}
@@ -166,7 +124,8 @@ static void __buffer_work(struct k_work *work)
 	k_yield();
 }
 
-static int video_sw_generator_enqueue(const struct device *dev, enum video_endpoint_id ep,
+static int video_sw_generator_enqueue(const struct device *dev,
+				      enum video_endpoint_id ep,
 				      struct video_buffer *vbuf)
 {
 	struct video_sw_generator_data *data = dev->data;
@@ -180,8 +139,10 @@ static int video_sw_generator_enqueue(const struct device *dev, enum video_endpo
 	return 0;
 }
 
-static int video_sw_generator_dequeue(const struct device *dev, enum video_endpoint_id ep,
-				      struct video_buffer **vbuf, k_timeout_t timeout)
+static int video_sw_generator_dequeue(const struct device *dev,
+				      enum video_endpoint_id ep,
+				      struct video_buffer **vbuf,
+				      k_timeout_t timeout)
 {
 	struct video_sw_generator_data *data = dev->data;
 
@@ -197,7 +158,8 @@ static int video_sw_generator_dequeue(const struct device *dev, enum video_endpo
 	return 0;
 }
 
-static int video_sw_generator_flush(const struct device *dev, enum video_endpoint_id ep,
+static int video_sw_generator_flush(const struct device *dev,
+				    enum video_endpoint_id ep,
 				    bool cancel)
 {
 	struct video_sw_generator_data *data = dev->data;
@@ -212,7 +174,8 @@ static int video_sw_generator_flush(const struct device *dev, enum video_endpoin
 		while ((vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT))) {
 			k_fifo_put(&data->fifo_out, vbuf);
 			if (IS_ENABLED(CONFIG_POLL) && data->signal) {
-				k_poll_signal_raise(data->signal, VIDEO_BUF_ABORTED);
+				k_poll_signal_raise(data->signal,
+						    VIDEO_BUF_ABORTED);
 			}
 		}
 	}
@@ -220,7 +183,21 @@ static int video_sw_generator_flush(const struct device *dev, enum video_endpoin
 	return 0;
 }
 
-static int video_sw_generator_get_caps(const struct device *dev, enum video_endpoint_id ep,
+static const struct video_format_cap fmts[] = {
+	{
+		.pixelformat = VIDEO_PIX_FMT_RGB565,
+		.width_min = 64,
+		.width_max = 1920,
+		.height_min = 64,
+		.height_max = 1080,
+		.width_step = 1,
+		.height_step = 1,
+	},
+	{ 0 }
+};
+
+static int video_sw_generator_get_caps(const struct device *dev,
+				       enum video_endpoint_id ep,
 				       struct video_caps *caps)
 {
 	caps->format_caps = fmts;
@@ -230,7 +207,8 @@ static int video_sw_generator_get_caps(const struct device *dev, enum video_endp
 }
 
 #ifdef CONFIG_POLL
-static int video_sw_generator_set_signal(const struct device *dev, enum video_endpoint_id ep,
+static int video_sw_generator_set_signal(const struct device *dev,
+					 enum video_endpoint_id ep,
 					 struct k_poll_signal *signal)
 {
 	struct video_sw_generator_data *data = dev->data;
@@ -245,7 +223,8 @@ static int video_sw_generator_set_signal(const struct device *dev, enum video_en
 }
 #endif
 
-static inline int video_sw_generator_set_ctrl(const struct device *dev, unsigned int cid,
+static inline int video_sw_generator_set_ctrl(const struct device *dev,
+					      unsigned int cid,
 					      void *value)
 {
 	struct video_sw_generator_data *data = dev->data;
@@ -279,7 +258,7 @@ static const struct video_driver_api video_sw_generator_driver_api = {
 static struct video_sw_generator_data video_sw_generator_data_0 = {
 	.fmt.width = 320,
 	.fmt.height = 160,
-	.fmt.pitch = 320 * 2,
+	.fmt.pitch = 320*2,
 	.fmt.pixelformat = VIDEO_PIX_FMT_RGB565,
 };
 
@@ -295,6 +274,8 @@ static int video_sw_generator_init(const struct device *dev)
 	return 0;
 }
 
-DEVICE_DEFINE(video_sw_generator, "VIDEO_SW_GENERATOR", &video_sw_generator_init, NULL,
-	      &video_sw_generator_data_0, NULL, POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY,
-	      &video_sw_generator_driver_api);
+DEVICE_DEFINE(video_sw_generator, "VIDEO_SW_GENERATOR",
+		    &video_sw_generator_init, NULL,
+		    &video_sw_generator_data_0, NULL,
+		    POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY,
+		    &video_sw_generator_driver_api);

@@ -21,9 +21,7 @@ struct ud {
 
 bool is_tunnel(struct net_if *iface)
 {
-	if (net_if_l2(iface) == &NET_L2_GET_NAME(VIRTUAL) &&
-	    strncmp(net_if_get_device(iface)->name, "IP_TUNNEL0",
-		    strlen(net_if_get_device(iface)->name)) == 0) {
+	if (net_if_l2(iface) == &NET_L2_GET_NAME(VIRTUAL)) {
 		return true;
 	}
 
@@ -135,11 +133,6 @@ int init_tunnel(void)
 	}
 
 	net_if_foreach(iface_cb, &ud);
-
-	if (ud.tunnel == NULL) {
-		LOG_ERR("Tunnel interface not found.");
-		return -ENOENT;
-	}
 
 	ret = net_mgmt(NET_REQUEST_VIRTUAL_INTERFACE_SET_PEER_ADDRESS,
 		       ud.tunnel, &params, sizeof(params));

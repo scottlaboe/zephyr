@@ -77,6 +77,8 @@ static void lorawan_nvm_save_settings(uint16_t nvm_notify_flag)
 			}
 		}
 	}
+
+	settings_save();
 }
 
 void lorawan_nvm_data_mgmt_event(uint16_t flags)

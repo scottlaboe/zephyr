@@ -2,8 +2,12 @@ description: i.MX DSP interrupt controller
 
 compatible: "nxp,irqsteer-intc"
 
-include: [base.yaml]
+include: [interrupt-controller.yaml, base.yaml]
 
 properties:
-  reg:
-    required: true
+  "#interrupt-cells":
+    const: 2
+
+interrupt-cells:
+  - irq
+  - priority

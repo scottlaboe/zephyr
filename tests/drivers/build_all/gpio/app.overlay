@@ -23,14 +23,6 @@
 			status = "okay";
 		};
 
-		test_gpio_dw: gpio@c0ffee {
-			compatible = "snps,designware-gpio";
-			gpio-controller;
-			reg = <0xc0ffee 0x1000>;
-			#gpio-cells = <0x2>;
-			status = "okay";
-		};
-
 		test_i2c: i2c@11112222 {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -41,7 +33,7 @@
 
 			test_i2c_sx1509b: sx1509b@0 {
 				compatible = "semtech,sx1509b";
-				reg = <0x00>;
+				reg = <0x0>;
 				#gpio-cells = <2>;
 				ngpios = <16>;
 				gpio-controller;
@@ -49,7 +41,7 @@
 
 			test_i2c_pcal6408a: pcal6408a@1 {
 				compatible = "nxp,pcal6408a";
-				reg = <0x01>;
+				reg = <0x1>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				ngpios = <8>;
@@ -59,7 +51,7 @@
 
 			test_i2c_pcal6416a: pcal6416a@2 {
 				compatible = "nxp,pcal6416a";
-				reg = <0x02>;
+				reg = <0x2>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				ngpios = <16>;
@@ -67,62 +59,53 @@
 				reset-gpios = <&test_gpio 0 0>;
 			};
 
-			test_i2c_pca95xx: pca95xx@3 {
+			test_i2c_pca95xx: pca95xx@20 {
 				compatible = "nxp,pca95xx";
-				reg = <0x03>;
+				reg = <0x20>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				ngpios = <16>;
 				interrupt-gpios = <&test_gpio 0 0>;
 			};
 
-			test_i2c_pcf8575: pcf8575@4 {
-				compatible = "nxp,pcf857x";
-				reg = <0x04>;
-				gpio-controller;
-				#gpio-cells = <2>;
-				ngpios = <16>;
-				int-gpios = <&test_gpio 0 0>;
-			};
-
-			test_i2c_pcf8574: pcf8574@5 {
-				compatible = "nxp,pcf857x";
-				reg = <0x05>;
+			test_i2c_pcf8574: pcf8574@27 {
+				compatible = "nxp,pcf8574";
+				reg = <0x27>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				ngpios = <8>;
 				int-gpios = <&test_gpio 0 0>;
 			};
 
-			test_i2c_pca953x: pca953x@6 {
+			test_i2c_pca953x: pca953x@70 {
 				compatible = "ti,tca9538";
-				reg = <0x06>;
+				reg = <0x70>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				ngpios = <8>;
 				nint-gpios = <&test_gpio 0 0>;
 			};
 
-			test_i2c_mcp230xx: mcp230xx@7 {
+			test_i2c_mcp230xx: mcp230xx@0 {
 				compatible = "microchip,mcp230xx";
-				reg = <0x07>;
+				reg = <0x0>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				ngpios = <16>;
 			};
 
-			test_i2c_fxl6408: fxl6408@8 {
+			test_i2c_fxl6408: fxl6408@43 {
 				status = "okay";
 				compatible = "fcs,fxl6408";
-				reg = <0x08>;
+				reg = <0x43>;
 				ngpios = <8>;
 				#gpio-cells = <2>;
 				gpio-controller;
 			};
 
-			mfd-nct38xx@9 {
+			mfd-nct38xx@72 {
 				compatible = "nuvoton,nct38xx";
-				reg = <0x09>;
+				reg = <0x72>;
 				test_i2c_nct3807: nct3807 {
 					#address-cells = <1>;
 					#size-cells = <0>;
@@ -149,9 +132,9 @@
 				};
 			};
 
-			test_i2c_nct3808_p1: mfd-nct38xx@a {
+			test_i2c_nct3808_p1: mfd-nct38xx@71 {
 				compatible = "nuvoton,nct38xx";
-				reg = <0x0a>;
+				reg = <0x71>;
 				nct3808_0_P1 {
 					#address-cells = <1>;
 					#size-cells = <0>;
@@ -169,9 +152,9 @@
 				};
 			};
 
-			test_i2c_nct3808_p2: mfd-nct38xx@b {
+			test_i2c_nct3808_p2: mfd-nct38xx@75 {
 				compatible = "nuvoton,nct38xx";
-				reg = <0x0b>;
+				reg = <0x75>;
 				nct3808_0_P2 {
 					#address-cells = <1>;
 					#size-cells = <0>;
@@ -189,9 +172,9 @@
 				};
 			};
 
-			test_i2c_tca6424a: tca6424a@c {
+			test_i2c_tca6424a: tca6424a@23 {
 				compatible = "ti,tca6424a";
-				reg = <0x0c>;
+				reg = <0x23>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				ngpios = <24>;
@@ -199,29 +182,15 @@
 				reset-gpios = <&test_gpio 0 0>;
 			};
 
-			test_i2c_axp192: axp192@d {
+			test_i2c_axp192: axp192@24 {
 				compatible = "x-powers,axp192";
-				reg = <0x0d>;
+				reg = <0x24>;
 
 				axp192_gpio {
 					compatible = "x-powers,axp192-gpio";
 					gpio-controller;
 					#gpio-cells = <2>;
-					ngpios = <6>;
-				};
-			};
-
-			test_i2c_ad559x: ad559x@e {
-				compatible = "adi,ad559x";
-				status = "okay";
-				reg = <0x0e>;
-				reset-gpios = <&test_gpio 0 0>;
-
-				test_i2c_ad559x_gpio: gpio-controller {
-					compatible = "adi,ad559x-gpio";
-					gpio-controller;
-					#gpio-cells = <2>;
-					ngpios = <8>;
+					ngpios = <5>;
 				};
 			};
 		};
@@ -267,30 +236,23 @@
 
 			test_spi_bd8lb600fs: bd8lb600fs@2 {
 				compatible = "rohm,bd8lb600fs";
-				status = "okay";
 				spi-max-frequency = <0>;
 				reg = <0x02>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				ngpios = <8>;
 				reset-gpios = <&test_gpio 0 0>;
-				instance-count = <1>;
-
-				bd8lb600fs_gpio: bd8lb600fs_gpio {
-					compatible = "rohm,bd8lb600fs-gpio";
-					status = "okay";
-					gpio-controller;
-					#gpio-cells = <2>;
-					ngpios = <8>;
-				};
 			};
 
-			test_spi_ad559x: ad559x@3 {
-				compatible = "adi,ad559x";
+			test_spi_ad5592: ad5592@3 {
+				compatible = "adi,ad5592";
 				status = "okay";
 				reg = <0x03>;
 				spi-max-frequency = <0>;
 				reset-gpios = <&test_gpio 0 0>;
 
-				test_spi_ad559x_gpio: gpio-controller {
-					compatible = "adi,ad559x-gpio";
+				ad5592_gpio: gpio-controller {
+					compatible = "adi,ad5592-gpio";
 					gpio-controller;
 					#gpio-cells = <2>;
 					ngpios = <8>;
@@ -299,19 +261,13 @@
 
 			test_spi_tle9104: tle9104@4 {
 				compatible = "infineon,tle9104";
-				status = "okay";
 				spi-max-frequency = <0>;
 				reg = <0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				ngpios = <4>;
 				resn-gpios = <&test_gpio 0 0>;
 				en-gpios = <&test_gpio 0 0>;
-
-				tle9104_gpio: tle9104_gpio {
-					compatible = "infineon,tle9104-gpio";
-					status = "okay";
-					gpio-controller;
-					#gpio-cells = <2>;
-					ngpios = <4>;
-				};
 			};
 		};
 	};

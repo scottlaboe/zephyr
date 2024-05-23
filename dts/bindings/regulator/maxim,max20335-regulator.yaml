@@ -1,5 +1,5 @@
 # Copyright (c), 2023 Grinn
-# SPDX-License-Identifier: Apache-2.0
+# SPDX -License-Identifier: Apache-2.0
 
 description: |
   Maxim MAX20335 PMIC
@@ -40,12 +40,10 @@ child-binding:
   include:
     - name: regulator.yaml
       property-allowlist:
-        - regulator-init-microvolt
-        - regulator-min-microvolt
-        - regulator-max-microvolt
-        - regulator-init-microamp
-        - regulator-max-microamp
         - regulator-always-on
         - regulator-boot-on
-        - regulator-initial-mode
+        - regulator-max-microamp
+        - regulator-min-microvolt
+        - regulator-max-microvolt
         - regulator-allowed-modes
+        - regulator-initial-mode

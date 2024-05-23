@@ -6,8 +6,6 @@
 #ifndef ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_STM32L1_CLOCK_H_
 #define ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_STM32L1_CLOCK_H_
 
-#include "stm32_common_clocks.h"
-
 /** Bus gatting clocks */
 #define STM32_CLOCK_BUS_AHB1    0x01c
 #define STM32_CLOCK_BUS_APB2    0x020
@@ -19,11 +17,12 @@
 /** Domain clocks */
 /* RM0038.pdf, §6.3.14 Control/status register (RCC_CSR) */
 
-/** System clock */
-/* defined in stm32_common_clocks.h */
 /** Fixed clocks  */
-/* Low speed clocks defined in stm32_common_clocks.h */
-#define STM32_SRC_HSE		(STM32_SRC_LSI + 1)
+#define STM32_SRC_HSE		0x001
+#define STM32_SRC_LSE		0x002
+#define STM32_SRC_LSI		0x003
+/** System clock */
+#define STM32_SRC_SYSCLK	0x004
 
 #define STM32_CLOCK_REG_MASK    0xFFU
 #define STM32_CLOCK_REG_SHIFT   0U
@@ -57,5 +56,8 @@
 #define CSR_REG		0x34
 
 #define RTC_SEL(val)		STM32_CLOCK(val, 3, 16, CSR_REG)
+
+/** Dummy: Add a specificier when no selection is possible */
+#define NO_SEL			0xFF
 
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_STM32L1_CLOCK_H_ */

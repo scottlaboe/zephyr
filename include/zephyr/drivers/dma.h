@@ -24,8 +24,6 @@ extern "C" {
 /**
  * @brief DMA Interface
  * @defgroup dma_interface DMA Interface
- * @since 1.5
- * @version 1.0.0
  * @ingroup io_interfaces
  * @{
  */
@@ -217,12 +215,12 @@ struct dma_config {
 	 */
 	uint32_t  complete_callback_en : 1;
 	/**
-	 * Error callback disable
+	 * Error callback enable
 	 *
 	 * - 0b0 error callback enabled
 	 * - 0b1 error callback disabled
 	 */
-	uint32_t  error_callback_dis :    1;
+	uint32_t  error_callback_en :    1;
 	/**
 	 * Source handshake, HW specific
 	 *

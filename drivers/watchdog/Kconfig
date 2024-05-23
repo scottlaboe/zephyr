@@ -122,8 +122,4 @@ source "drivers/watchdog/Kconfig.shell"
 
 source "drivers/watchdog/Kconfig.xmc4xxx"
 
-source "drivers/watchdog/Kconfig.numaker"
-
-source "drivers/watchdog/Kconfig.ene"
-
 endif # WATCHDOG

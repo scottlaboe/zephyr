@@ -1,5 +1,4 @@
 #include <zephyr/linker/iterable_sections.h>
 
-ITERABLE_SECTION_RAM(usbd_contex, Z_LINK_ITERABLE_SUBALIGN)
-ITERABLE_SECTION_RAM(usbd_class_fs, Z_LINK_ITERABLE_SUBALIGN)
-ITERABLE_SECTION_RAM(usbd_class_hs, Z_LINK_ITERABLE_SUBALIGN)
+ITERABLE_SECTION_RAM(usbd_contex, 4)
+ITERABLE_SECTION_RAM(usbd_class_node, 4)

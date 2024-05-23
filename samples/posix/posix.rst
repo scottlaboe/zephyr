@@ -1,7 +1,7 @@
 .. _posix-samples:
 
-POSIX API Samples
-#################
+POSIX Subsystem Samples
+#######################
 
 .. toctree::
    :maxdepth: 1

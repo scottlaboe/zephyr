@@ -17,6 +17,7 @@
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>
 #include <zephyr/net/buf.h>
+/* #include <zephyr/sys/byteorder.h> conflicts with __bswapXX on native_posix */
 #include <zephyr/sys/crc.h>
 #include <zephyr/sys/crc.h>
 

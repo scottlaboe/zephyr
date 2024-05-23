@@ -6,7 +6,6 @@
 
 /*
  * Copyright (c) 2018 Intel Corporation
- * Copyright (c) 2024 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,7 +23,6 @@ LOG_MODULE_REGISTER(net_llmnr_responder, CONFIG_LLMNR_RESPONDER_LOG_LEVEL);
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/dns_resolve.h>
-#include <zephyr/net/socket_service.h>
 #include <zephyr/net/udp.h>
 #include <zephyr/net/igmp.h>
 
@@ -38,12 +36,12 @@ LOG_MODULE_REGISTER(net_llmnr_responder, CONFIG_LLMNR_RESPONDER_LOG_LEVEL);
 #define LLMNR_TTL CONFIG_LLMNR_RESPONDER_TTL /* In seconds */
 
 #if defined(CONFIG_NET_IPV4)
-static int ipv4;
+static struct net_context *ipv4;
 static struct sockaddr_in local_addr4;
 #endif
 
 #if defined(CONFIG_NET_IPV6)
-static int ipv6;
+static struct net_context *ipv6;
 #endif
 
 static struct net_mgmt_event_callback mgmt_cb;
@@ -56,19 +54,7 @@ static struct net_mgmt_event_callback mgmt_cb;
 #define DNS_RESOLVER_BUF_CTR	(DNS_RESOLVER_MIN_BUF + \
 				 CONFIG_LLMNR_RESOLVER_ADDITIONAL_BUF_CTR)
 
-#if (IS_ENABLED(CONFIG_NET_IPV6) && IS_ENABLED(CONFIG_NET_IPV4))
-#define LLMNR_MAX_POLL 2
-#else
-#define LLMNR_MAX_POLL 1
-#endif
-
-/* Socket polling for each server connection */
-static struct zsock_pollfd fds[LLMNR_MAX_POLL];
-
-static void svc_handler(struct k_work *work);
-NET_SOCKET_SERVICE_SYNC_DEFINE_STATIC(svc_llmnr, NULL, svc_handler, LLMNR_MAX_POLL);
-
-NET_BUF_POOL_DEFINE(llmnr_msg_pool, DNS_RESOLVER_BUF_CTR,
+NET_BUF_POOL_DEFINE(llmnr_dns_msg_pool, DNS_RESOLVER_BUF_CTR,
 		    DNS_RESOLVER_MAX_BUF_SIZE, 0, NULL);
 
 #if defined(CONFIG_NET_IPV6)
@@ -82,14 +68,20 @@ static void create_ipv6_addr(struct sockaddr_in6 *addr)
 			     0xff02, 0, 0, 0, 0, 0, 0x01, 0x03);
 }
 
-static void create_ipv6_dst_addr(struct sockaddr_in6 *src_addr,
+static void create_ipv6_dst_addr(struct net_pkt *pkt,
 				 struct sockaddr_in6 *addr)
 {
-	addr->sin6_family = AF_INET6;
-	addr->sin6_port = src_addr->sin6_port;
+	struct net_udp_hdr *udp_hdr, hdr;
 
-	net_ipv6_addr_copy_raw((uint8_t *)&addr->sin6_addr,
-			       (uint8_t *)&src_addr->sin6_addr);
+	udp_hdr = net_udp_get_hdr(pkt, &hdr);
+	if (!udp_hdr) {
+		return;
+	}
+
+	addr->sin6_family = AF_INET6;
+	addr->sin6_port = udp_hdr->src_port;
+
+	net_ipv6_addr_copy_raw((uint8_t *)&addr->sin6_addr, NET_IPV6_HDR(pkt)->src);
 }
 #endif
 
@@ -103,14 +95,21 @@ static void create_ipv4_addr(struct sockaddr_in *addr)
 	addr->sin_addr.s_addr = htonl(0xE00000FC);
 }
 
-static void create_ipv4_dst_addr(struct sockaddr_in *src_addr,
+static void create_ipv4_dst_addr(struct net_pkt *pkt,
 				 struct sockaddr_in *addr)
 {
-	addr->sin_family = AF_INET;
-	addr->sin_port = src_addr->sin_port;
+	struct net_udp_hdr *udp_hdr, hdr;
 
-	net_ipv4_addr_copy_raw((uint8_t *)&addr->sin_addr,
-			       (uint8_t *)&src_addr->sin_addr);
+	udp_hdr = net_udp_get_hdr(pkt, &hdr);
+	if (!udp_hdr) {
+		NET_ERR("could not get UDP header");
+		return;
+	}
+
+	addr->sin_family = AF_INET;
+	addr->sin_port = udp_hdr->src_port;
+
+	net_ipv4_addr_copy_raw((uint8_t *)&addr->sin_addr, NET_IPV4_HDR(pkt)->src);
 }
 #endif
 
@@ -129,31 +128,33 @@ static void llmnr_iface_event_handler(struct net_mgmt_event_callback *cb,
 	}
 }
 
-static int get_socket(sa_family_t family)
+static struct net_context *get_ctx(sa_family_t family)
 {
+	struct net_context *ctx;
 	int ret;
 
-	ret = zsock_socket(family, SOCK_DGRAM, IPPROTO_UDP);
+	ret = net_context_get(family, SOCK_DGRAM, IPPROTO_UDP, &ctx);
 	if (ret < 0) {
 		NET_DBG("Cannot get context (%d)", ret);
+		return NULL;
 	}
 
-	return ret;
+	return ctx;
 }
 
-static int bind_ctx(int sock,
+static int bind_ctx(struct net_context *ctx,
 		    struct sockaddr *local_addr,
 		    socklen_t addrlen)
 {
 	int ret;
 
-	if (sock < 0) {
+	if (!ctx) {
 		return -EINVAL;
 	}
 
-	ret = zsock_bind(sock, local_addr, addrlen);
+	ret = net_context_bind(ctx, local_addr, addrlen);
 	if (ret < 0) {
-		NET_DBG("Cannot bind to %s %s port (%d)", "LLMNR",
+		NET_DBG("Cannot bind to LLMNR %s port (%d)",
 			local_addr->sa_family == AF_INET ?
 			"IPv4" : "IPv6", ret);
 		return ret;
@@ -236,7 +237,8 @@ static int add_answer(struct net_buf *query, uint32_t ttl,
 	return offset + addr_len;
 }
 
-static int create_answer(enum dns_rr_type qtype,
+static int create_answer(struct net_context *ctx,
+			 enum dns_rr_type qtype,
 			 struct net_buf *query,
 			 uint16_t dns_id,
 			 uint16_t addr_len, const uint8_t *addr)
@@ -244,7 +246,7 @@ static int create_answer(enum dns_rr_type qtype,
 	/* Prepare the response into the query buffer: move the name
 	 * query buffer has to get enough free space: dns_hdr + query + answer
 	 */
-	if ((net_buf_max_len(query) - query->len) < (DNS_MSG_HEADER_SIZE +
+	if ((query->size - query->len) < (DNS_MSG_HEADER_SIZE +
 					  (DNS_QTYPE_LEN + DNS_QCLASS_LEN) * 2 +
 					  DNS_TTL_LEN + DNS_RDLENGTH_LEN +
 					  addr_len + query->len)) {
@@ -290,14 +292,10 @@ static const uint8_t *get_ipv6_src(struct net_if *iface, struct in6_addr *dst)
 }
 #endif
 
-static int set_ttl_hop_limit(int sock, int level, int option, int new_limit)
-{
-	return zsock_setsockopt(sock, level, option, &new_limit, sizeof(new_limit));
-}
-
 #if defined(CONFIG_NET_IPV4)
-static int create_ipv4_answer(int sock,
-			      struct sockaddr_in *src_addr,
+static int create_ipv4_answer(struct net_context *ctx,
+			      struct net_pkt *pkt,
+			      union net_ip_header *ip_hdr,
 			      enum dns_rr_type qtype,
 			      struct net_buf *query,
 			      uint16_t dns_id,
@@ -307,30 +305,49 @@ static int create_ipv4_answer(int sock,
 	const uint8_t *addr;
 	int addr_len;
 
-	create_ipv4_dst_addr(src_addr, net_sin(dst));
-
+	create_ipv4_dst_addr(pkt, net_sin(dst));
 	*dst_len = sizeof(struct sockaddr_in);
 
-	/* Select proper address according to destination */
-	addr = get_ipv4_src(NULL, &net_sin(dst)->sin_addr);
-	if (!addr) {
-		return -ENOENT;
+	if (qtype == DNS_RR_TYPE_A) {
+		/* Select proper address according to destination */
+		addr = get_ipv4_src(net_pkt_iface(pkt),
+				    &net_sin(dst)->sin_addr);
+		if (!addr) {
+			return -ENOENT;
+		}
+
+		addr_len = sizeof(struct in_addr);
+
+	} else if (qtype == DNS_RR_TYPE_AAAA) {
+#if defined(CONFIG_NET_IPV6)
+		addr = get_ipv6_src(net_pkt_iface(pkt),
+				    (struct in6_addr *)ip_hdr->ipv6->src);
+		if (!addr) {
+			return -ENOENT;
+		}
+
+		addr_len = sizeof(struct in6_addr);
+#else
+		addr = NULL;
+		addr_len = 0;
+#endif
+	} else {
+		return -EINVAL;
 	}
 
-	addr_len = sizeof(struct in_addr);
-
-	if (create_answer(qtype, query, dns_id, addr_len, addr)) {
+	if (create_answer(ctx, qtype, query, dns_id, addr_len, addr)) {
 		return -ENOMEM;
 	}
 
-	(void)set_ttl_hop_limit(sock, IPPROTO_IP, IP_MULTICAST_TTL, 255);
+	net_context_set_ipv4_ttl(ctx, 255);
 
 	return 0;
 }
 #endif /* CONFIG_NET_IPV4 */
 
-static int create_ipv6_answer(int sock,
-			      struct sockaddr_in6 *src_addr,
+static int create_ipv6_answer(struct net_context *ctx,
+			      struct net_pkt *pkt,
+			      union net_ip_header *ip_hdr,
 			      enum dns_rr_type qtype,
 			      struct net_buf *query,
 			      uint16_t dns_id,
@@ -341,50 +358,62 @@ static int create_ipv6_answer(int sock,
 	const uint8_t *addr;
 	int addr_len;
 
-	create_ipv6_dst_addr(src_addr, net_sin6(dst));
-
+	create_ipv6_dst_addr(pkt, net_sin6(dst));
 	*dst_len = sizeof(struct sockaddr_in6);
 
-	addr = get_ipv6_src(NULL, &src_addr->sin6_addr);
-	if (!addr) {
-		return -ENOENT;
+	if (qtype == DNS_RR_TYPE_AAAA) {
+		addr = get_ipv6_src(net_pkt_iface(pkt),
+				    (struct in6_addr *)ip_hdr->ipv6->src);
+		if (!addr) {
+			return -ENOENT;
+		}
+
+		addr_len = sizeof(struct in6_addr);
+	} else if (qtype == DNS_RR_TYPE_A) {
+#if defined(CONFIG_NET_IPV4)
+		addr = get_ipv4_src(net_pkt_iface(pkt),
+				    (struct in_addr *)ip_hdr->ipv4->src);
+		if (!addr) {
+			return -ENOENT;
+		}
+
+		addr_len = sizeof(struct in_addr);
+#else
+		addr_len = 0;
+#endif
+	} else {
+		return -EINVAL;
 	}
 
-	addr_len = sizeof(struct in6_addr);
-
-	if (create_answer(qtype, query, dns_id, addr_len, addr)) {
+	if (create_answer(ctx, qtype, query, dns_id, addr_len, addr)) {
 		return -ENOMEM;
 	}
 
-	(void)set_ttl_hop_limit(sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, 255);
+	net_context_set_ipv6_hop_limit(ctx, 255);
 
 #endif /* CONFIG_NET_IPV6 */
 	return 0;
 }
 
-static int send_response(int sock,
-			 struct sockaddr *src_addr,
-			 size_t addrlen,
-			 struct net_buf *reply,
-			 enum dns_rr_type qtype,
-			 uint16_t dns_id)
+static int send_response(struct net_context *ctx, struct net_pkt *pkt,
+			 union net_ip_header *ip_hdr, struct net_buf *reply,
+			 enum dns_rr_type qtype, uint16_t dns_id)
 {
+	struct sockaddr dst;
 	socklen_t dst_len;
 	int ret;
-	COND_CODE_1(IS_ENABLED(CONFIG_NET_IPV6),
-		    (struct sockaddr_in6), (struct sockaddr_in)) dst;
 
-	if (IS_ENABLED(CONFIG_NET_IPV4) && src_addr->sa_family == AF_INET) {
-		ret = create_ipv4_answer(sock, (struct sockaddr_in *)src_addr,
-					 qtype, reply, dns_id,
-					 (struct sockaddr *)&dst, &dst_len);
+	if (IS_ENABLED(CONFIG_NET_IPV4) &&
+	    net_pkt_family(pkt) == AF_INET) {
+		ret = create_ipv4_answer(ctx, pkt, ip_hdr, qtype, reply,
+					 dns_id, &dst, &dst_len);
 		if (ret < 0) {
 			return ret;
 		}
-	} else if (IS_ENABLED(CONFIG_NET_IPV6) && src_addr->sa_family == AF_INET6) {
-		ret = create_ipv6_answer(sock, (struct sockaddr_in6 *)src_addr,
-					 qtype, reply, dns_id,
-					 (struct sockaddr *)&dst, &dst_len);
+	} else if (IS_ENABLED(CONFIG_NET_IPV6) &&
+		   net_pkt_family(pkt) == AF_INET6) {
+		ret = create_ipv6_answer(ctx, pkt, ip_hdr, qtype, reply,
+					 dns_id, &dst, &dst_len);
 		if (ret < 0) {
 			return ret;
 		}
@@ -393,24 +422,23 @@ static int send_response(int sock,
 		return -EPFNOSUPPORT;
 	}
 
-	ret = zsock_sendto(sock, reply->data, reply->len, 0,
-			   (struct sockaddr *)&dst, dst_len);
+	ret = net_context_sendto(ctx, reply->data, reply->len, &dst,
+				 dst_len, NULL, K_NO_WAIT, NULL);
 	if (ret < 0) {
-		NET_DBG("Cannot send %s reply to %s (%d)", "LLMNR",
-			src_addr->sa_family == AF_INET ?
-			net_sprint_ipv4_addr(&net_sin((struct sockaddr *)&dst)->sin_addr) :
-			net_sprint_ipv6_addr(&net_sin6((struct sockaddr *)&dst)->sin6_addr),
+		NET_DBG("Cannot send LLMNR reply to %s (%d)",
+			net_pkt_family(pkt) == AF_INET ?
+			net_sprint_ipv4_addr(&net_sin(&dst)->sin_addr) :
+			net_sprint_ipv6_addr(&net_sin6(&dst)->sin6_addr),
 			ret);
 	}
 
 	return ret;
 }
 
-static int dns_read(int sock,
+static int dns_read(struct net_context *ctx,
+		    struct net_pkt *pkt,
+		    union net_ip_header *ip_hdr,
 		    struct net_buf *dns_data,
-		    size_t len,
-		    struct sockaddr *src_addr,
-		    size_t addrlen,
 		    struct dns_addrinfo *info)
 {
 	/* Helper struct to track the dns msg received from the server */
@@ -419,20 +447,25 @@ static int dns_read(int sock,
 	struct net_buf *result;
 	struct dns_msg_t dns_msg;
 	uint16_t dns_id = 0U;
-	socklen_t optlen;
 	int data_len;
 	int queries;
-	int family;
 	int ret;
 
-	data_len = MIN(len, DNS_RESOLVER_MAX_BUF_SIZE);
+	data_len = MIN(net_pkt_remaining_data(pkt), DNS_RESOLVER_MAX_BUF_SIZE);
 
 	/* Store the DNS query name into a temporary net_buf, which will be
 	 * eventually used to send a response
 	 */
-	result = net_buf_alloc(&llmnr_msg_pool, BUF_ALLOC_TIMEOUT);
+	result = net_buf_alloc(&llmnr_dns_msg_pool, BUF_ALLOC_TIMEOUT);
 	if (!result) {
 		ret = -ENOMEM;
+		goto quit;
+	}
+
+	/* TODO: Instead of this temporary copy, just use the net_pkt directly.
+	 */
+	ret = net_pkt_read(pkt, dns_data->data, data_len);
+	if (ret < 0) {
 		goto quit;
 	}
 
@@ -447,21 +480,18 @@ static int dns_read(int sock,
 
 	queries = ret;
 
-	optlen = sizeof(int);
-	(void)zsock_getsockopt(sock, SOL_SOCKET, SO_DOMAIN, &family, &optlen);
-
 	NET_DBG("Received %d %s from %s (id 0x%04x)", queries,
 		queries > 1 ? "queries" : "query",
-		family == AF_INET ?
-		net_sprint_ipv4_addr(&net_sin(src_addr)->sin_addr) :
-		net_sprint_ipv6_addr(&net_sin6(src_addr)->sin6_addr),
+		net_pkt_family(pkt) == AF_INET ?
+		net_sprint_ipv4_addr(&ip_hdr->ipv4->src) :
+		net_sprint_ipv6_addr(&ip_hdr->ipv6->src),
 		dns_id);
 
 	do {
 		enum dns_rr_type qtype;
 		enum dns_class qclass;
 
-		(void)memset(result->data, 0, net_buf_max_len(result));
+		(void)memset(result->data, 0, result->size);
 		result->len = 0U;
 
 		ret = dns_unpack_query(&dns_msg, result, &qtype, &qclass);
@@ -476,9 +506,9 @@ static int dns_read(int sock,
 		/* If the query matches to our hostname, then send reply */
 		if (!strncasecmp(hostname, result->data + 1, hostname_len) &&
 		    (result->len - 1) >= hostname_len) {
-			NET_DBG("%s query to our hostname %s", "LLMNR",
+			NET_DBG("LLMNR query to our hostname %s",
 				hostname);
-			ret = send_response(sock, src_addr, addrlen, result, qtype,
+			ret = send_response(ctx, pkt, ip_hdr, result, qtype,
 					    dns_id);
 			if (ret < 0) {
 				NET_DBG("Cannot send response (%d)", ret);
@@ -496,69 +526,43 @@ quit:
 	return ret;
 }
 
-static int recv_data(struct net_socket_service_event *pev)
+static void recv_cb(struct net_context *net_ctx,
+		    struct net_pkt *pkt,
+		    union net_ip_header *ip_hdr,
+		    union net_proto_header *proto_hdr,
+		    int status,
+		    void *user_data)
 {
-	COND_CODE_1(IS_ENABLED(CONFIG_NET_IPV6),
-		    (struct sockaddr_in6), (struct sockaddr_in)) addr;
+	struct net_context *ctx = user_data;
 	struct net_buf *dns_data = NULL;
 	struct dns_addrinfo info = { 0 };
-	size_t addrlen = sizeof(addr);
-	int ret, family, sock_error, len;
-	socklen_t optlen;
+	int ret;
 
-	if ((pev->event.revents & ZSOCK_POLLERR) ||
-	    (pev->event.revents & ZSOCK_POLLNVAL)) {
-		(void)zsock_getsockopt(pev->event.fd, SOL_SOCKET,
-				       SO_DOMAIN, &family, &optlen);
-		(void)zsock_getsockopt(pev->event.fd, SOL_SOCKET,
-				       SO_ERROR, &sock_error, &optlen);
-		NET_ERR("Receiver IPv%d socket error (%d)",
-			family == AF_INET ? 4 : 6, sock_error);
-		ret = DNS_EAI_SYSTEM;
+	ARG_UNUSED(net_ctx);
+	NET_ASSERT(ctx == net_ctx);
+
+	if (!pkt) {
+		return;
+	}
+
+	if (status) {
 		goto quit;
 	}
 
-	dns_data = net_buf_alloc(&llmnr_msg_pool, BUF_ALLOC_TIMEOUT);
+	dns_data = net_buf_alloc(&llmnr_dns_msg_pool, BUF_ALLOC_TIMEOUT);
 	if (!dns_data) {
-		ret = -ENOENT;
 		goto quit;
 	}
 
-	ret = zsock_recvfrom(pev->event.fd, dns_data->data,
-			     net_buf_max_len(dns_data), 0,
-			     (struct sockaddr *)&addr, &addrlen);
-	if (ret < 0) {
-		ret = -errno;
-		NET_ERR("recv failed on IPv%d socket (%d)",
-			family == AF_INET ? 4 : 6, -ret);
-		goto free_buf;
-	}
-
-	len = ret;
-
-	ret = dns_read(pev->event.fd, dns_data, len,
-		       (struct sockaddr *)&addr, addrlen, &info);
+	ret = dns_read(ctx, pkt, ip_hdr, dns_data, &info);
 	if (ret < 0 && ret != -EINVAL) {
-		NET_DBG("%s read failed (%d)", "LLMNR", ret);
+		NET_DBG("LLMNR read failed (%d)", ret);
 	}
 
-free_buf:
 	net_buf_unref(dns_data);
 
 quit:
-	return ret;
-}
-
-static void svc_handler(struct k_work *work)
-{
-	struct net_socket_service_event *pev =
-		CONTAINER_OF(work, struct net_socket_service_event, work);
-	int ret;
-
-	ret = recv_data(pev);
-	if (ret < 0) {
-		NET_ERR("DNS recv error (%d)", ret);
-	}
+	net_pkt_unref(pkt);
 }
 
 #if defined(CONFIG_NET_IPV6)
@@ -569,10 +573,8 @@ static void iface_ipv6_cb(struct net_if *iface, void *user_data)
 
 	ret = net_ipv6_mld_join(iface, addr);
 	if (ret < 0) {
-		NET_DBG("Cannot join %s IPv6 multicast group to iface %d (%d)",
-			net_sprint_ipv6_addr(addr),
-			net_if_get_by_iface(iface),
-			ret);
+		NET_DBG("Cannot join %s IPv6 multicast group (%d)",
+			net_sprint_ipv6_addr(addr), ret);
 	}
 }
 
@@ -592,8 +594,8 @@ static void iface_ipv4_cb(struct net_if *iface, void *user_data)
 
 	ret = net_ipv4_igmp_join(iface, addr, NULL);
 	if (ret < 0) {
-		NET_DBG("Cannot add %s multicast address to iface %d", "IPv4",
-			net_if_get_by_iface(iface));
+		NET_DBG("Cannot add IPv4 multicast address to iface %p",
+			iface);
 	}
 }
 
@@ -609,52 +611,25 @@ static int init_listener(void)
 {
 	int ret, ok = 0;
 
-	ARRAY_FOR_EACH(fds, j) {
-		fds[j].fd = -1;
-	}
-
 #if defined(CONFIG_NET_IPV6)
 	{
 		static struct sockaddr_in6 local_addr;
 
 		setup_ipv6_addr(&local_addr);
 
-		ipv6 = get_socket(AF_INET6);
+		ipv6 = get_ctx(AF_INET6);
 
 		ret = bind_ctx(ipv6, (struct sockaddr *)&local_addr,
 			       sizeof(local_addr));
 		if (ret < 0) {
-			zsock_close(ipv6);
+			net_context_put(ipv6);
 			goto ipv6_out;
 		}
 
-		ret = -ENOENT;
-
-		ARRAY_FOR_EACH(fds, j) {
-			if (fds[j].fd == ipv6) {
-				ret = 0;
-				break;
-			}
-
-			if (fds[j].fd < 0) {
-				fds[j].fd = ipv6;
-				fds[j].events = ZSOCK_POLLIN;
-				ret = 0;
-				break;
-			}
-		}
-
+		ret = net_context_recv(ipv6, recv_cb, K_NO_WAIT, ipv6);
 		if (ret < 0) {
-			NET_DBG("Cannot set %s to socket (%d)", "polling", ret);
-			zsock_close(ipv6);
-			goto ipv6_out;
-		}
-
-		ret = net_socket_service_register(&svc_llmnr, fds, ARRAY_SIZE(fds), NULL);
-		if (ret < 0) {
-			NET_DBG("Cannot register %s %s socket service (%d)",
-				"IPv6", "LLMNR", ret);
-			zsock_close(ipv6);
+			NET_WARN("Cannot receive IPv6 LLMNR data (%d)", ret);
+			net_context_put(ipv6);
 		} else {
 			ok++;
 		}
@@ -666,42 +641,19 @@ ipv6_out:
 	{
 		setup_ipv4_addr(&local_addr4);
 
-		ipv4 = get_socket(AF_INET);
+		ipv4 = get_ctx(AF_INET);
 
 		ret = bind_ctx(ipv4, (struct sockaddr *)&local_addr4,
 			       sizeof(local_addr4));
 		if (ret < 0) {
-			zsock_close(ipv4);
+			net_context_put(ipv4);
 			goto ipv4_out;
 		}
 
-		ret = -ENOENT;
-
-		ARRAY_FOR_EACH(fds, j) {
-			if (fds[j].fd == ipv4) {
-				ret = 0;
-				break;
-			}
-
-			if (fds[j].fd < 0) {
-				fds[j].fd = ipv4;
-				fds[j].events = ZSOCK_POLLIN;
-				ret = 0;
-				break;
-			}
-		}
-
+		ret = net_context_recv(ipv4, recv_cb, K_NO_WAIT, ipv4);
 		if (ret < 0) {
-			NET_DBG("Cannot set %s to socket (%d)", "polling", ret);
-			zsock_close(ipv4);
-			goto ipv4_out;
-		}
-
-		ret = net_socket_service_register(&svc_llmnr, fds, ARRAY_SIZE(fds), NULL);
-		if (ret < 0) {
-			NET_DBG("Cannot register %s %s socket service (%d)",
-				"IPv4", "LLMNR", ret);
-			zsock_close(ipv4);
+			NET_WARN("Cannot receive IPv4 LLMNR data (%d)", ret);
+			net_context_put(ipv4);
 		} else {
 			ok++;
 		}
@@ -710,7 +662,7 @@ ipv4_out:
 #endif /* CONFIG_NET_IPV4 */
 
 	if (!ok) {
-		NET_WARN("Cannot start %s responder", "LLMNR");
+		NET_WARN("Cannot start LLMNR responder");
 	}
 
 	return !ok;
@@ -718,6 +670,7 @@ ipv4_out:
 
 static int llmnr_responder_init(void)
 {
+
 	net_mgmt_init_event_callback(&mgmt_cb, llmnr_iface_event_handler,
 				     NET_EVENT_IF_UP);
 

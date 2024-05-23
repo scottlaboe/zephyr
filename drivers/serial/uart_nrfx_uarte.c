@@ -484,11 +484,7 @@ static int wait_tx_ready(const struct device *dev)
 		/* wait arbitrary time before back off. */
 		bool res;
 
-#if defined(CONFIG_ARCH_POSIX)
-		NRFX_WAIT_FOR(is_tx_ready(dev), 33, 3, res);
-#else
 		NRFX_WAIT_FOR(is_tx_ready(dev), 100, 1, res);
-#endif
 
 		if (res) {
 			key = irq_lock();
@@ -548,7 +544,7 @@ static void tx_start(const struct device *dev, const uint8_t *buf, size_t len)
 	const struct uarte_nrfx_config *config = dev->config;
 	NRF_UARTE_Type *uarte = get_uarte_instance(dev);
 
-#ifdef CONFIG_PM_DEVICE
+#if CONFIG_PM_DEVICE
 	enum pm_device_state state;
 
 	(void)pm_device_state_get(dev, &state);
@@ -1047,11 +1043,9 @@ static void rx_timeout(struct k_timer *timer)
 			(data->async->rx_timeout_left
 				< data->async->rx_timeout_slab)) {
 			/* rx_timeout us elapsed since last receiving */
-			if (data->async->rx_buf != NULL) {
-				notify_uart_rx_rdy(dev, len);
-				data->async->rx_offset += len;
-				data->async->rx_total_user_byte_cnt += len;
-			}
+			notify_uart_rx_rdy(dev, len);
+			data->async->rx_offset += len;
+			data->async->rx_total_user_byte_cnt += len;
 		} else {
 			data->async->rx_timeout_left -=
 				data->async->rx_timeout_slab;
@@ -1384,9 +1378,8 @@ static void txstopped_isr(const struct device *dev)
 	user_callback(dev, &evt);
 }
 
-static void uarte_nrfx_isr_async(const void *arg)
+static void uarte_nrfx_isr_async(const struct device *dev)
 {
-	const struct device *dev = arg;
 	NRF_UARTE_Type *uarte = get_uarte_instance(dev);
 	struct uarte_nrfx_data *data = dev->data;
 
@@ -1508,7 +1501,6 @@ static void uarte_nrfx_poll_out(const struct device *dev, unsigned char c)
 			}
 
 			irq_unlock(key);
-			Z_SPIN_DELAY(3);
 		}
 	} else {
 		key = wait_tx_ready(dev);
@@ -1753,11 +1745,6 @@ static int uarte_instance_init(const struct device *dev,
 
 	data->dev = dev;
 
-#ifdef CONFIG_ARCH_POSIX
-	/* For simulation the DT provided peripheral address needs to be corrected */
-	((struct pinctrl_dev_config *)cfg->pcfg)->reg = (uintptr_t)cfg->uarte_regs;
-#endif
-
 	err = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
 	if (err < 0) {
 		return err;
@@ -1931,7 +1918,6 @@ static int uarte_nrfx_pm_action(const struct device *dev,
 			       !nrf_uarte_event_check(uarte,
 						      NRF_UARTE_EVENT_ERROR)) {
 				/* Busy wait for event to register */
-				Z_SPIN_DELAY(2);
 			}
 			nrf_uarte_event_clear(uarte, NRF_UARTE_EVENT_RXSTARTED);
 			nrf_uarte_event_clear(uarte, NRF_UARTE_EVENT_RXTO);
@@ -1997,7 +1983,7 @@ static int uarte_nrfx_pm_action(const struct device *dev,
 	};								       \
 	static const struct uarte_nrfx_config uarte_##idx##z_config = {	       \
 		.pcfg = PINCTRL_DT_DEV_CONFIG_GET(UARTE(idx)),		       \
-		.uarte_regs = _CONCAT(NRF_UARTE, idx),                         \
+		.uarte_regs = (NRF_UARTE_Type *)DT_REG_ADDR(UARTE(idx)),       \
 		.flags =						       \
 			(IS_ENABLED(CONFIG_UART_##idx##_GPIO_MANAGEMENT) ?     \
 				UARTE_CFG_FLAG_GPIO_MGMT : 0) |		       \

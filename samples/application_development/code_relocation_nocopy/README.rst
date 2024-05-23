@@ -10,37 +10,28 @@ using a custom linker script.
 
 Differently from the code relocation sample, this sample is relocating the
 content of the ext_code.c file to a different FLASH section and the code is XIP
-directly from there without the need to copy / relocate the code. All other code
-(e.g. main(), Zephyr kernel) stays in the internal flash.
+directly from there without the need to copy / relocate the code.
 
 nRF5340 DK platform instructions
 ********************************
 
 The nRF5340 DK has a 64 Mb external flash memory supporting Quad SPI. It is
-mapped to 0x10000000.
+possible to do XIP from the external flash memory.
+
+The external flash memory is mapped to 0x10000000.
+
+In this sample we relocate some of the code to the external flash memory with
+the remaining Zephyr kernel in the internal flash.
 
 To build and flash the application (including the external memory part):
 
 .. zephyr-app-commands::
    :zephyr-app: samples/application_development/code_relocation_nocopy
-   :board: nrf5340dk/nrf5340/cpuapp
+   :board: nrf5340dk_nrf5340_cpuapp
    :goals: build flash
    :compact:
 
-STM32F769I-Discovery platform instructions
-******************************************
-
-The stm32f769i_disco has 64MB of external flash attached via QSPI. It is mapped
-to 0x90000000.
-
-.. zephyr-app-commands::
-   :zephyr-app: samples/application_development/code_relocation_nocopy
-   :board: stm32f769i_disco
-   :goals: build flash
-   :compact:
-
-Execution output
-****************
+Execution output:
 
 .. code-block:: console
 
@@ -50,4 +41,4 @@ Execution output
   Address of var_ext_sram_data 0x200000a0 (10)
   Address of function_in_sram 0x20000001
   Address of var_sram_data 0x200000a4 (10)
-  Hello World! nrf5340dk/nrf5340/cpuapp
+  Hello World! nrf5340dk_nrf5340_cpuapp

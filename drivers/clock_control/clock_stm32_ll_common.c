@@ -200,7 +200,6 @@ static inline int stm32_clock_control_on(const struct device *dev,
 					 clock_control_subsys_t sub_system)
 {
 	struct stm32_pclken *pclken = (struct stm32_pclken *)(sub_system);
-	volatile int temp;
 
 	ARG_UNUSED(dev);
 
@@ -211,11 +210,6 @@ static inline int stm32_clock_control_on(const struct device *dev,
 
 	sys_set_bits(DT_REG_ADDR(DT_NODELABEL(rcc)) + pclken->bus,
 		     pclken->enr);
-	/* Delay after enabling the clock, to allow it to become active.
-	 * See (for example) RM0440 7.2.17
-	 */
-	temp = sys_read32(DT_REG_ADDR(DT_NODELABEL(rcc)) + pclken->bus);
-	UNUSED(temp);
 
 	return 0;
 }
@@ -573,11 +567,6 @@ static void set_up_fixed_clock_sources(void)
 		while (LL_RCC_HSE_IsReady() != 1) {
 		/* Wait for HSE ready */
 		}
-		/* Check if we need to enable HSE clock security system or not */
-#if STM32_HSE_CSS
-		z_arm_nmi_set_handler(HAL_RCC_NMI_IRQHandler);
-		LL_RCC_HSE_EnableCSS();
-#endif /* STM32_HSE_CSS */
 	}
 
 	if (IS_ENABLED(STM32_HSI_ENABLED)) {
@@ -827,16 +816,6 @@ int stm32_clock_control_init(const struct device *dev)
 
 	return 0;
 }
-
-#if defined(STM32_HSE_CSS)
-void __weak stm32_hse_css_callback(void) {}
-
-/* Called by the HAL in response to an HSE CSS interrupt */
-void HAL_RCC_CSSCallback(void)
-{
-	stm32_hse_css_callback();
-}
-#endif
 
 /**
  * @brief RCC device, note that priority is intentionally set to 1 so

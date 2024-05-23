@@ -6,7 +6,7 @@
 
 #include <zephyr/ztest.h>
 #include "timeutil_test.h"
-#include "../../../lib/utils/timeutil.c"
+#include "../../../lib/os/timeutil.c"
 
 void timeutil_check(const struct timeutil_test_data *tp,
 		    size_t count)

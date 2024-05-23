@@ -23,14 +23,6 @@ The Zephyr kernel supports multiple architectures, including:
 
 The full list of supported boards based on these architectures can be found :ref:`here <boards>`.
 
-In the context of the Zephyr OS, a :term:`subsystem` refers to a logically distinct
-part of the operating system that handles specific functionality or provides
-certain services. Subsystems can include components such as networking,
-file systems, device driver classes, power management, and communication protocols,
-among others. Each subsystem is designed to be modular and can be configured,
-customized, and extended to meet the requirements of different embedded
-applications.
-
 Licensing
 *********
 
@@ -88,8 +80,6 @@ Zephyr offers a large and ever growing number of features including:
      * Red/black tree ready queue
      * Traditional multi-queue ready queue
 
-.. _zephyr_intro_configurability:
-
 **Highly configurable / Modular for flexibility**
    Allows an application to incorporate *only* the capabilities it needs as it
    needs them, and to specify their quantity and size.
@@ -133,7 +123,7 @@ Zephyr offers a large and ever growing number of features including:
 
 **Bluetooth Low Energy 5.0 support**
    Bluetooth 5.0 compliant (ESR10) and Bluetooth Low Energy Controller support
-   (LE Link Layer). Includes Bluetooth Mesh and a Bluetooth qualification-ready
+   (LE Link Layer). Includes Bluetooth mesh and a Bluetooth qualification-ready
    Bluetooth controller.
 
    * Generic Access Profile (GAP) with all possible LE roles

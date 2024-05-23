@@ -283,14 +283,12 @@ static int mcp320x_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	k_tid_t tid = k_thread_create(&data->thread, data->stack,
-			K_KERNEL_STACK_SIZEOF(data->stack),
+	k_thread_create(&data->thread, data->stack,
+			CONFIG_ADC_MCP320X_ACQUISITION_THREAD_STACK_SIZE,
 			mcp320x_acquisition_thread,
 			data, NULL, NULL,
 			CONFIG_ADC_MCP320X_ACQUISITION_THREAD_PRIO,
 			0, K_NO_WAIT);
-
-	k_thread_name_set(tid, dev->name);
 
 	adc_context_unlock_unconditionally(&data->ctx);
 

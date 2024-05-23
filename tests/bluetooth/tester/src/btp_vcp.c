@@ -1024,13 +1024,6 @@ uint8_t tester_init_vcp(void)
 
 uint8_t tester_unregister_vcp(void)
 {
-	int err;
-
-	err = bt_vcp_vol_ctlr_cb_unregister(&vcp_cbs);
-	if (err != 0) {
-		LOG_DBG("Failed to unregister callbacks: %d", err);
-		return BTP_STATUS_FAILED;
-	}
-
+	(void)bt_vcp_vol_ctlr_cb_register(NULL);
 	return BTP_STATUS_SUCCESS;
 }

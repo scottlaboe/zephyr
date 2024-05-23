@@ -6,8 +6,7 @@ from __future__ import annotations
 
 import logging
 import os
-if os.name != 'nt':
-    import pty
+import pty
 import re
 import subprocess
 import time
@@ -66,14 +65,11 @@ class HardwareAdapter(DeviceAdapter):
         extra_args: list[str] = []
         runner = self.device_config.runner
         base_args.extend(['--runner', runner])
-        if self.device_config.runner_params:
-            for param in self.device_config.runner_params:
-                extra_args.append(param)
         if board_id := self.device_config.id:
             if runner == 'pyocd':
                 extra_args.append('--board-id')
                 extra_args.append(board_id)
-            elif runner in ('nrfjprog', 'nrfutil'):
+            elif runner == 'nrfjprog':
                 extra_args.append('--dev-id')
                 extra_args.append(board_id)
             elif runner == 'openocd' and self.device_config.product in ['STM32 STLink', 'STLINK-V3']:
@@ -82,9 +78,6 @@ class HardwareAdapter(DeviceAdapter):
             elif runner == 'openocd' and self.device_config.product == 'EDBG CMSIS-DAP':
                 extra_args.append('--cmd-pre-init')
                 extra_args.append(f'cmsis_dap_serial {board_id}')
-            elif runner == "openocd" and self.device_config.product == "LPC-LINK2 CMSIS-DAP":
-                extra_args.append("--cmd-pre-init")
-                extra_args.append(f'adapter serial {board_id}')
             elif runner == 'jlink':
                 base_args.append(f'--tool-opt=-SelectEmuBySN {board_id}')
             elif runner == 'stm32cubeprogrammer':
@@ -157,13 +150,7 @@ class HardwareAdapter(DeviceAdapter):
         """Open a pty pair, run process and return tty name"""
         if not self.device_config.serial_pty:
             return None
-
-        try:
-            master, slave = pty.openpty()
-        except NameError as exc:
-            logger.exception('PTY module is not available.')
-            raise exc
-
+        master, slave = pty.openpty()
         try:
             self._serial_pty_proc = subprocess.Popen(
                 re.split(',| ', self.device_config.serial_pty),

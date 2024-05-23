@@ -11,6 +11,13 @@ from unidiff import PatchSet
 if "ZEPHYR_BASE" not in os.environ:
     exit("$ZEPHYR_BASE environment variable undefined.")
 
+repository_path = os.environ['ZEPHYR_BASE']
+
+sh_special_args = {
+    '_tty_out': False,
+    '_cwd': repository_path
+}
+
 coccinelle_scripts = ["/scripts/coccinelle/reserved_names.cocci",
                       "/scripts/coccinelle/same_identifier.cocci",
                       #"/scripts/coccinelle/identifier_length.cocci",
@@ -31,9 +38,7 @@ def parse_coccinelle(contents: str, violations: dict):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Check commits against Cocccinelle rules", allow_abbrev=False)
-    parser.add_argument('-r', "--repository", required=False,
-                        help="Path to repository")
+        description="Check if change requires full twister", allow_abbrev=False)
     parser.add_argument('-c', '--commits', default=None,
                         help="Commit range in the form: a..b")
     parser.add_argument("-o", "--output", required=False,
@@ -45,16 +50,6 @@ def main():
     args = parse_args()
     if not args.commits:
         exit("missing commit range")
-
-    if args.repository is None:
-        repository_path = os.environ['ZEPHYR_BASE']
-    else:
-        repository_path = args.repository
-
-    sh_special_args = {
-        '_tty_out': False,
-        '_cwd': repository_path
-    }
 
     # pylint does not like the 'sh' library
     # pylint: disable=too-many-function-args,unexpected-keyword-arg

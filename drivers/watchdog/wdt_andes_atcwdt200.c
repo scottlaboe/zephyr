@@ -7,6 +7,7 @@
 #define DT_DRV_COMPAT andestech_atcwdt200
 
 #include <zephyr/kernel.h>
+#include <soc.h>
 #include <zephyr/drivers/watchdog.h>
 
 #define LOG_LEVEL CONFIG_WDT_LOG_LEVEL

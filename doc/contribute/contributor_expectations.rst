@@ -3,6 +3,9 @@
 Contributor Expectations
 ########################
 
+Overview
+********
+
 The Zephyr project encourages :ref:`contributors <contributor>` to submit
 changes as smaller pull requests. Smaller pull requests (PRs) have the following
 benefits:
@@ -27,7 +30,7 @@ benefits:
 
 
 Defining Smaller PRs
-********************
+====================
 
 - Smaller PRs should encompass one self-contained logical change.
 
@@ -52,7 +55,7 @@ Defining Smaller PRs
 
 
 Multiple Commits on a Single PR
-*******************************
+===============================
 
 Contributors are further encouraged to break up PRs into multiple commits.  Keep
 in mind each commit in the PR must still build cleanly and pass all the CI
@@ -69,7 +72,7 @@ the PR into multiple commits targeting these specific changes:
 #. Update the documentation
 
 Large Changes
-*************
+=============
 
 Large changes to the Zephyr project must submit an :ref:`RFC proposal <rfcs>`
 describing the full scope of change and future work.  The RFC proposal provides
@@ -262,7 +265,7 @@ the steps below:
 .. _reviewer-expectations:
 
 Reviewer Expectations
-*********************
+#####################
 
 - Be respectful when commenting on PRs. Refer to the Zephyr `Code of Conduct`_
   for more details.

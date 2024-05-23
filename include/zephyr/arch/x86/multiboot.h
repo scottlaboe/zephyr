@@ -40,7 +40,7 @@ extern struct multiboot_info multiboot_info;
 
 #ifdef CONFIG_MULTIBOOT_INFO
 
-void z_multiboot_init(struct multiboot_info *info_pa);
+extern void z_multiboot_init(struct multiboot_info *info_pa);
 
 #else
 

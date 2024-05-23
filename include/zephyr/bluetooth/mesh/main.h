@@ -1,5 +1,5 @@
 /** @file
- *  @brief Bluetooth Mesh Protocol APIs.
+ *  @brief Bluetooth mesh Protocol APIs.
  */
 
 /*
@@ -550,8 +550,8 @@ bool bt_mesh_is_provisioned(void);
  */
 
 /**
- * @brief Bluetooth Mesh
- * @defgroup bt_mesh Bluetooth Mesh
+ * @brief Bluetooth mesh
+ * @defgroup bt_mesh Bluetooth mesh
  * @ingroup bluetooth
  * @{
  */
@@ -779,6 +779,7 @@ struct bt_mesh_snb {
 	uint64_t auth_val;
 };
 
+#if defined(CONFIG_BT_MESH_V1d1)
 struct bt_mesh_prb {
 	/** Random */
 	uint8_t random[13];
@@ -792,6 +793,7 @@ struct bt_mesh_prb {
 	/** Authentication tag */
 	uint64_t auth_tag;
 };
+#endif
 
 /** Beacon callback functions. */
 struct bt_mesh_beacon_cb {
@@ -804,6 +806,7 @@ struct bt_mesh_beacon_cb {
 	 */
 	void (*snb_received)(const struct bt_mesh_snb *snb);
 
+#if defined(CONFIG_BT_MESH_V1d1)
 	/** @brief Private Beacon received.
 	 *
 	 *  This callback notifies the application that Private Beacon
@@ -812,6 +815,7 @@ struct bt_mesh_beacon_cb {
 	 *  @param prb  Structure describing received Private Beacon
 	 */
 	void (*priv_received)(const struct bt_mesh_prb *prb);
+#endif
 };
 
 /**

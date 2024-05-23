@@ -200,8 +200,6 @@ static int gpio_numicro_pin_interrupt_configure(const struct device *dev,
 		case GPIO_INT_TRIG_BOTH:
 			int_level = BIT(pin) | BIT(pin + 16);
 			break;
-		default:
-			return -EINVAL;
 		}
 	}
 

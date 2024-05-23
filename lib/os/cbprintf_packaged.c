@@ -982,7 +982,9 @@ int cbprintf_package_convert(void *in_packaged,
 				str_pos++;
 			}
 		} else {
-			str_pos += ros_nbr;
+			if (ros_nbr && flags & CBPRINTF_PACKAGE_CONVERT_KEEP_RO_STR) {
+				str_pos += ros_nbr;
+			}
 		}
 
 		bool drop_ro_str_pos = !(flags &

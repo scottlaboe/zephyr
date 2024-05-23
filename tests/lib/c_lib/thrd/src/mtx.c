@@ -19,11 +19,10 @@ static const int valid_mtx_types[] = {
 	mtx_timed | mtx_recursive,
 };
 
-static mtx_t  mutex;
-static thrd_t th;
-
 ZTEST(libc_mtx, test_mtx_init)
 {
+	mtx_t mutex;
+
 	zassert_not_equal(thrd_success, mtx_init(NULL, FORTY_TWO));
 	zassert_not_equal(thrd_success, mtx_init(&mutex, FORTY_TWO));
 
@@ -43,6 +42,8 @@ ZTEST(libc_mtx, test_mtx_init)
 
 ZTEST(libc_mtx, test_mtx_destroy)
 {
+	mtx_t mutex;
+
 	if (false) {
 		/* degenerate cases */
 		/* pthread_mutex_destroy() is not hardened against these */
@@ -56,6 +57,8 @@ ZTEST(libc_mtx, test_mtx_destroy)
 
 ZTEST(libc_mtx, test_mtx_lock)
 {
+	mtx_t mutex;
+
 	if (false) {
 		/* pthread_mutex_lock() is not hardened against this */
 		zassert_not_equal(thrd_success, mtx_lock(NULL));
@@ -92,17 +95,19 @@ BUILD_ASSERT(TIMEDLOCK_TIMEOUT_MS >= 2 * TIMEDLOCK_TIMEOUT_DELAY_MS,
 static int mtx_timedlock_fn(void *arg)
 {
 	struct timespec time_point;
-	mtx_t *mtx = (mtx_t *)arg;
+	mtx_t *mutex = (mtx_t *)arg;
 
 	zassume_ok(clock_gettime(CLOCK_MONOTONIC, &time_point));
 	timespec_add_ms(&time_point, TIMEDLOCK_TIMEOUT_MS);
 
-	return mtx_timedlock(mtx, &time_point);
+	return mtx_timedlock(mutex, &time_point);
 }
 
 ZTEST(libc_mtx, test_mtx_timedlock)
 {
 	int ret;
+	thrd_t th;
+	mtx_t mutex;
 
 	/*
 	 * mtx_timed here is technically unnecessary, because all pthreads can
@@ -133,14 +138,16 @@ ZTEST(libc_mtx, test_mtx_timedlock)
 
 static int mtx_trylock_fn(void *arg)
 {
-	mtx_t *mtx = (mtx_t *)arg;
+	mtx_t *mutex = (mtx_t *)arg;
 
-	return mtx_trylock(mtx);
+	return mtx_trylock(mutex);
 }
 
 ZTEST(libc_mtx, test_mtx_trylock)
 {
 	int ret;
+	thrd_t th;
+	mtx_t mutex;
 
 	zassert_equal(thrd_success, mtx_init(&mutex, mtx_plain));
 
@@ -156,15 +163,15 @@ ZTEST(libc_mtx, test_mtx_trylock)
 
 ZTEST(libc_mtx, test_mtx_unlock)
 {
-	mtx_t mtx = (mtx_t)BIOS_FOOD;
+	mtx_t mutex = (mtx_t)BIOS_FOOD;
 
 	/* degenerate case */
-	zassert_not_equal(thrd_success, mtx_unlock(&mtx));
+	zassert_not_equal(thrd_success, mtx_unlock(&mutex));
 
-	zassert_equal(thrd_success, mtx_init(&mtx, mtx_plain));
-	zassert_equal(thrd_success, mtx_lock(&mtx));
-	zassert_equal(thrd_success, mtx_unlock(&mtx));
-	mtx_destroy(&mtx);
+	zassert_equal(thrd_success, mtx_init(&mutex, mtx_plain));
+	zassert_equal(thrd_success, mtx_lock(&mutex));
+	zassert_equal(thrd_success, mtx_unlock(&mutex));
+	mtx_destroy(&mutex);
 }
 
 ZTEST_SUITE(libc_mtx, NULL, NULL, NULL, NULL, NULL);

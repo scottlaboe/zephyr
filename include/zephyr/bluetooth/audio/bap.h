@@ -25,6 +25,31 @@
 extern "C" {
 #endif
 
+
+#if defined(CONFIG_BT_BAP_SCAN_DELEGATOR)
+#define BT_BAP_SCAN_DELEGATOR_MAX_METADATA_LEN CONFIG_BT_BAP_SCAN_DELEGATOR_MAX_METADATA_LEN
+#define BT_BAP_SCAN_DELEGATOR_MAX_SUBGROUPS    CONFIG_BT_BAP_SCAN_DELEGATOR_MAX_SUBGROUPS
+#else
+#define BT_BAP_SCAN_DELEGATOR_MAX_METADATA_LEN 0
+#define BT_BAP_SCAN_DELEGATOR_MAX_SUBGROUPS    0
+#endif
+
+/** The minimum size of a Broadcast Audio Source Endpoint (BASE)
+ * 2 octets UUID
+ * 3 octets presentation delay
+ * 1 octet number of subgroups (which is minimum 1)
+ * 1 octet number of BIS (which is minimum 1)
+ * 5 octets codec_id
+ * 1 octet codec configuration length (which may be 0)
+ * 1 octet metadata length (which may be 0)
+ * 1 octet BIS index
+ * 1 octet BIS specific codec configuration length (which may be 0)
+ */
+#define BT_BAP_BASE_MIN_SIZE 16
+
+/** The minimum size of a bt_bap_base_bis_data */
+#define BT_BAP_BASE_BIS_DATA_MIN_SIZE 2 /* index and length */
+
 /** Periodic advertising state reported by the Scan Delegator */
 enum bt_bap_pa_state {
 	/** The periodic advertising has not been synchronized */
@@ -76,6 +101,17 @@ enum bt_bap_bass_att_err {
  * the Scan Delegator syncs to
  */
 #define BT_BAP_BIS_SYNC_NO_PREF                0xFFFFFFFF
+
+#if defined(CONFIG_BT_BAP_BROADCAST_SINK)
+/* TODO: Since these are also used for the broadcast assistant,
+ * they should not be tied to the broadcast sink
+ */
+#define BROADCAST_SNK_STREAM_CNT   CONFIG_BT_BAP_BROADCAST_SNK_STREAM_COUNT
+#define BROADCAST_SNK_SUBGROUP_CNT CONFIG_BT_BAP_BROADCAST_SNK_SUBGROUP_COUNT
+#else /* !CONFIG_BT_BAP_BROADCAST_SINK */
+#define BROADCAST_SNK_STREAM_CNT   0
+#define BROADCAST_SNK_SUBGROUP_CNT 0
+#endif /* CONFIG_BT_BAP_BROADCAST_SINK*/
 
 /** Endpoint states */
 enum bt_bap_ep_state {
@@ -174,19 +210,7 @@ enum bt_bap_ascs_reason {
 
 /** @brief Structure storing values of fields of ASE Control Point notification. */
 struct bt_bap_ascs_rsp {
-	/**
-	 * @brief Value of the Response Code field.
-	 *
-	 * The following response codes are accepted:
-	 * - @ref BT_BAP_ASCS_RSP_CODE_SUCCESS
-	 * - @ref BT_BAP_ASCS_RSP_CODE_CAP_UNSUPPORTED
-	 * - @ref BT_BAP_ASCS_RSP_CODE_CONF_UNSUPPORTED
-	 * - @ref BT_BAP_ASCS_RSP_CODE_CONF_REJECTED
-	 * - @ref BT_BAP_ASCS_RSP_CODE_METADATA_UNSUPPORTED
-	 * - @ref BT_BAP_ASCS_RSP_CODE_METADATA_REJECTED
-	 * - @ref BT_BAP_ASCS_RSP_CODE_NO_MEM
-	 * - @ref BT_BAP_ASCS_RSP_CODE_UNSPECIFIED
-	 */
+	/** @brief Value of the Response Code field. */
 	enum bt_bap_ascs_rsp_code code;
 
 	/**
@@ -201,10 +225,16 @@ struct bt_bap_ascs_rsp {
 		 * If the Response Code is one of the following:
 		 * - @ref BT_BAP_ASCS_RSP_CODE_CONF_UNSUPPORTED
 		 * - @ref BT_BAP_ASCS_RSP_CODE_CONF_REJECTED
+		 * - @ref BT_BAP_ASCS_RSP_CODE_CONF_INVALID
 		 * all values from @ref bt_bap_ascs_reason can be used.
 		 *
 		 * If the Response Code is one of the following:
 		 * - @ref BT_BAP_ASCS_RSP_CODE_SUCCESS
+		 * - @ref BT_BAP_ASCS_RSP_CODE_NOT_SUPPORTED
+		 * - @ref BT_BAP_ASCS_RSP_CODE_INVALID_LENGTH
+		 * - @ref BT_BAP_ASCS_RSP_CODE_INVALID_ASE
+		 * - @ref BT_BAP_ASCS_RSP_CODE_INVALID_ASE_STATE
+		 * - @ref BT_BAP_ASCS_RSP_CODE_INVALID_DIR
 		 * - @ref BT_BAP_ASCS_RSP_CODE_CAP_UNSUPPORTED
 		 * - @ref BT_BAP_ASCS_RSP_CODE_NO_MEM
 		 * - @ref BT_BAP_ASCS_RSP_CODE_UNSPECIFIED
@@ -218,6 +248,7 @@ struct bt_bap_ascs_rsp {
 		 * If the Response Code is one of the following:
 		 * - @ref BT_BAP_ASCS_RSP_CODE_METADATA_UNSUPPORTED
 		 * - @ref BT_BAP_ASCS_RSP_CODE_METADATA_REJECTED
+		 * - @ref BT_BAP_ASCS_RSP_CODE_METADATA_INVALID
 		 * the value of the Metadata Type shall be used.
 		 */
 		enum bt_audio_metadata_type metadata_type;
@@ -245,18 +276,17 @@ struct bt_bap_unicast_group;
 /** @brief Abstract Audio Endpoint structure. */
 struct bt_bap_ep;
 
+/* TODO: Replace with struct bt_bap_base_subgroup */
 /** Struct to hold subgroup specific information for the receive state */
-struct bt_bap_bass_subgroup {
+struct bt_bap_scan_delegator_subgroup {
 	/** BIS synced bitfield */
 	uint32_t bis_sync;
 
 	/** Length of the metadata */
 	uint8_t metadata_len;
 
-#if defined(CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE)
 	/** The metadata */
-	uint8_t metadata[CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE];
-#endif /* CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE */
+	uint8_t metadata[BT_BAP_SCAN_DELEGATOR_MAX_METADATA_LEN];
 };
 
 /** Represents the Broadcast Audio Scan Service receive state */
@@ -289,7 +319,7 @@ struct bt_bap_scan_delegator_recv_state {
 	uint8_t num_subgroups;
 
 	/** Subgroup specific information */
-	struct bt_bap_bass_subgroup subgroups[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS];
+	struct bt_bap_scan_delegator_subgroup subgroups[BT_BAP_SCAN_DELEGATOR_MAX_SUBGROUPS];
 };
 
 struct bt_bap_scan_delegator_cb {
@@ -360,6 +390,7 @@ struct bt_bap_scan_delegator_cb {
 	void (*broadcast_code)(struct bt_conn *conn,
 			       const struct bt_bap_scan_delegator_recv_state *recv_state,
 			       const uint8_t broadcast_code[BT_AUDIO_BROADCAST_CODE_SIZE]);
+
 	/**
 	 * @brief Broadcast Isochronous Stream synchronize request
 	 *
@@ -383,7 +414,7 @@ struct bt_bap_scan_delegator_cb {
 	 */
 	int (*bis_sync_req)(struct bt_conn *conn,
 			    const struct bt_bap_scan_delegator_recv_state *recv_state,
-			    const uint32_t bis_sync_req[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS]);
+			    const uint32_t bis_sync_req[BT_BAP_SCAN_DELEGATOR_MAX_SUBGROUPS]);
 };
 
 /** Structure holding information of audio stream endpoint */
@@ -397,14 +428,8 @@ struct bt_bap_ep_info {
 	/** Capabilities type */
 	enum bt_audio_dir dir;
 
-	/** The isochronous channel associated with the endpoint. */
-	struct bt_iso_chan *iso_chan;
-
 	/** @brief True if the stream associated with the endpoint is able to send data */
 	bool can_send;
-
-	/** @brief True if the stream associated with the endpoint is able to receive data */
-	bool can_recv;
 
 	/** Pointer to paired endpoint if the endpoint is part of a bidirectional CIS,
 	 *  otherwise NULL
@@ -418,8 +443,7 @@ struct bt_bap_ep_info {
  * @param ep   The audio stream endpoint object.
  * @param info The structure object to be filled with the info.
  *
- * @retval 0 in case of success
- * @retval -EINVAL if @p ep or @p info are NULL
+ * @return 0 in case of success or negative value in case of error.
  */
 int bt_bap_ep_get_info(const struct bt_bap_ep *ep, struct bt_bap_ep_info *info);
 
@@ -573,45 +597,15 @@ struct bt_bap_stream_ops {
 	/**
 	 * @brief Stream audio HCI sent callback
 	 *
-	 * This callback will be called once the controller marks the SDU
-	 * as completed. When the controller does so is implementation
-	 * dependent. It could be after the SDU is enqueued for transmission,
-	 * or after it is sent on air or flushed.
+	 * If this callback is provided it will be called whenever a SDU has been completely sent,
+	 * or otherwise flushed due to transmission issues.
 	 *
 	 * This callback is only used if the ISO data path is HCI.
 	 *
-	 * @param stream Stream object.
+	 * @param chan The channel which has sent data.
 	 */
 	void (*sent)(struct bt_bap_stream *stream);
 #endif /* CONFIG_BT_AUDIO_TX */
-
-	/**
-	 * @brief Isochronous channel connected callback
-	 *
-	 * If this callback is provided it will be called whenever the isochronous channel for the
-	 * stream has been connected. This does not mean that the stream is ready to be used, which
-	 * is indicated by the @ref bt_bap_stream_ops.started callback.
-	 *
-	 * If the stream shares an isochronous channel with another stream, then this callback may
-	 * still be called, without the stream going into the started state.
-	 *
-	 * @param stream Stream object.
-	 */
-	void (*connected)(struct bt_bap_stream *stream);
-
-	/**
-	 * @brief Isochronous channel disconnected callback
-	 *
-	 * If this callback is provided it will be called whenever the isochronous channel is
-	 * disconnected, including when a connection gets rejected.
-	 *
-	 * If the stream shares an isochronous channel with another stream, then this callback may
-	 * not be called, even if the stream is leaving the streaming state.
-	 *
-	 * @param stream Stream object.
-	 * @param reason BT_HCI_ERR_* reason for the disconnection.
-	 */
-	void (*disconnected)(struct bt_bap_stream *stream, uint8_t reason);
 };
 
 /**
@@ -769,23 +763,7 @@ int bt_bap_stream_stop(struct bt_bap_stream *stream);
 int bt_bap_stream_release(struct bt_bap_stream *stream);
 
 /**
- * @brief Send data to Audio stream without timestamp
- *
- * Send data from buffer to the stream.
- *
- * @note Support for sending must be supported, determined by @kconfig{CONFIG_BT_AUDIO_TX}.
- *
- * @param stream   Stream object.
- * @param buf      Buffer containing data to be sent.
- * @param seq_num  Packet Sequence number. This value shall be incremented for each call to this
- *                 function and at least once per SDU interval for a specific channel.
- *
- * @return Bytes sent in case of success or negative value in case of error.
- */
-int bt_bap_stream_send(struct bt_bap_stream *stream, struct net_buf *buf, uint16_t seq_num);
-
-/**
- * @brief Send data to Audio stream with timestamp
+ * @brief Send data to Audio stream
  *
  * Send data from buffer to the stream.
  *
@@ -796,12 +774,14 @@ int bt_bap_stream_send(struct bt_bap_stream *stream, struct net_buf *buf, uint16
  * @param seq_num  Packet Sequence number. This value shall be incremented for each call to this
  *                 function and at least once per SDU interval for a specific channel.
  * @param ts       Timestamp of the SDU in microseconds (us). This value can be used to transmit
- *                 multiple SDUs in the same SDU interval in a CIG or BIG.
+ *                 multiple SDUs in the same SDU interval in a CIG or BIG. Can be omitted by using
+ *                 @ref BT_ISO_TIMESTAMP_NONE which will simply enqueue the ISO SDU in a FIFO
+ *                 manner.
  *
  * @return Bytes sent in case of success or negative value in case of error.
  */
-int bt_bap_stream_send_ts(struct bt_bap_stream *stream, struct net_buf *buf, uint16_t seq_num,
-			  uint32_t ts);
+int bt_bap_stream_send(struct bt_bap_stream *stream, struct net_buf *buf, uint16_t seq_num,
+		       uint32_t ts);
 
 /**
  * @brief Get ISO transmission timing info for a Basic Audio Profile stream
@@ -1371,190 +1351,55 @@ int bt_bap_unicast_client_discover(struct bt_conn *conn, enum bt_audio_dir dir);
  * @{
  */
 
-/** @brief Abstract Broadcast Audio Source Endpoint (BASE) subgroup structure. */
-struct bt_bap_base_subgroup;
-/** @brief Abstract Broadcast Audio Source Endpoint (BASE) structure. */
-struct bt_bap_base;
-
-/** Codec ID structure for a Broadcast Audio Source Endpoint (BASE) */
-struct bt_bap_base_codec_id {
-	/** Codec ID */
-	uint8_t id;
-	/** Codec Company ID */
-	uint16_t cid;
-	/** Codec Company Vendor ID */
-	uint16_t vid;
-};
-
-/** BIS structure for each BIS in a Broadcast Audio Source Endpoint (BASE) subgroup */
-struct bt_bap_base_subgroup_bis {
+struct bt_bap_base_bis_data {
 	/* Unique index of the BIS */
 	uint8_t index;
+#if CONFIG_BT_AUDIO_CODEC_CFG_MAX_DATA_SIZE > 0
 	/** Codec Specific Data length. */
-	uint8_t data_len;
+	size_t data_len;
 	/** Codec Specific Data */
-	uint8_t *data;
+	uint8_t data[CONFIG_BT_AUDIO_CODEC_CFG_MAX_DATA_SIZE];
+#endif /* CONFIG_BT_AUDIO_CODEC_CFG_MAX_DATA_SIZE > 0 */
 };
 
-/**
- * @brief Generate a pointer to a BASE from periodic advertising data
- *
- * @param ad The periodic advertising data
- *
- * @retval NULL if the data does not contain a BASE
- * @retval Pointer to a bt_bap_base structure
- */
-const struct bt_bap_base *bt_bap_base_get_base_from_ad(const struct bt_data *ad);
+struct bt_bap_base_subgroup {
+	/* Number of BIS in the subgroup */
+	size_t bis_count;
+	/** Codec information for the subgroup
+	 *
+	 *  If the data_len of the codec is 0, then codec specific data may be
+	 *  found for each BIS in the bis_data.
+	 */
+	struct bt_audio_codec_cfg codec_cfg;
+	/* Array of BIS specific data for each BIS in the subgroup */
+	struct bt_bap_base_bis_data bis_data[BROADCAST_SNK_STREAM_CNT];
+};
 
-/**
- * @brief Get the presentation delay value of a BASE
- *
- * @param base The BASE pointer
- *
- * @retval -EINVAL if arguments are invalid
- * @retval The 24-bit presentation delay value
- */
-int bt_bap_base_get_pres_delay(const struct bt_bap_base *base);
+struct bt_bap_base {
+	/** @brief QoS Presentation Delay in microseconds
+	 *
+	 *  Value range 0 to @ref BT_AUDIO_PD_MAX.
+	 */
+	uint32_t pd;
 
-/**
- * @brief Get the subgroup count of a BASE
- *
- * @param base The BASE pointer
- *
- * @retval -EINVAL if arguments are invalid
- * @retval The 8-bit subgroup count value
- */
-int bt_bap_base_get_subgroup_count(const struct bt_bap_base *base);
+	/* Number of subgroups in the BASE */
+	size_t subgroup_count;
 
-/**
- * @brief Get all BIS indexes of a BASE
- *
- * @param[in]  base        The BASE pointer
- * @param[out] bis_indexes 32-bit BIS index bitfield that will be populated
- *
- * @retval -EINVAL if arguments are invalid
- * @retval 0 on success
- */
-int bt_bap_base_get_bis_indexes(const struct bt_bap_base *base, uint32_t *bis_indexes);
+	/* Array of subgroups in the BASE */
+	struct bt_bap_base_subgroup subgroups[BROADCAST_SNK_SUBGROUP_CNT];
+};
 
-/**
- * @brief Iterate on all subgroups in the BASE
+/** @brief Decode a Broadcast Audio Source Endpoint (BASE) from advertising data
  *
- * @param base      The BASE pointer
- * @param func      Callback function. Return true to continue iterating, or false to stop.
- * @param user_data Userdata supplied to @p func
+ *  The BASE is sent via periodic advertising, and can be decoded into a
+ *  bt_bap_base using this function.
  *
- * @retval -EINVAL if arguments are invalid
- * @retval -ECANCELED if iterating over the subgroups stopped prematurely by @p func
- * @retval 0 if all subgroups were iterated
+ *  @param data The periodic advertising data
+ *  @param base The output struct to put the decode BASE in
+ *
+ *  @return 0 in case of success or negative errno value in case of error.
  */
-int bt_bap_base_foreach_subgroup(const struct bt_bap_base *base,
-				 bool (*func)(const struct bt_bap_base_subgroup *subgroup,
-					      void *user_data),
-				 void *user_data);
-
-/**
- * @brief Get the codec ID of a subgroup
- *
- * @param[in]  subgroup The subgroup pointer
- * @param[out] codec_id Pointer to the struct where the results are placed
- *
- * @retval -EINVAL if arguments are invalid
- * @retval 0 on success
- */
-int bt_bap_base_get_subgroup_codec_id(const struct bt_bap_base_subgroup *subgroup,
-				      struct bt_bap_base_codec_id *codec_id);
-
-/**
- * @brief Get the codec configuration data of a subgroup
- *
- * @param[in]  subgroup The subgroup pointer
- * @param[out] data     Pointer that will point to the resulting codec configuration data
- *
- * @retval -EINVAL if arguments are invalid
- * @retval 0 on success
- */
-int bt_bap_base_get_subgroup_codec_data(const struct bt_bap_base_subgroup *subgroup,
-					uint8_t **data);
-
-/**
- * @brief Get the codec metadata of a subgroup
- *
- * @param[in]  subgroup The subgroup pointer
- * @param[out] meta     Pointer that will point to the resulting codec metadata
- *
- * @retval -EINVAL if arguments are invalid
- * @retval 0 on success
- */
-int bt_bap_base_get_subgroup_codec_meta(const struct bt_bap_base_subgroup *subgroup,
-					uint8_t **meta);
-
-/**
- * @brief Store subgroup codec data in a @ref bt_audio_codec_cfg
- *
- * @param[in]  subgroup  The subgroup pointer
- * @param[out] codec_cfg Pointer to the struct where the results are placed
- *
- * @retval -EINVAL if arguments are invalid
- * @retval -ENOMEM if the @p codec_cfg cannot store the @p subgroup codec data
- * @retval 0 on success
- */
-int bt_bap_base_subgroup_codec_to_codec_cfg(const struct bt_bap_base_subgroup *subgroup,
-					    struct bt_audio_codec_cfg *codec_cfg);
-
-/**
- * @brief Get the BIS count of a subgroup
- *
- * @param subgroup The subgroup pointer
- *
- * @retval -EINVAL if arguments are invalid
- * @retval The 8-bit BIS count value
- */
-int bt_bap_base_get_subgroup_bis_count(const struct bt_bap_base_subgroup *subgroup);
-
-/**
- * @brief Get all BIS indexes of a subgroup
- *
- * @param[in]  subgroup    The subgroup pointer
- * @param[out] bis_indexes 32-bit BIS index bitfield that will be populated
- *
- * @retval -EINVAL if arguments are invalid
- * @retval 0 on success
- */
-int bt_bap_base_subgroup_get_bis_indexes(const struct bt_bap_base_subgroup *subgroup,
-					 uint32_t *bis_indexes);
-
-/**
- * @brief Iterate on all BIS in the subgroup
- *
- * @param subgroup  The subgroup pointer
- * @param func      Callback function. Return true to continue iterating, or false to stop.
- * @param user_data Userdata supplied to @p func
- *
- * @retval -EINVAL if arguments are invalid
- * @retval -ECANCELED if iterating over the subgroups stopped prematurely by @p func
- * @retval 0 if all BIS were iterated
- */
-int bt_bap_base_subgroup_foreach_bis(const struct bt_bap_base_subgroup *subgroup,
-				     bool (*func)(const struct bt_bap_base_subgroup_bis *bis,
-						  void *user_data),
-				     void *user_data);
-
-/**
- * @brief Store BIS codec configuration data in a @ref bt_audio_codec_cfg
- *
- * This only sets the @ref bt_audio_codec_cfg data and @ref bt_audio_codec_cfg data_len, but is
- * useful to use the BIS codec configuration data with the bt_audio_codec_cfg_* functions.
- *
- * @param[in]  bis       The BIS pointer
- * @param[out] codec_cfg Pointer to the struct where the results are placed
- *
- * @retval -EINVAL if arguments are invalid
- * @retval -ENOMEM if the @p codec_cfg cannot store the @p subgroup codec data
- * @retval 0 on success
- */
-int bt_bap_base_subgroup_bis_codec_to_codec_cfg(const struct bt_bap_base_subgroup_bis *bis,
-						struct bt_audio_codec_cfg *codec_cfg);
+int bt_bap_decode_base(struct bt_data *data, struct bt_bap_base *base);
 
 /** @} */ /* End of group bt_bap_broadcast */
 
@@ -1804,10 +1649,8 @@ struct bt_bap_broadcast_sink_cb {
 	 *
 	 *  @param sink          Pointer to the sink structure.
 	 *  @param base          Broadcast Audio Source Endpoint (BASE).
-	 *  @param base_size     Size of the @p base
 	 */
-	void (*base_recv)(struct bt_bap_broadcast_sink *sink, const struct bt_bap_base *base,
-			  size_t base_size);
+	void (*base_recv)(struct bt_bap_broadcast_sink *sink, const struct bt_bap_base *base);
 
 	/** @brief Broadcast sink is syncable
 	 *
@@ -1818,9 +1661,9 @@ struct bt_bap_broadcast_sink_cb {
 	 *  bt_bap_broadcast_sink_sync() to synchronize to the audio stream(s).
 	 *
 	 *  @param sink          Pointer to the sink structure.
-	 *  @param biginfo       The BIGInfo report.
+	 *  @param encrypted     Whether or not the broadcast is encrypted
 	 */
-	void (*syncable)(struct bt_bap_broadcast_sink *sink, const struct bt_iso_biginfo *biginfo);
+	void (*syncable)(struct bt_bap_broadcast_sink *sink, bool encrypted);
 
 	/* Internally used list node */
 	sys_snode_t _node;
@@ -1932,7 +1775,7 @@ int bt_bap_scan_delegator_set_pa_state(uint8_t src_id,
  */
 int bt_bap_scan_delegator_set_bis_sync_state(
 	uint8_t src_id,
-	uint32_t bis_synced[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS]);
+	uint32_t bis_synced[BT_BAP_SCAN_DELEGATOR_MAX_SUBGROUPS]);
 
 struct bt_bap_scan_delegator_add_src_param {
 	/** The periodic adverting sync */
@@ -1948,7 +1791,7 @@ struct bt_bap_scan_delegator_add_src_param {
 	uint8_t num_subgroups;
 
 	/** Subgroup specific information */
-	struct bt_bap_bass_subgroup subgroups[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS];
+	struct bt_bap_scan_delegator_subgroup subgroups[BT_BAP_SCAN_DELEGATOR_MAX_SUBGROUPS];
 };
 
 /**
@@ -1985,7 +1828,7 @@ struct bt_bap_scan_delegator_mod_src_param {
 	 * If a subgroup's metadata_len is set to 0, the existing metadata
 	 * for the subgroup will remain unchanged
 	 */
-	struct bt_bap_bass_subgroup subgroups[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS];
+	struct bt_bap_scan_delegator_subgroup subgroups[BT_BAP_SCAN_DELEGATOR_MAX_SUBGROUPS];
 };
 
 /**
@@ -2101,9 +1944,11 @@ struct bt_bap_broadcast_assistant_cb {
 	 * @brief Callback function for when a receive state is removed.
 	 *
 	 * @param conn     The connection to the Broadcast Audio Scan Service server.
+	 * @param err      Error value. 0 on success, GATT error on fail.
 	 * @param src_id   The receive state.
 	 */
-	void (*recv_state_removed)(struct bt_conn *conn, uint8_t src_id);
+	void (*recv_state_removed)(struct bt_conn *conn, int err,
+				   uint8_t src_id);
 
 	/**
 	 * @brief Callback function for bt_bap_broadcast_assistant_scan_start().
@@ -2152,8 +1997,6 @@ struct bt_bap_broadcast_assistant_cb {
 	 * @param err     Error value. 0 on success, GATT error on fail.
 	 */
 	void (*rem_src)(struct bt_conn *conn, int err);
-
-	sys_snode_t _node;
 };
 
 /**
@@ -2197,26 +2040,8 @@ int bt_bap_broadcast_assistant_scan_stop(struct bt_conn *conn);
 
 /**
  * @brief Registers the callbacks used by Broadcast Audio Scan Service client.
- *
- * @param cb	The callback structure.
- *
- * @retval 0 on success
- * @retval -EINVAL if @p cb is NULL
- * @retval -EALREADY if @p cb was already registered
  */
-int bt_bap_broadcast_assistant_register_cb(struct bt_bap_broadcast_assistant_cb *cb);
-
-/**
- * @brief Unregisters the callbacks used by the Broadcast Audio Scan Service client.
- *
- * @param cb   The callback structure.
- *
- * @retval 0 on success
- * @retval -EINVAL if @p cb is NULL
- * @retval -EALREADY if @p cb was not registered
- */
-int bt_bap_broadcast_assistant_unregister_cb(struct bt_bap_broadcast_assistant_cb *cb);
-
+void bt_bap_broadcast_assistant_register_cb(struct bt_bap_broadcast_assistant_cb *cb);
 
 /** Parameters for adding a source to a Broadcast Audio Scan Service server */
 struct bt_bap_broadcast_assistant_add_src_param {
@@ -2243,7 +2068,7 @@ struct bt_bap_broadcast_assistant_add_src_param {
 	uint8_t num_subgroups;
 
 	/** Pointer to array of subgroups */
-	struct bt_bap_bass_subgroup *subgroups;
+	struct bt_bap_scan_delegator_subgroup *subgroups;
 };
 
 /**
@@ -2276,7 +2101,7 @@ struct bt_bap_broadcast_assistant_mod_src_param {
 	uint8_t num_subgroups;
 
 	/** Pointer to array of subgroups */
-	struct bt_bap_bass_subgroup *subgroups;
+	struct bt_bap_scan_delegator_subgroup *subgroups;
 };
 
 /** @brief Modify a source on the server.

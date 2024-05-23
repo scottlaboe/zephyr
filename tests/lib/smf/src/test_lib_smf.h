@@ -10,6 +10,5 @@
 void test_smf_flat(void);
 void test_smf_hierarchical(void);
 void test_smf_hierarchical_5_ancestors(void);
-void test_smf_self_transition(void);
 
 #endif /* ZEPHYR_TEST_LIB_SMF_H_ */

@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2016 Linaro Limited
- * Copyright 2024 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -34,9 +33,6 @@ LOG_MODULE_REGISTER(flash_mcux);
 #elif DT_NODE_HAS_STATUS(DT_INST(0, nxp_iap_fmc553), okay)
 #define DT_DRV_COMPAT nxp_iap_fmc553
 #define SOC_HAS_IAP 1
-#elif DT_NODE_HAS_STATUS(DT_INST(0, nxp_iap_msf1), okay)
-#define DT_DRV_COMPAT nxp_iap_msf1
-#define SOC_HAS_IAP_MSF1 1
 #else
 #error No matching compatible for soc_flash_mcux.c
 #endif
@@ -297,7 +293,7 @@ static int flash_mcux_init(const struct device *dev)
 
 	rc = FLASH_Init(&priv->config);
 
-#if defined(SOC_HAS_IAP) || defined(SOC_HAS_IAP_MSF1)
+#ifdef SOC_HAS_IAP
 	FLASH_GetProperty(&priv->config, kFLASH_PropertyPflashBlockBaseAddr,
 			  &pflash_block_base);
 #else

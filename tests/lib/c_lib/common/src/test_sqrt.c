@@ -16,8 +16,16 @@
 #define NAN	(__builtin_nansf(""))
 #endif
 
-#ifndef INFINITY
-#define INFINITY	(__builtin_inff())
+#ifndef NANF
+#define NANF	(__builtin_nans(""))
+#endif
+
+#ifndef INF
+#define INF	(__builtin_inf())
+#endif
+
+#ifndef INFF
+#define INFF	(__builtin_inff())
 #endif
 
 static float test_floats[] = {
@@ -83,13 +91,14 @@ static int isnanf(float x)
 #endif
 
 /* small errors are expected, computed as percentage error */
-#define MAX_FLOAT_ERROR_PERCENT		(3.5e-5f)
+#define MAX_FLOAT_ERROR_PERCENT		(3.5e-5)
 #define MAX_DOUBLE_ERROR_PERCENT	(4.5e-14)
 
 ZTEST(libc_common, test_sqrtf)
 {
 int i;
-float	exponent, resf, square, root_squared, error;
+float	exponent, resf, square, root_squared;
+double	error;
 uint32_t max_error;
 int32_t ierror;
 int32_t *p_square = (int32_t *)&square;
@@ -97,17 +106,27 @@ int32_t *p_root_squared = (int32_t *)&root_squared;
 
 
 	max_error = 0;
+	/* Conversion not supported with minimal_libc without
+	 * CBPRINTF_FP_SUPPORT.
+	 *
+	 * Conversion not supported without FPU except on native POSIX.
+	 */
+	if (!(IS_ENABLED(CONFIG_FPU)
+		 || IS_ENABLED(CONFIG_BOARD_NATIVE_POSIX))) {
+		ztest_test_skip();
+		return;
+	}
 
-	/* test the special cases of 0.0, NAN, -NAN, INFINITY, -INFINITY,  and -10.0 */
+	/* test the special cases of 0.0, NAN, -NAN, INF, -INF,  and -10.0 */
 	zassert_true(sqrtf(0.0f) == 0.0f, "sqrtf(0.0)");
-	zassert_true(isnanf(sqrtf(NAN)), "sqrt(nan)");
+	zassert_true(isnanf(sqrtf(NANF)), "sqrt(nan)");
 #ifdef issignallingf
-	zassert_true(issignallingf(sqrtf(NAN)), "ssignalingf(sqrtf(nan))");
+	zassert_true(issignallingf(sqrtf(NANF)), "ssignalingf(sqrtf(nan))");
 /*	printf("issignallingf();\n"); */
 #endif
-	zassert_true(isnanf(sqrtf(-NAN)), "isnanf(sqrtf(-nan))");
-	zassert_true(isinff(sqrtf(INFINITY)), "isinff(sqrt(inf))");
-	zassert_true(isnanf(sqrtf(-INFINITY)), "isnanf(sqrt(-inf))");
+	zassert_true(isnanf(sqrtf(-NANF)), "isnanf(sqrtf(-nan))");
+	zassert_true(isinff(sqrtf(INFF)), "isinff(sqrt(inf))");
+	zassert_true(isnanf(sqrtf(-INFF)), "isnanf(sqrt(-inf))");
 	zassert_true(isnanf(sqrtf(-10.0f)), "isnanf(sqrt(-10.0))");
 
 	for (exponent = 1.0e-10f; exponent < 1.0e10f; exponent *= 10.0f) {
@@ -115,12 +134,12 @@ int32_t *p_root_squared = (int32_t *)&root_squared;
 			square = test_floats[i] * exponent;
 			resf = sqrtf(square);
 			root_squared = resf * resf;
-			zassert_true((resf > 0.0f) && (resf < INFINITY),
+			zassert_true((resf > 0.0f) && (resf < INFF),
 					"sqrtf out of range");
-			if ((resf > 0.0f) && (resf < INFINITY)) {
+			if ((resf > 0.0f) && (resf < INFF)) {
 				error = (square - root_squared) /
 					square * 100;
-				if (error < 0.0f) {
+				if (error < 0.0) {
 					error = -error;
 				}
 				/* square and root_squared should be almost identical
@@ -134,7 +153,7 @@ int32_t *p_root_squared = (int32_t *)&root_squared;
 				}
 			} else {
 				/* negative, +NaN, -NaN, inf or -inf */
-				error = 0.0f;
+				error = 0.0;
 			}
 			zassert_true(error < MAX_FLOAT_ERROR_PERCENT,
 					"max sqrtf error exceeded");
@@ -156,17 +175,25 @@ int64_t *p_root_squared = (int64_t *)&root_squared;
 
 
 	max_error = 0;
+	/*
+	 * sqrt is not supported without FPU except on native POSIX.
+	 */
+	if (!(IS_ENABLED(CONFIG_FPU)
+		 || IS_ENABLED(CONFIG_BOARD_NATIVE_POSIX))) {
+		ztest_test_skip();
+		return;
+	}
 
-	/* test the special cases of 0.0, NAN, -NAN, INFINITY, -INFINITY,  and -10.0 */
+	/* test the special cases of 0.0, NAN, -NAN, INF, -INF,  and -10.0 */
 	zassert_true(sqrt(0.0) == 0.0, "sqrt(0.0)");
-	zassert_true(isnan(sqrt((double)NAN)), "sqrt(nan)");
+	zassert_true(isnan(sqrt(NAN)), "sqrt(nan)");
 #ifdef issignalling
-	zassert_true(issignalling(sqrt((double)NAN)), "ssignaling(sqrt(nan))");
+	zassert_true(issignalling(sqrt(NAN)), "ssignaling(sqrt(nan))");
 /*	printf("issignalling();\n"); */
 #endif
-	zassert_true(isnan(sqrt((double)-NAN)), "isnan(sqrt(-nan))");
-	zassert_true(isinf(sqrt((double)INFINITY)), "isinf(sqrt(inf))");
-	zassert_true(isnan(sqrt((double)-INFINITY)), "isnan(sqrt(-inf))");
+	zassert_true(isnan(sqrt(-NAN)), "isnan(sqrt(-nan))");
+	zassert_true(isinf(sqrt(INF)), "isinf(sqrt(inf))");
+	zassert_true(isnan(sqrt(-INF)), "isnan(sqrt(-inf))");
 	zassert_true(isnan(sqrt(-10.0)), "isnan(sqrt(-10.0))");
 
 	for (exponent = 1.0e-10; exponent < 1.0e10; exponent *= 10.0) {
@@ -174,9 +201,9 @@ int64_t *p_root_squared = (int64_t *)&root_squared;
 			square = test_doubles[i] * exponent;
 			resd = sqrt(square);
 			root_squared = resd * resd;
-			zassert_true((resd > 0.0) && (resd < (double)INFINITY),
+			zassert_true((resd > 0.0) && (resd < INF),
 					"sqrt out of range");
-			if ((resd > 0.0) && (resd < (double)INFINITY)) {
+			if ((resd > 0.0) && (resd < INF)) {
 				error = (square - root_squared) /
 					square * 100;
 				if (error < 0.0) {

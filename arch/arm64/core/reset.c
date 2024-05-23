@@ -41,8 +41,6 @@ void z_arm64_el_highest_init(void)
 	barrier_isync_fence_full();
 }
 
-
-#if !defined(CONFIG_ARMV8_R)
 enum el3_next_el {
 	EL3_TO_EL2,
 	EL3_TO_EL1_NO_EL2,
@@ -115,7 +113,6 @@ void z_arm64_el3_init(void)
 		z_arm64_el2_init();
 	}
 }
-#endif /* CONFIG_ARMV8_R */
 
 void z_arm64_el2_init(void)
 {
@@ -198,7 +195,6 @@ void z_arm64_el1_init(void)
 	barrier_isync_fence_full();
 }
 
-#if !defined(CONFIG_ARMV8_R)
 void z_arm64_el3_get_next_el(uint64_t switch_addr)
 {
 	uint64_t spsr;
@@ -218,4 +214,3 @@ void z_arm64_el3_get_next_el(uint64_t switch_addr)
 
 	write_spsr_el3(spsr);
 }
-#endif /* CONFIG_ARMV8_R */

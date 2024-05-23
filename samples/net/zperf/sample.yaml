@@ -5,8 +5,8 @@ common:
   # TODO: Does not work properly with native_posix, need more TLC
   platform_exclude:
     - native_posix
-    - native_posix/native/64
-    - sam_e70_xplained/same70q21
+    - native_posix_64
+    - sam_e70_xplained
   min_ram: 64
 sample:
   description: Network performance measurement tool for Zephyr
@@ -40,17 +40,11 @@ tests:
       - net
       - zperf
     depends_on: usb_device
-    # native_sim usb driver does not work with CONFIG_POSIX_API
-    platform_exclude:
-      - native_sim
-      - native_sim/native/64
-      - native_posix
-      - native_posix/native/64
   sample.net.zperf.device_next_ecm:
     harness: net
     extra_args: OVERLAY_CONFIG="overlay-usbd_next_ecm.conf"
                 DTC_OVERLAY_FILE="usbd_next_ecm.overlay"
-    platform_allow: nrf52840dk/nrf52840 frdm_k64f
+    platform_allow: nrf52840dk_nrf52840 frdm_k64f
     tags: usb net zperf
     depends_on: usb_device
   sample.net.zperf.netusb_eem:
@@ -64,12 +58,6 @@ tests:
       - net
       - zperf
     depends_on: usb_device
-    # native_sim usb driver does not work with CONFIG_POSIX_API
-    platform_exclude:
-      - native_sim
-      - native_sim/native/64
-      - native_posix
-      - native_posix/native/64
   sample.net.zperf.netusb_rndis:
     harness: net
     extra_args: OVERLAY_CONFIG="overlay-netusb.conf"
@@ -81,12 +69,6 @@ tests:
       - net
       - zperf
     depends_on: usb_device
-    # native_sim usb driver does not work with CONFIG_POSIX_API
-    platform_exclude:
-      - native_sim
-      - native_sim/native/64
-      - native_posix
-      - native_posix/native/64
   sample.net.zperf.shield:
     harness: net
     platform_allow: reel_board

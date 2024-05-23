@@ -18,12 +18,7 @@
 #include "time_machine.h"
 #include "bstests.h"
 
-/* The test case is performing 250 simultaneous connections and managing
- * parallel control procedures utilizing the available/configured minimum
- * buffer counts. Hence, two iterations of connect-disconnect should be
- * sufficient to catch any regressions/buffer leaks.
- */
-#define ITERATIONS 2
+#define ITERATIONS 10
 
 int init_central(uint8_t iterations);
 int init_peripheral(uint8_t iterations);
@@ -86,7 +81,7 @@ exit:
 
 static void test_multiple_init(void)
 {
-	bst_ticker_set_next_tick_absolute(1500e6);
+	bst_ticker_set_next_tick_absolute(4500e6);
 	bst_result = In_progress;
 }
 

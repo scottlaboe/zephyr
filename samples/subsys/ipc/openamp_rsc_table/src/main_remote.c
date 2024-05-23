@@ -14,13 +14,8 @@
 #include <zephyr/drivers/ipm.h>
 
 #include <openamp/open_amp.h>
-#include <metal/sys.h>
-#include <metal/io.h>
+#include <metal/device.h>
 #include <resource_table.h>
-
-#ifdef CONFIG_SHELL_BACKEND_RPMSG
-#include <zephyr/shell/shell_rpmsg.h>
-#endif
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(openamp_rsc_table, LOG_LEVEL_DBG);
@@ -54,17 +49,27 @@ static const struct device *const ipm_handle =
 
 static metal_phys_addr_t shm_physmap = SHM_START_ADDR;
 
-static struct metal_io_region shm_io_data; /* shared memory */
-static struct metal_io_region rsc_io_data; /* rsc_table memory */
+struct metal_device shm_device = {
+	.name = SHM_DEVICE_NAME,
+	.num_regions = 2,
+	.regions = {
+		{.virt = NULL}, /* shared memory */
+		{.virt = NULL}, /* rsc_table memory */
+	},
+	.node = { NULL },
+	.irq_num = 0,
+	.irq_info = NULL
+};
 
 struct rpmsg_rcv_msg {
 	void *data;
 	size_t len;
 };
 
-static struct metal_io_region *shm_io = &shm_io_data;
+static struct metal_io_region *shm_io;
+static struct rpmsg_virtio_shm_pool shpool;
 
-static struct metal_io_region *rsc_io = &rsc_io_data;
+static struct metal_io_region *rsc_io;
 static struct rpmsg_virtio_device rvdev;
 
 static void *rsc_table;
@@ -84,7 +89,7 @@ static K_SEM_DEFINE(data_tty_sem, 0, 1);
 static void platform_ipm_callback(const struct device *dev, void *context,
 				  uint32_t id, volatile void *data)
 {
-	LOG_DBG("%s: msg received from mb %d", __func__, id);
+	LOG_DBG("%s: msg received from mb %d\n", __func__, id);
 	k_sem_give(&data_sem);
 }
 
@@ -123,7 +128,7 @@ static void receive_message(unsigned char **msg, unsigned int *len)
 static void new_service_cb(struct rpmsg_device *rdev, const char *name,
 			   uint32_t src)
 {
-	LOG_ERR("%s: unexpected ns service receive for name %s",
+	LOG_ERR("%s: unexpected ns service receive for name %s\n",
 		__func__, name);
 }
 
@@ -131,7 +136,7 @@ int mailbox_notify(void *priv, uint32_t id)
 {
 	ARG_UNUSED(priv);
 
-	LOG_DBG("%s: msg received", __func__);
+	LOG_DBG("%s: msg received\n", __func__);
 	ipm_send(ipm_handle, 0, id, NULL, 0);
 
 	return 0;
@@ -141,29 +146,54 @@ int platform_init(void)
 {
 	void *rsc_tab_addr;
 	int rsc_size;
+	struct metal_device *device;
 	struct metal_init_params metal_params = METAL_INIT_DEFAULTS;
 	int status;
 
 	status = metal_init(&metal_params);
 	if (status) {
-		LOG_ERR("metal_init: failed: %d", status);
+		LOG_DBG("metal_init: failed: %d\n", status);
+		return -1;
+	}
+
+	status = metal_register_generic_device(&shm_device);
+	if (status) {
+		LOG_DBG("Couldn't register shared memory: %d\n", status);
+		return -1;
+	}
+
+	status = metal_device_open("generic", SHM_DEVICE_NAME, &device);
+	if (status) {
+		LOG_DBG("metal_device_open failed: %d\n", status);
 		return -1;
 	}
 
 	/* declare shared memory region */
-	metal_io_init(shm_io, (void *)SHM_START_ADDR, &shm_physmap,
+	metal_io_init(&device->regions[0], (void *)SHM_START_ADDR, &shm_physmap,
 		      SHM_SIZE, -1, 0, NULL);
+
+	shm_io = metal_device_io_region(device, 0);
+	if (!shm_io) {
+		LOG_DBG("Failed to get shm_io region\n");
+		return -1;
+	}
 
 	/* declare resource table region */
 	rsc_table_get(&rsc_tab_addr, &rsc_size);
 	rsc_table = (struct st_resource_table *)rsc_tab_addr;
 
-	metal_io_init(rsc_io, rsc_table,
+	metal_io_init(&device->regions[1], rsc_table,
 		      (metal_phys_addr_t *)rsc_table, rsc_size, -1, 0, NULL);
+
+	rsc_io = metal_device_io_region(device, 1);
+	if (!rsc_io) {
+		LOG_DBG("Failed to get rsc_io region\n");
+		return -1;
+	}
 
 	/* setup IPM */
 	if (!device_is_ready(ipm_handle)) {
-		LOG_ERR("IPM device is not ready");
+		LOG_DBG("IPM device is not ready\n");
 		return -1;
 	}
 
@@ -171,7 +201,7 @@ int platform_init(void)
 
 	status = ipm_set_enabled(ipm_handle, 1);
 	if (status) {
-		LOG_ERR("ipm_set_enabled failed");
+		LOG_DBG("ipm_set_enabled failed\n");
 		return -1;
 	}
 
@@ -200,7 +230,7 @@ platform_create_rpmsg_vdev(unsigned int vdev_index,
 					rsc_io, NULL, mailbox_notify, NULL);
 
 	if (!vdev) {
-		LOG_ERR("failed to create vdev");
+		LOG_DBG("failed to create vdev\r\n");
 		return NULL;
 	}
 
@@ -212,7 +242,7 @@ platform_create_rpmsg_vdev(unsigned int vdev_index,
 				      (void *)vring_rsc->da, rsc_io,
 				      vring_rsc->num, vring_rsc->align);
 	if (ret) {
-		LOG_ERR("failed to init vring 0");
+		LOG_DBG("failed to init vring 0\r\n");
 		goto failed;
 	}
 
@@ -221,13 +251,15 @@ platform_create_rpmsg_vdev(unsigned int vdev_index,
 				      (void *)vring_rsc->da, rsc_io,
 				      vring_rsc->num, vring_rsc->align);
 	if (ret) {
-		LOG_ERR("failed to init vring 1");
+		LOG_DBG("failed to init vring 1\r\n");
 		goto failed;
 	}
 
-	ret = rpmsg_init_vdev(&rvdev, vdev, ns_cb, shm_io, NULL);
+	rpmsg_virtio_init_shm_pool(&shpool, NULL, SHM_SIZE);
+	ret =  rpmsg_init_vdev(&rvdev, vdev, ns_cb, shm_io, &shpool);
+
 	if (ret) {
-		LOG_ERR("failed rpmsg_init_vdev");
+		LOG_DBG("failed rpmsg_init_vdev\r\n");
 		goto failed;
 	}
 
@@ -250,27 +282,20 @@ void app_rpmsg_client_sample(void *arg1, void *arg2, void *arg3)
 
 	k_sem_take(&data_sc_sem,  K_FOREVER);
 
-	LOG_INF("OpenAMP[remote] Linux sample client responder started");
+	printk("\r\nOpenAMP[remote] Linux sample client responder started\r\n");
 
 	ret = rpmsg_create_ept(&sc_ept, rpdev, "rpmsg-client-sample",
 			       RPMSG_ADDR_ANY, RPMSG_ADDR_ANY,
 			       rpmsg_recv_cs_callback, NULL);
-	if (ret) {
-		LOG_ERR("[Linux sample client] Could not create endpoint: %d", ret);
-		goto task_end;
-	}
 
 	while (msg_cnt < 100) {
 		k_sem_take(&data_sc_sem,  K_FOREVER);
 		msg_cnt++;
-		LOG_INF("[Linux sample client] incoming msg %d: %.*s", msg_cnt, sc_msg.len,
-			(char *)sc_msg.data);
 		rpmsg_send(&sc_ept, sc_msg.data, sc_msg.len);
 	}
 	rpmsg_destroy_ept(&sc_ept);
 
-task_end:
-	LOG_INF("OpenAMP Linux sample client responder ended");
+	printk("OpenAMP Linux sample client responder ended\n");
 }
 
 void app_rpmsg_tty(void *arg1, void *arg2, void *arg3)
@@ -284,25 +309,19 @@ void app_rpmsg_tty(void *arg1, void *arg2, void *arg3)
 
 	k_sem_take(&data_tty_sem,  K_FOREVER);
 
-	LOG_INF("OpenAMP[remote] Linux TTY responder started");
+	printk("\r\nOpenAMP[remote] Linux tty responder started\r\n");
 
 	tty_ept.priv = &tty_msg;
 	ret = rpmsg_create_ept(&tty_ept, rpdev, "rpmsg-tty",
 			       RPMSG_ADDR_ANY, RPMSG_ADDR_ANY,
 			       rpmsg_recv_tty_callback, NULL);
-	if (ret) {
-		LOG_ERR("[Linux TTY] Could not create endpoint: %d", ret);
-		goto task_end;
-	}
 
 	while (tty_ept.addr !=  RPMSG_ADDR_ANY) {
 		k_sem_take(&data_tty_sem,  K_FOREVER);
 		if (tty_msg.len) {
-			LOG_INF("[Linux TTY] incoming msg: %.*s",
-				tty_msg.len, (char *)tty_msg.data);
 			snprintf(tx_buff, 13, "TTY 0x%04x: ", tty_ept.addr);
 			memcpy(&tx_buff[12], tty_msg.data, tty_msg.len);
-			rpmsg_send(&tty_ept, tx_buff, tty_msg.len + 12);
+			rpmsg_send(&tty_ept, tx_buff, tty_msg.len + 13);
 			rpmsg_release_rx_buffer(&tty_ept, tty_msg.data);
 		}
 		tty_msg.len = 0;
@@ -310,8 +329,7 @@ void app_rpmsg_tty(void *arg1, void *arg2, void *arg3)
 	}
 	rpmsg_destroy_ept(&tty_ept);
 
-task_end:
-	LOG_INF("OpenAMP Linux TTY responder ended");
+	printk("OpenAMP Linux TTY responder ended\n");
 }
 
 void rpmsg_mng_task(void *arg1, void *arg2, void *arg3)
@@ -324,12 +342,12 @@ void rpmsg_mng_task(void *arg1, void *arg2, void *arg3)
 	unsigned int len;
 	int ret = 0;
 
-	LOG_INF("OpenAMP[remote] Linux responder demo started");
+	printk("\r\nOpenAMP[remote]  linux responder demo started\r\n");
 
 	/* Initialize platform */
 	ret = platform_init();
 	if (ret) {
-		LOG_ERR("Failed to initialize platform");
+		LOG_ERR("Failed to initialize platform\n");
 		ret = -1;
 		goto task_end;
 	}
@@ -337,14 +355,10 @@ void rpmsg_mng_task(void *arg1, void *arg2, void *arg3)
 	rpdev = platform_create_rpmsg_vdev(0, VIRTIO_DEV_DEVICE, NULL,
 					   new_service_cb);
 	if (!rpdev) {
-		LOG_ERR("Failed to create rpmsg virtio device");
+		LOG_ERR("Failed to create rpmsg virtio device\n");
 		ret = -1;
 		goto task_end;
 	}
-
-#ifdef CONFIG_SHELL_BACKEND_RPMSG
-	(void)shell_backend_rpmsg_init_transport(rpdev);
-#endif
 
 	/* start the rpmsg clients */
 	k_sem_give(&data_sc_sem);
@@ -357,12 +371,12 @@ void rpmsg_mng_task(void *arg1, void *arg2, void *arg3)
 task_end:
 	cleanup_system();
 
-	LOG_INF("OpenAMP demo ended");
+	printk("OpenAMP demo ended\n");
 }
 
 int main(void)
 {
-	LOG_INF("Starting application threads!");
+	printk("Starting application threads!\n");
 	k_thread_create(&thread_mng_data, thread_mng_stack, APP_TASK_STACK_SIZE,
 			rpmsg_mng_task,
 			NULL, NULL, NULL, K_PRIO_COOP(8), 0, K_NO_WAIT);

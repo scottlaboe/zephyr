@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 STMicroelectronics
+ * Copyright (c) 2023 STMicroelectronics
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,13 +30,13 @@
 			device_type = "cpu";
 			compatible = "arm,cortex-m33";
 			reg = <0>;
-			cpu-power-states = <&stop>;
 			#address-cells = <1>;
 			#size-cells = <1>;
 
 			mpu: mpu@e000ed90 {
 				compatible = "arm,armv8m-mpu";
 				reg = <0xe000ed90 0x40>;
+				arm,num-mpu-regions = <8>;
 			};
 		};
 	};
@@ -114,15 +114,6 @@
 				erase-block-size = <8192>;
 				/* maximum erase time(ms) for a 8K sector */
 				max-erase-time = <5>;
-			};
-		};
-
-		power-states {
-			stop: state0 {
-				compatible = "zephyr,power-state";
-				power-state-name = "suspend-to-idle";
-				substate-id = <1>;
-				min-residency-us = <20>;
 			};
 		};
 
@@ -206,28 +197,6 @@
 			};
 		};
 
-		lptim1: timers@44004400 {
-			compatible = "st,stm32-lptim";
-			clocks = <&rcc STM32_CLOCK_BUS_APB3 0x800>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <0x44004400 0x400>;
-			interrupts = <64 1>;
-			interrupt-names = "wakeup";
-			status = "disabled";
-		};
-
-		lptim2: timers@40009400 {
-			compatible = "st,stm32-lptim";
-			clocks = <&rcc STM32_CLOCK_BUS_APB1_2 0x20>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <0x40009400 0x400>;
-			interrupts = <70 1>;
-			interrupt-names = "wakeup";
-			status = "disabled";
-		};
-
 		usart1: serial@40013800 {
 			compatible = "st,stm32-usart", "st,stm32-uart";
 			reg = <0x40013800 0x400>;
@@ -308,8 +277,6 @@
 			interrupts = <2 0>;
 			clocks = <&rcc STM32_CLOCK_BUS_APB3 0x00200000>;
 			prescaler = <32768>;
-			alarms-count = <2>;
-			alrm-exti-line = <17>;
 			status = "disabled";
 		};
 
@@ -472,9 +439,11 @@
 			reg = <0x4000a400 0x400>, <0x4000ac00 0x350>;
 			reg-names = "m_can", "message_ram";
 			interrupts = <39 0>, <40 0>;
-			interrupt-names = "int0", "int1";
+			interrupt-names = "LINE_0", "LINE_1";
 			clocks = <&rcc STM32_CLOCK_BUS_APB1_2 0x00000200>;
 			bosch,mram-cfg = <0x0 28 8 3 3 0 3 3>;
+			sample-point = <875>;
+			sample-point-data = <875>;
 			status = "disabled";
 		};
 
@@ -497,13 +466,6 @@
 				 <&rcc STM32_CLOCK_BUS_AHB1 0x00100000>,
 				 <&rcc STM32_CLOCK_BUS_AHB1 0x00200000>;
 			status = "disabled";
-
-			mdio: mdio {
-				compatible = "st,stm32-mdio";
-				#address-cells = <1>;
-				#size-cells = <0>;
-				status = "disabled";
-			};
 		};
 
 		gpdma1: dma@40020000 {
@@ -574,22 +536,6 @@
 	usb_fs_phy: usbphy {
 		compatible = "usb-nop-xceiv";
 		#phy-cells = <0>;
-	};
-
-	smbus1: smbus1 {
-		compatible = "st,stm32-smbus";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		i2c = <&i2c1>;
-		status = "disabled";
-	};
-
-	smbus2: smbus2 {
-		compatible = "st,stm32-smbus";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		i2c = <&i2c2>;
-		status = "disabled";
 	};
 };
 

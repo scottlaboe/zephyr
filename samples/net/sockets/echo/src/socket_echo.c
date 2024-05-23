@@ -26,8 +26,7 @@
 
 int main(void)
 {
-	int opt;
-	socklen_t optlen = sizeof(int);
+	int opt, optlen = sizeof(int);
 	int serv, ret;
 	struct sockaddr_in6 bind_addr = {
 		.sin6_family = AF_INET6,

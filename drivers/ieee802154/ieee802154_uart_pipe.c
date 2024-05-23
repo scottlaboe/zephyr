@@ -117,7 +117,7 @@ static uint8_t *upipe_rx(uint8_t *buf, size_t *off)
 	}
 
 	if (!upipe->rx_len) {
-		if (*buf > IEEE802154_MAX_PHY_PACKET_SIZE) {
+		if (*buf > 127) {
 			goto flush;
 		}
 
@@ -128,20 +128,27 @@ static uint8_t *upipe_rx(uint8_t *buf, size_t *off)
 	upipe->rx_buf[upipe->rx_off++] = *buf;
 
 	if (upipe->rx_len == upipe->rx_off) {
-		pkt = net_pkt_rx_alloc_with_buffer(upipe->iface, upipe->rx_len,
-						   AF_UNSPEC, 0, K_NO_WAIT);
+		struct net_buf *frag;
+
+		pkt = net_pkt_rx_alloc(K_NO_WAIT);
 		if (!pkt) {
 			LOG_DBG("No pkt available");
 			goto flush;
 		}
 
-		if (net_pkt_write(pkt, upipe->rx_buf, upipe->rx_len)) {
-			LOG_DBG("No content read?");
+		frag = net_pkt_get_frag(pkt, upipe->rx_len, K_NO_WAIT);
+		if (!frag) {
+			LOG_DBG("No fragment available");
 			goto out;
 		}
 
+		net_pkt_frag_insert(pkt, frag);
+
+		memcpy(frag->data, upipe->rx_buf, upipe->rx_len);
+		net_buf_add(frag, upipe->rx_len);
+
 #if defined(CONFIG_IEEE802154_UPIPE_HW_FILTER)
-		if (received_dest_addr_matched(pkt->buffer->data) == false) {
+		if (received_dest_addr_matched(frag->data) == false) {
 			LOG_DBG("Packet received is not addressed to me");
 			goto out;
 		}
@@ -357,7 +364,8 @@ static inline uint8_t *get_mac(const struct device *dev)
 	upipe->mac_addr[3] = 0x30;
 
 #if defined(CONFIG_IEEE802154_UPIPE_RANDOM_MAC)
-	sys_rand_get(&upipe->mac_addr[4], 4U);
+	UNALIGNED_PUT(sys_cpu_to_be32(sys_rand32_get()),
+		      (uint32_t *) ((uint8_t *)upipe->mac_addr+4));
 #else
 	upipe->mac_addr[4] = CONFIG_IEEE802154_UPIPE_MAC4;
 	upipe->mac_addr[5] = CONFIG_IEEE802154_UPIPE_MAC5;
@@ -384,7 +392,7 @@ static void upipe_iface_init(struct net_if *iface)
 
 static struct upipe_context upipe_context_data;
 
-static const struct ieee802154_radio_api upipe_radio_api = {
+static struct ieee802154_radio_api upipe_radio_api = {
 	.iface_api.init		= upipe_iface_init,
 
 	.get_capabilities	= upipe_get_capabilities,

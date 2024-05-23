@@ -24,8 +24,6 @@ extern "C" {
 
 /**
  * @defgroup fcb Flash Circular Buffer (FCB)
- * @since 1.11
- * @version 1.0.0
  * @ingroup file_system_storage
  * @{
  * @}

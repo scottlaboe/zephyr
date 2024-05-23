@@ -8,7 +8,6 @@ Testing
 
    ztest
    twister
-   twister/twister_blackbox
    pytest
    coverage
    BabbleSim<bsim>

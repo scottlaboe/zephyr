@@ -30,6 +30,13 @@ LOG_MODULE_REGISTER(bt_driver);
 
 #include "../util.h"
 
+#define H4_NONE 0x00
+#define H4_CMD  0x01
+#define H4_ACL  0x02
+#define H4_SCO  0x03
+#define H4_EVT  0x04
+#define H4_ISO  0x05
+
 static K_KERNEL_STACK_DEFINE(rx_thread_stack, CONFIG_BT_DRV_RX_STACK_SIZE);
 static struct k_thread rx_thread_data;
 
@@ -71,20 +78,20 @@ static inline void h4_get_type(void)
 	/* Get packet type */
 	if (uart_fifo_read(h4_dev, &rx.type, 1) != 1) {
 		LOG_WRN("Unable to read H:4 packet type");
-		rx.type = BT_HCI_H4_NONE;
+		rx.type = H4_NONE;
 		return;
 	}
 
 	switch (rx.type) {
-	case BT_HCI_H4_EVT:
+	case H4_EVT:
 		rx.remaining = sizeof(rx.evt);
 		rx.hdr_len = rx.remaining;
 		break;
-	case BT_HCI_H4_ACL:
+	case H4_ACL:
 		rx.remaining = sizeof(rx.acl);
 		rx.hdr_len = rx.remaining;
 		break;
-	case BT_HCI_H4_ISO:
+	case H4_ISO:
 		if (IS_ENABLED(CONFIG_BT_ISO)) {
 			rx.remaining = sizeof(rx.iso);
 			rx.hdr_len = rx.remaining;
@@ -93,7 +100,7 @@ static inline void h4_get_type(void)
 		__fallthrough;
 	default:
 		LOG_ERR("Unknown H:4 type 0x%02x", rx.type);
-		rx.type = BT_HCI_H4_NONE;
+		rx.type = H4_NONE;
 	}
 }
 
@@ -148,7 +155,7 @@ static inline void get_evt_hdr(void)
 			rx.remaining++;
 			rx.hdr_len++;
 			break;
-#if defined(CONFIG_BT_CLASSIC)
+#if defined(CONFIG_BT_BREDR)
 		case BT_HCI_EVT_INQUIRY_RESULT_WITH_RSSI:
 		case BT_HCI_EVT_EXTENDED_INQUIRY_RESULT:
 			rx.discardable = true;
@@ -178,7 +185,7 @@ static inline void copy_hdr(struct net_buf *buf)
 
 static void reset_rx(void)
 {
-	rx.type = BT_HCI_H4_NONE;
+	rx.type = H4_NONE;
 	rx.remaining = 0U;
 	rx.have_hdr = false;
 	rx.hdr_len = 0U;
@@ -190,11 +197,11 @@ static struct net_buf *get_rx(k_timeout_t timeout)
 	LOG_DBG("type 0x%02x, evt 0x%02x", rx.type, rx.evt.evt);
 
 	switch (rx.type) {
-	case BT_HCI_H4_EVT:
+	case H4_EVT:
 		return bt_buf_get_evt(rx.evt.evt, rx.discardable, timeout);
-	case BT_HCI_H4_ACL:
+	case H4_ACL:
 		return bt_buf_get_rx(BT_BUF_ACL_IN, timeout);
-	case BT_HCI_H4_ISO:
+	case H4_ISO:
 		if (IS_ENABLED(CONFIG_BT_ISO)) {
 			return bt_buf_get_rx(BT_BUF_ISO_IN, timeout);
 		}
@@ -271,6 +278,7 @@ static size_t h4_discard(const struct device *uart, size_t len)
 static inline void read_payload(void)
 {
 	struct net_buf *buf;
+	uint8_t evt_flags;
 	int read;
 
 	if (!rx.buf) {
@@ -322,31 +330,41 @@ static inline void read_payload(void)
 	buf = rx.buf;
 	rx.buf = NULL;
 
-	if (rx.type == BT_HCI_H4_EVT) {
+	if (rx.type == H4_EVT) {
+		evt_flags = bt_hci_evt_get_flags(rx.evt.evt);
 		bt_buf_set_type(buf, BT_BUF_EVT);
 	} else {
+		evt_flags = BT_HCI_EVT_FLAG_RECV;
 		bt_buf_set_type(buf, BT_BUF_ACL_IN);
 	}
 
 	reset_rx();
 
-	LOG_DBG("Putting buf %p to rx fifo", buf);
-	net_buf_put(&rx.fifo, buf);
+	if (IS_ENABLED(CONFIG_BT_RECV_BLOCKING) &&
+	    (evt_flags & BT_HCI_EVT_FLAG_RECV_PRIO)) {
+		LOG_DBG("Calling bt_recv_prio(%p)", buf);
+		bt_recv_prio(buf);
+	}
+
+	if (evt_flags & BT_HCI_EVT_FLAG_RECV) {
+		LOG_DBG("Putting buf %p to rx fifo", buf);
+		net_buf_put(&rx.fifo, buf);
+	}
 }
 
 static inline void read_header(void)
 {
 	switch (rx.type) {
-	case BT_HCI_H4_NONE:
+	case H4_NONE:
 		h4_get_type();
 		return;
-	case BT_HCI_H4_EVT:
+	case H4_EVT:
 		get_evt_hdr();
 		break;
-	case BT_HCI_H4_ACL:
+	case H4_ACL:
 		get_acl_hdr();
 		break;
-	case BT_HCI_H4_ISO:
+	case H4_ISO:
 		if (IS_ENABLED(CONFIG_BT_ISO)) {
 			get_iso_hdr();
 			break;
@@ -384,14 +402,14 @@ static inline void process_tx(void)
 	if (!tx.type) {
 		switch (bt_buf_get_type(tx.buf)) {
 		case BT_BUF_ACL_OUT:
-			tx.type = BT_HCI_H4_ACL;
+			tx.type = H4_ACL;
 			break;
 		case BT_BUF_CMD:
-			tx.type = BT_HCI_H4_CMD;
+			tx.type = H4_CMD;
 			break;
 		case BT_BUF_ISO_OUT:
 			if (IS_ENABLED(CONFIG_BT_ISO)) {
-				tx.type = BT_HCI_H4_ISO;
+				tx.type = H4_ISO;
 				break;
 			}
 			__fallthrough;
@@ -403,7 +421,7 @@ static inline void process_tx(void)
 		bytes = uart_fifo_fill(h4_dev, &tx.type, 1);
 		if (bytes != 1) {
 			LOG_WRN("Unable to send H:4 type");
-			tx.type = BT_HCI_H4_NONE;
+			tx.type = H4_NONE;
 			return;
 		}
 	}
@@ -420,7 +438,7 @@ static inline void process_tx(void)
 	}
 
 done:
-	tx.type = BT_HCI_H4_NONE;
+	tx.type = H4_NONE;
 	net_buf_unref(tx.buf);
 	tx.buf = net_buf_get(&tx.fifo, K_NO_WAIT);
 	if (!tx.buf) {
@@ -511,10 +529,8 @@ static int h4_open(void)
 }
 
 #if defined(CONFIG_BT_HCI_SETUP)
-static int h4_setup(const struct bt_hci_setup_params *params)
+static int h4_setup(void)
 {
-	ARG_UNUSED(params);
-
 	/* Extern bt_h4_vnd_setup function.
 	 * This function executes vendor-specific commands sequence to
 	 * initialize BT Controller before BT Host executes Reset sequence.

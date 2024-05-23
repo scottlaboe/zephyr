@@ -4,13 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifdef CONFIG_BT_HAS
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/audio/has.h>
 
 #include "common.h"
-
-#include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(has_test, LOG_LEVEL_DBG);
 
 extern enum bst_result_t bst_result;
 
@@ -44,15 +42,15 @@ static void test_common(void)
 		return;
 	}
 
-	LOG_DBG("Bluetooth initialized");
+	printk("Bluetooth initialized\n");
 
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, AD_SIZE, NULL, 0);
+	err = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, AD_SIZE, NULL, 0);
 	if (err) {
 		FAIL("Advertising failed to start (err %d)\n", err);
 		return;
 	}
 
-	LOG_DBG("Advertising successfully started");
+	printk("Advertising successfully started\n");
 
 	has_param.type = BT_HAS_HEARING_AID_TYPE_BINAURAL;
 	has_param.preset_sync_support = true;
@@ -93,7 +91,7 @@ static void test_common(void)
 		return;
 	}
 
-	LOG_DBG("Presets registered");
+	printk("Presets registered\n");
 
 	PASS("HAS passed\n");
 }
@@ -165,9 +163,12 @@ static const struct bst_test_instance test_has[] = {
 
 struct bst_test_list *test_has_install(struct bst_test_list *tests)
 {
-	if (IS_ENABLED(CONFIG_BT_HAS)) {
-		return bst_add_tests(tests, test_has);
-	} else {
-		return tests;
-	}
+	return bst_add_tests(tests, test_has);
 }
+#else
+struct bst_test_list *test_has_install(struct bst_test_list *tests)
+{
+	return tests;
+}
+
+#endif /* CONFIG_BT_HAS */

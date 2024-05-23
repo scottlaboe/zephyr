@@ -53,8 +53,7 @@ LOG_MODULE_REGISTER(bt_hci, CONFIG_USBD_BT_HCI_LOG_LEVEL);
 #define BT_HCI_EP_VOICE_OUT		0x03
 
 #define BT_HCI_EP_MPS_EVENTS		16
-#define BT_HCI_EP_FS_MPS_ACL_DATA	64
-#define BT_HCI_EP_HS_MPS_ACL_DATA	512
+#define BT_HCI_EP_MPS_ACL_DATA		0	/* Get maximum supported */
 #define BT_HCI_EP_MPS_VOICE		9
 
 #define BT_HCI_EP_INTERVAL_EVENTS	1
@@ -82,36 +81,8 @@ static struct k_thread rx_thread_data;
 static K_KERNEL_STACK_DEFINE(tx_thread_stack, CONFIG_USBD_BT_HCI_TX_STACK_SIZE);
 static struct k_thread tx_thread_data;
 
-/*
- * We do not support voice channels and we do not implement
- * isochronous endpoints handling, these are only available to match
- * the recomendet configuration in the Bluetooth specification and
- * avoid issues with Linux kernel btusb driver.
- */
-struct usbd_bt_hci_desc {
-	struct usb_association_descriptor iad;
-	struct usb_if_descriptor if0;
-	struct usb_ep_descriptor if0_int_ep;
-	struct usb_ep_descriptor if0_in_ep;
-	struct usb_ep_descriptor if0_out_ep;
-	struct usb_ep_descriptor if0_hs_in_ep;
-	struct usb_ep_descriptor if0_hs_out_ep;
-
-	struct usb_if_descriptor if1_0;
-	struct usb_ep_descriptor if1_0_iso_in_ep;
-	struct usb_ep_descriptor if1_0_iso_out_ep;
-	struct usb_if_descriptor if1_1;
-	struct usb_ep_descriptor if1_1_iso_in_ep;
-	struct usb_ep_descriptor if1_1_iso_out_ep;
-
-	struct usb_desc_header nil_desc;
-};
-
 struct bt_hci_data {
 	struct net_buf *acl_buf;
-	struct usbd_bt_hci_desc *const desc;
-	const struct usb_desc_header **const fs_desc;
-	const struct usb_desc_header **const hs_desc;
 	uint16_t acl_len;
 	struct k_sem sync_sem;
 	atomic_t state;
@@ -124,38 +95,55 @@ struct bt_hci_data {
 static const struct usbd_cctx_vendor_req bt_hci_vregs =
 	USBD_VENDOR_REQ(0x00, 0xe0);
 
-static uint8_t bt_hci_get_int_in(struct usbd_class_data *const c_data)
+/*
+ * We do not support voice channels and we do not implement
+ * isochronous endpoints handling, these are only available to match
+ * the recomendet configuration in the Bluetooth specification and
+ * avoid issues with Linux kernel btusb driver.
+ */
+struct usbd_bt_hci_desc {
+	struct usb_association_descriptor iad;
+	struct usb_if_descriptor if0;
+	struct usb_ep_descriptor if0_int_ep;
+	struct usb_ep_descriptor if0_in_ep;
+	struct usb_ep_descriptor if0_out_ep;
+
+	struct usb_if_descriptor if1_0;
+	struct usb_ep_descriptor if1_0_iso_in_ep;
+	struct usb_ep_descriptor if1_0_iso_out_ep;
+	struct usb_if_descriptor if1_1;
+	struct usb_ep_descriptor if1_1_iso_in_ep;
+	struct usb_ep_descriptor if1_1_iso_out_ep;
+
+	struct usb_desc_header nil_desc;
+} __packed;
+
+static uint8_t bt_hci_get_int_in(struct usbd_class_node *const c_nd)
 {
-	struct bt_hci_data *data = usbd_class_get_private(c_data);
-	struct usbd_bt_hci_desc *desc = data->desc;
+	struct usbd_bt_hci_desc *desc = c_nd->data->desc;
 
 	return desc->if0_int_ep.bEndpointAddress;
 }
 
-static uint8_t bt_hci_get_bulk_in(struct usbd_class_data *const c_data)
+static uint8_t bt_hci_get_bulk_in(struct usbd_class_node *const c_nd)
 {
-	struct usbd_contex *uds_ctx = usbd_class_get_ctx(c_data);
-	struct bt_hci_data *data = usbd_class_get_private(c_data);
-	struct usbd_bt_hci_desc *desc = data->desc;
-
-	if (usbd_bus_speed(uds_ctx) == USBD_SPEED_HS) {
-		return desc->if0_hs_in_ep.bEndpointAddress;
-	}
+	struct usbd_bt_hci_desc *desc = c_nd->data->desc;
 
 	return desc->if0_in_ep.bEndpointAddress;
 }
 
-static uint8_t bt_hci_get_bulk_out(struct usbd_class_data *const c_data)
+static uint8_t bt_hci_get_bulk_out(struct usbd_class_node *const c_nd)
 {
-	struct usbd_contex *uds_ctx = usbd_class_get_ctx(c_data);
-	struct bt_hci_data *data = usbd_class_get_private(c_data);
-	struct usbd_bt_hci_desc *desc = data->desc;
-
-	if (usbd_bus_speed(uds_ctx) == USBD_SPEED_HS) {
-		return desc->if0_hs_out_ep.bEndpointAddress;
-	}
+	struct usbd_bt_hci_desc *desc = c_nd->data->desc;
 
 	return desc->if0_out_ep.bEndpointAddress;
+}
+
+static void bt_hci_update_iad(struct usbd_class_node *const c_nd)
+{
+	struct usbd_bt_hci_desc *desc = c_nd->data->desc;
+
+	desc->iad.bFirstInterface = desc->if0.bInterfaceNumber;
 }
 
 struct net_buf *bt_hci_buf_alloc(const uint8_t ep)
@@ -175,10 +163,10 @@ struct net_buf *bt_hci_buf_alloc(const uint8_t ep)
 	return buf;
 }
 
-static void bt_hci_tx_sync_in(struct usbd_class_data *const c_data,
+static void bt_hci_tx_sync_in(struct usbd_class_node *const c_nd,
 			      struct net_buf *const bt_buf, const uint8_t ep)
 {
-	struct bt_hci_data *hci_data = usbd_class_get_private(c_data);
+	struct bt_hci_data *hci_data = c_nd->data->priv;
 	struct net_buf *buf;
 
 	buf = bt_hci_buf_alloc(ep);
@@ -188,14 +176,14 @@ static void bt_hci_tx_sync_in(struct usbd_class_data *const c_data,
 	}
 
 	net_buf_add_mem(buf, bt_buf->data, bt_buf->len);
-	usbd_ep_enqueue(c_data, buf);
+	usbd_ep_enqueue(c_nd, buf);
 	k_sem_take(&hci_data->sync_sem, K_FOREVER);
 	net_buf_unref(buf);
 }
 
 static void bt_hci_tx_thread(void *p1, void *p2, void *p3)
 {
-	struct usbd_class_data *const c_data = p1;
+	struct usbd_class_node *const c_nd = p1;
 
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
@@ -208,10 +196,10 @@ static void bt_hci_tx_thread(void *p1, void *p2, void *p3)
 
 		switch (bt_buf_get_type(bt_buf)) {
 		case BT_BUF_EVT:
-			ep = bt_hci_get_int_in(c_data);
+			ep = bt_hci_get_int_in(c_nd);
 			break;
 		case BT_BUF_ACL_IN:
-			ep = bt_hci_get_bulk_in(c_data);
+			ep = bt_hci_get_bulk_in(c_nd);
 			break;
 		default:
 			LOG_ERR("Unknown type %u", bt_buf_get_type(bt_buf));
@@ -219,7 +207,7 @@ static void bt_hci_tx_thread(void *p1, void *p2, void *p3)
 		}
 
 
-		bt_hci_tx_sync_in(c_data, bt_buf, ep);
+		bt_hci_tx_sync_in(c_nd, bt_buf, ep);
 		net_buf_unref(bt_buf);
 	}
 }
@@ -241,9 +229,9 @@ static void bt_hci_rx_thread(void *a, void *b, void *c)
 	}
 }
 
-static int bt_hci_acl_out_start(struct usbd_class_data *const c_data)
+static int bt_hci_acl_out_start(struct usbd_class_node *const c_nd)
 {
-	struct bt_hci_data *hci_data = usbd_class_get_private(c_data);
+	struct bt_hci_data *hci_data = c_nd->data->priv;
 	struct net_buf *buf;
 	uint8_t ep;
 	int ret;
@@ -256,13 +244,13 @@ static int bt_hci_acl_out_start(struct usbd_class_data *const c_data)
 		return -EBUSY;
 	}
 
-	ep = bt_hci_get_bulk_out(c_data);
+	ep = bt_hci_get_bulk_out(c_nd);
 	buf = bt_hci_buf_alloc(ep);
 	if (buf == NULL) {
 		return -ENOMEM;
 	}
 
-	ret = usbd_ep_enqueue(c_data, buf);
+	ret = usbd_ep_enqueue(c_nd, buf);
 	if (ret) {
 		LOG_ERR("Failed to enqueue net_buf for 0x%02x", ep);
 		net_buf_unref(buf);
@@ -310,10 +298,10 @@ static uint16_t hci_pkt_get_len(struct net_buf *const buf,
 	return (size < hdr_len) ? 0 : len;
 }
 
-static int bt_hci_acl_out_cb(struct usbd_class_data *const c_data,
+static int bt_hci_acl_out_cb(struct usbd_class_node *const c_nd,
 			     struct net_buf *const buf, const int err)
 {
-	struct bt_hci_data *hci_data = usbd_class_get_private(c_data);
+	struct bt_hci_data *hci_data = c_nd->data->priv;
 
 	if (err) {
 		goto restart_out_transfer;
@@ -364,24 +352,24 @@ restart_out_transfer:
 	net_buf_unref(buf);
 	atomic_clear_bit(&hci_data->state, BT_HCI_ACL_RX_ENGAGED);
 
-	return bt_hci_acl_out_start(c_data);
+	return bt_hci_acl_out_start(c_nd);
 }
 
-static int bt_hci_request(struct usbd_class_data *const c_data,
+static int bt_hci_request(struct usbd_class_node *const c_nd,
 			  struct net_buf *buf, int err)
 {
-	struct usbd_contex *uds_ctx = usbd_class_get_ctx(c_data);
-	struct bt_hci_data *hci_data = usbd_class_get_private(c_data);
+	struct usbd_contex *uds_ctx = c_nd->data->uds_ctx;
+	struct bt_hci_data *hci_data = c_nd->data->priv;
 	struct udc_buf_info *bi;
 
 	bi = udc_get_buf_info(buf);
 
-	if (bi->ep == bt_hci_get_bulk_out(c_data)) {
-		return bt_hci_acl_out_cb(c_data, buf, err);
+	if (bi->ep == bt_hci_get_bulk_out(c_nd)) {
+		return bt_hci_acl_out_cb(c_nd, buf, err);
 	}
 
-	if (bi->ep == bt_hci_get_bulk_in(c_data) ||
-	    bi->ep == bt_hci_get_int_in(c_data)) {
+	if (bi->ep == bt_hci_get_bulk_in(c_nd) ||
+	    bi->ep == bt_hci_get_int_in(c_nd)) {
 		k_sem_give(&hci_data->sync_sem);
 
 		return 0;
@@ -390,34 +378,34 @@ static int bt_hci_request(struct usbd_class_data *const c_data,
 	return usbd_ep_buf_free(uds_ctx, buf);
 }
 
-static void bt_hci_update(struct usbd_class_data *const c_data,
+static void bt_hci_update(struct usbd_class_node *const c_nd,
 			  uint8_t iface, uint8_t alternate)
 {
 	LOG_DBG("New configuration, interface %u alternate %u",
 		iface, alternate);
 }
 
-static void bt_hci_enable(struct usbd_class_data *const c_data)
+static void bt_hci_enable(struct usbd_class_node *const c_nd)
 {
-	struct bt_hci_data *hci_data = usbd_class_get_private(c_data);
+	struct bt_hci_data *hci_data = c_nd->data->priv;
 
 	atomic_set_bit(&hci_data->state, BT_HCI_CLASS_ENABLED);
 	LOG_INF("Configuration enabled");
 
-	if (bt_hci_acl_out_start(c_data)) {
+	if (bt_hci_acl_out_start(c_nd)) {
 		LOG_ERR("Failed to start ACL OUT transfer");
 	}
 }
 
-static void bt_hci_disable(struct usbd_class_data *const c_data)
+static void bt_hci_disable(struct usbd_class_node *const c_nd)
 {
-	struct bt_hci_data *hci_data = usbd_class_get_private(c_data);
+	struct bt_hci_data *hci_data = c_nd->data->priv;
 
 	atomic_clear_bit(&hci_data->state, BT_HCI_CLASS_ENABLED);
 	LOG_INF("Configuration disabled");
 }
 
-static int bt_hci_ctd(struct usbd_class_data *const c_data,
+static int bt_hci_ctd(struct usbd_class_node *const c_nd,
 		      const struct usb_setup_packet *const setup,
 		      const struct net_buf *const buf)
 {
@@ -445,25 +433,10 @@ static int bt_hci_ctd(struct usbd_class_data *const c_data,
 	return 0;
 }
 
-static void *bt_hci_get_desc(struct usbd_class_data *const c_data,
-			     const enum usbd_speed speed)
-{
-	struct bt_hci_data *data = usbd_class_get_private(c_data);
-
-	if (speed == USBD_SPEED_HS) {
-		return data->hs_desc;
-	}
-
-	return data->fs_desc;
-}
-
-static int bt_hci_init(struct usbd_class_data *const c_data)
+static int bt_hci_init(struct usbd_class_node *const c_nd)
 {
 
-	struct bt_hci_data *data = usbd_class_get_private(c_data);
-	struct usbd_bt_hci_desc *desc = data->desc;
-
-	desc->iad.bFirstInterface = desc->if0.bInterfaceNumber;
+	bt_hci_update_iad(c_nd);
 
 	return 0;
 }
@@ -474,7 +447,6 @@ static struct usbd_class_api bt_hci_api = {
 	.enable = bt_hci_enable,
 	.disable = bt_hci_disable,
 	.control_to_dev = bt_hci_ctd,
-	.get_desc = bt_hci_get_desc,
 	.init = bt_hci_init,
 };
 
@@ -517,7 +489,7 @@ static struct usbd_bt_hci_desc bt_hci_desc_##n = {				\
 		.bDescriptorType = USB_DESC_ENDPOINT,				\
 		.bEndpointAddress = BT_HCI_EP_ACL_DATA_IN,			\
 		.bmAttributes = USB_EP_TYPE_BULK,				\
-		.wMaxPacketSize = sys_cpu_to_le16(BT_HCI_EP_FS_MPS_ACL_DATA),	\
+		.wMaxPacketSize = sys_cpu_to_le16(BT_HCI_EP_MPS_ACL_DATA),	\
 		.bInterval = 0,							\
 	},									\
 										\
@@ -526,27 +498,10 @@ static struct usbd_bt_hci_desc bt_hci_desc_##n = {				\
 		.bDescriptorType = USB_DESC_ENDPOINT,				\
 		.bEndpointAddress = BT_HCI_EP_ACL_DATA_OUT,			\
 		.bmAttributes = USB_EP_TYPE_BULK,				\
-		.wMaxPacketSize = sys_cpu_to_le16(BT_HCI_EP_FS_MPS_ACL_DATA),	\
+		.wMaxPacketSize = sys_cpu_to_le16(BT_HCI_EP_MPS_ACL_DATA),	\
 		.bInterval = 0,							\
 	},									\
 										\
-	.if0_hs_in_ep = {							\
-		.bLength = sizeof(struct usb_ep_descriptor),			\
-		.bDescriptorType = USB_DESC_ENDPOINT,				\
-		.bEndpointAddress = BT_HCI_EP_ACL_DATA_IN,			\
-		.bmAttributes = USB_EP_TYPE_BULK,				\
-		.wMaxPacketSize = sys_cpu_to_le16(BT_HCI_EP_HS_MPS_ACL_DATA),	\
-		.bInterval = 0,							\
-	},									\
-										\
-	.if0_hs_out_ep = {							\
-		.bLength = sizeof(struct usb_ep_descriptor),			\
-		.bDescriptorType = USB_DESC_ENDPOINT,				\
-		.bEndpointAddress = BT_HCI_EP_ACL_DATA_OUT,			\
-		.bmAttributes = USB_EP_TYPE_BULK,				\
-		.wMaxPacketSize = sys_cpu_to_le16(BT_HCI_EP_HS_MPS_ACL_DATA),	\
-		.bInterval = 0,							\
-	},									\
 	.if1_0 = {								\
 		.bLength = sizeof(struct usb_if_descriptor),			\
 		.bDescriptorType = USB_DESC_INTERFACE,				\
@@ -611,48 +566,20 @@ static struct usbd_bt_hci_desc bt_hci_desc_##n = {				\
 		.bLength = 0,							\
 		.bDescriptorType = 0,						\
 	},									\
-};										\
-										\
-const static struct usb_desc_header *bt_hci_fs_desc_##n[] = {			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.iad,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if0,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if0_int_ep,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if0_in_ep,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if0_out_ep,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_0,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_0_iso_in_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_0_iso_out_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_1,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_1_iso_in_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_1_iso_out_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.nil_desc,			\
-};										\
-										\
-const static struct usb_desc_header *bt_hci_hs_desc_##n[] = {			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.iad,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if0,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if0_int_ep,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if0_hs_in_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if0_hs_out_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_0,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_0_iso_in_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_0_iso_out_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_1,			\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_1_iso_in_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.if1_1_iso_out_ep,		\
-	(struct usb_desc_header *) &bt_hci_desc_##n.nil_desc,			\
 };
 
 #define BT_HCI_CLASS_DATA_DEFINE(n)						\
 	static struct bt_hci_data bt_hci_data_##n = {				\
 		.sync_sem = Z_SEM_INITIALIZER(bt_hci_data_##n.sync_sem, 0, 1),	\
-		.desc = &bt_hci_desc_##n,					\
-		.fs_desc = bt_hci_fs_desc_##n,					\
-		.hs_desc = bt_hci_hs_desc_##n,					\
 	};									\
 										\
-	USBD_DEFINE_CLASS(bt_hci_##n, &bt_hci_api,				\
-			  &bt_hci_data_##n, &bt_hci_vregs);
+	static struct usbd_class_data bt_hci_class_##n = {			\
+		.desc = (struct usb_desc_header *)&bt_hci_desc_##n,		\
+		.priv = &bt_hci_data_##n,					\
+		.v_reqs = &bt_hci_vregs,					\
+	};									\
+										\
+	USBD_DEFINE_CLASS(bt_hci_##n, &bt_hci_api, &bt_hci_class_##n);
 
 /*
  * Bluetooth subsystem does not support multiple HCI instances,

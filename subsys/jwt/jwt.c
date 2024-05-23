@@ -255,7 +255,11 @@ static int setup_prng(void)
 
 	uint8_t entropy[TC_AES_KEY_SIZE + TC_AES_BLOCK_SIZE];
 
-	sys_rand_get(entropy, sizeof(entropy));
+	for (int i = 0; i < sizeof(entropy); i += sizeof(uint32_t)) {
+		uint32_t rv = sys_rand32_get();
+
+		memcpy(entropy + i, &rv, sizeof(uint32_t));
+	}
 
 	int res = tc_ctr_prng_init(&prng_state,
 				   (const uint8_t *) &entropy, sizeof(entropy),

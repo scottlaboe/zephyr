@@ -15,8 +15,6 @@
 /**
  * @brief GNSS Interface
  * @defgroup gnss_interface GNSS Interface
- * @since 3.6
- * @version 0.1.0
  * @ingroup io_interfaces
  * @{
  */
@@ -156,7 +154,7 @@ struct gnss_info {
 	/** Number of satellites being tracked */
 	uint16_t satellites_cnt;
 	/** Horizontal dilution of precision in 1/1000 */
-	uint32_t hdop;
+	uint16_t hdop;
 	/** The fix status */
 	enum gnss_fix_status fix_status;
 	/** The fix quality */

@@ -24,16 +24,12 @@ properties:
   taper-current:
     type: int
     required: true
-    description: |
-      Current in mA slightly higher than the taper current threshold at which
-      point the charger cuts off charging.
+    description: Battery Taper current in mAh
 
   terminate-voltage:
     type: int
     required: true
-    description: |
-      Minimum operating voltage of your system. This is the target where the
-      gauge typically reports 0% capacity. In mV.
+    description: Battery Terminate Voltage in mV
 
   chemistry-id:
     type: int

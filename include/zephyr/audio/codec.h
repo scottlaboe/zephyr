@@ -18,8 +18,6 @@
  * @brief Abstraction for audio codecs
  *
  * @defgroup audio_codec_interface Audio Codec Interface
- * @since 1.13
- * @version 0.1.0
  * @ingroup audio_interface
  * @{
  */

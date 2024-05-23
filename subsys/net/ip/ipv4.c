@@ -23,7 +23,7 @@ LOG_MODULE_REGISTER(net_ipv4, CONFIG_NET_IPV4_LOG_LEVEL);
 #include "icmpv4.h"
 #include "udp_internal.h"
 #include "tcp_internal.h"
-#include "dhcpv4/dhcpv4_internal.h"
+#include "dhcpv4.h"
 #include "ipv4.h"
 
 BUILD_ASSERT(sizeof(struct in_addr) == NET_IPV4_ADDR_SIZE);
@@ -37,7 +37,8 @@ int net_ipv4_create_full(struct net_pkt *pkt,
 			 uint8_t tos,
 			 uint16_t id,
 			 uint8_t flags,
-			 uint16_t offset)
+			 uint16_t offset,
+			 uint8_t ttl)
 {
 	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(ipv4_access, struct net_ipv4_hdr);
 	struct net_ipv4_hdr *ipv4_hdr;
@@ -54,24 +55,10 @@ int net_ipv4_create_full(struct net_pkt *pkt,
 	ipv4_hdr->id[1]     = id;
 	ipv4_hdr->offset[0] = (offset >> 8) | (flags << 5);
 	ipv4_hdr->offset[1] = offset;
+	ipv4_hdr->ttl       = ttl;
 
-	ipv4_hdr->ttl = net_pkt_ipv4_ttl(pkt);
-	if (ipv4_hdr->ttl == 0U) {
-		if (net_ipv4_is_addr_mcast(dst)) {
-			if (net_pkt_context(pkt) != NULL) {
-				ipv4_hdr->ttl =
-					net_context_get_ipv4_mcast_ttl(net_pkt_context(pkt));
-			} else {
-				ipv4_hdr->ttl = net_if_ipv4_get_mcast_ttl(net_pkt_iface(pkt));
-			}
-		} else {
-			if (net_pkt_context(pkt) != NULL) {
-				ipv4_hdr->ttl =
-					net_context_get_ipv4_ttl(net_pkt_context(pkt));
-			} else {
-				ipv4_hdr->ttl = net_if_ipv4_get_ttl(net_pkt_iface(pkt));
-			}
-		}
+	if (ttl == 0U) {
+		ipv4_hdr->ttl = net_if_ipv4_get_ttl(net_pkt_iface(pkt));
 	}
 
 	ipv4_hdr->proto     = 0U;
@@ -96,7 +83,8 @@ int net_ipv4_create(struct net_pkt *pkt,
 		net_ipv4_set_ecn(&tos, net_pkt_ip_ecn(pkt));
 	}
 
-	return net_ipv4_create_full(pkt, src, dst, tos, 0U, 0U, 0U);
+	return net_ipv4_create_full(pkt, src, dst, tos, 0U, 0U, 0U,
+				    net_pkt_ipv4_ttl(pkt));
 }
 
 int net_ipv4_finalize(struct net_pkt *pkt, uint8_t next_header_proto)
@@ -232,7 +220,7 @@ int net_ipv4_parse_hdr_options(struct net_pkt *pkt,
 }
 #endif
 
-enum net_verdict net_ipv4_input(struct net_pkt *pkt, bool is_loopback)
+enum net_verdict net_ipv4_input(struct net_pkt *pkt)
 {
 	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(ipv4_access, struct net_ipv4_hdr);
 	NET_PKT_DATA_ACCESS_DEFINE(udp_access, struct net_udp_hdr);
@@ -246,7 +234,7 @@ enum net_verdict net_ipv4_input(struct net_pkt *pkt, bool is_loopback)
 	uint8_t opts_len;
 	int pkt_len;
 
-#if defined(CONFIG_NET_L2_IPIP)
+#if defined(CONFIG_NET_L2_VIRTUAL)
 	struct net_pkt_cursor hdr_start;
 
 	net_pkt_cursor_backup(pkt, &hdr_start);
@@ -293,19 +281,6 @@ enum net_verdict net_ipv4_input(struct net_pkt *pkt, bool is_loopback)
 		net_pkt_update_length(pkt, pkt_len);
 	}
 
-	if (!is_loopback) {
-		if (net_ipv4_is_addr_loopback((struct in_addr *)hdr->dst) ||
-		    net_ipv4_is_addr_loopback((struct in_addr *)hdr->src)) {
-			NET_DBG("DROP: localhost packet");
-			goto drop;
-		}
-
-		if (net_ipv4_is_my_addr((struct in_addr *)hdr->src)) {
-			NET_DBG("DROP: src addr is %s", "mine");
-			goto drop;
-		}
-	}
-
 	if (net_ipv4_is_addr_mcast((struct in_addr *)hdr->src)) {
 		NET_DBG("DROP: src addr is %s", "mcast");
 		goto drop;
@@ -317,8 +292,7 @@ enum net_verdict net_ipv4_input(struct net_pkt *pkt, bool is_loopback)
 	}
 
 	if (net_ipv4_is_addr_unspecified((struct in_addr *)hdr->src) &&
-	    !net_ipv4_is_addr_bcast(net_pkt_iface(pkt), (struct in_addr *)hdr->dst) &&
-	    (hdr->proto != IPPROTO_IGMP)) {
+	    !net_ipv4_is_addr_bcast(net_pkt_iface(pkt), (struct in_addr *)hdr->dst)) {
 		NET_DBG("DROP: src addr is %s", "unspecified");
 		goto drop;
 	}
@@ -403,27 +377,21 @@ enum net_verdict net_ipv4_input(struct net_pkt *pkt, bool is_loopback)
 		}
 		break;
 
-#if defined(CONFIG_NET_L2_IPIP)
+#if defined(CONFIG_NET_L2_VIRTUAL)
 	case IPPROTO_IPV6:
 	case IPPROTO_IPIP: {
-		struct sockaddr_in remote_addr = { 0 };
-		struct net_if *tunnel_iface;
+		struct net_addr remote_addr;
 
-		remote_addr.sin_family = AF_INET;
-		net_ipv4_addr_copy_raw((uint8_t *)&remote_addr.sin_addr, hdr->src);
-
-		net_pkt_set_remote_address(pkt, (struct sockaddr *)&remote_addr,
-					   sizeof(struct sockaddr_in));
+		remote_addr.family = AF_INET;
+		net_ipv4_addr_copy_raw((uint8_t *)&remote_addr.in_addr, hdr->src);
 
 		/* Get rid of the old IP header */
 		net_pkt_cursor_restore(pkt, &hdr_start);
 		net_pkt_pull(pkt, net_pkt_ip_hdr_len(pkt) +
 			     net_pkt_ipv4_opts_len(pkt));
 
-		tunnel_iface = net_ipip_get_virtual_interface(net_pkt_iface(pkt));
-		if (tunnel_iface != NULL && net_if_l2(tunnel_iface)->recv != NULL) {
-			return net_if_l2(tunnel_iface)->recv(net_pkt_iface(pkt), pkt);
-		}
+		return net_virtual_input(net_pkt_iface(pkt), &remote_addr,
+					 pkt);
 	}
 #endif
 	}

@@ -4,6 +4,4 @@ tests:
       - drivers
       - counter
     depends_on: counter
-    platform_allow:
-      - nrf52840dk/nrf52840
-      - nrf52_bsim
+    platform_allow: nrf52840dk_nrf52840

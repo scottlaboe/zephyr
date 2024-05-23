@@ -21,7 +21,6 @@ extern "C" {
 /**
  * @brief System and device power management
  * @defgroup subsys_pm Power Management (PM)
- * @since 1.2
  * @ingroup os_services
  * @{
  * @}
@@ -30,7 +29,6 @@ extern "C" {
 /**
  * @brief System Power Management API
  * @defgroup subsys_pm_sys System
- * @since 1.2
  * @ingroup subsys_pm
  * @{
  */

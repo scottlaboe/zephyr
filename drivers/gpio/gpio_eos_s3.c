@@ -311,8 +311,6 @@ static int gpio_eos_s3_pin_interrupt_configure(const struct device *dev,
 				break;
 			case GPIO_INT_TRIG_BOTH:
 				return -ENOTSUP;
-			default:
-				return -EINVAL;
 			}
 		}
 

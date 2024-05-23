@@ -9,7 +9,7 @@
 #ifdef CONFIG_MMU
 
 #include <stdint.h>
-#include <zephyr/sys/sflist.h>
+#include <zephyr/sys/slist.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/kernel/mm.h>
@@ -26,7 +26,7 @@
  * core kernel.
  */
 #define Z_PHYS_RAM_START	((uintptr_t)CONFIG_SRAM_BASE_ADDRESS)
-#define Z_PHYS_RAM_SIZE		(KB(CONFIG_SRAM_SIZE))
+#define Z_PHYS_RAM_SIZE		((size_t)KB(CONFIG_SRAM_SIZE))
 #define Z_PHYS_RAM_END		(Z_PHYS_RAM_START + Z_PHYS_RAM_SIZE)
 #define Z_NUM_PAGE_FRAMES	(Z_PHYS_RAM_SIZE / (size_t)CONFIG_MMU_PAGE_SIZE)
 
@@ -36,8 +36,8 @@
 #define Z_VIRT_RAM_END		(Z_VIRT_RAM_START + Z_VIRT_RAM_SIZE)
 
 /* Boot-time virtual location of the kernel image. */
-#define Z_KERNEL_VIRT_START	((uint8_t *)&z_mapped_start[0])
-#define Z_KERNEL_VIRT_END	((uint8_t *)&z_mapped_end[0])
+#define Z_KERNEL_VIRT_START	((uint8_t *)(&z_mapped_start))
+#define Z_KERNEL_VIRT_END	((uint8_t *)(&z_mapped_end))
 #define Z_KERNEL_VIRT_SIZE	(Z_KERNEL_VIRT_END - Z_KERNEL_VIRT_START)
 
 #define Z_VM_OFFSET	 ((CONFIG_KERNEL_VM_BASE + CONFIG_KERNEL_VM_OFFSET) - \
@@ -54,7 +54,7 @@
 #define Z_FREE_VM_START	Z_BOOT_PHYS_TO_VIRT(Z_PHYS_RAM_END)
 #else
 #define Z_FREE_VM_START	Z_KERNEL_VIRT_END
-#endif /* CONFIG_ARCH_MAPS_ALL_RAM */
+#endif
 
 /*
  * Macros and data structures for physical page frame accounting,
@@ -64,20 +64,13 @@
 
 /*
  * z_page_frame flags bits
- *
- * Requirements:
- * - Z_PAGE_FRAME_FREE must be one of the possible sfnode flag bits
- * - All bit values must be lower than CONFIG_MMU_PAGE_SIZE
  */
 
-/** This physical page is free and part of the free list */
-#define Z_PAGE_FRAME_FREE		BIT(0)
+/** This page contains critical kernel data and will never be swapped */
+#define Z_PAGE_FRAME_PINNED		BIT(0)
 
 /** This physical page is reserved by hardware; we will never use it */
 #define Z_PAGE_FRAME_RESERVED		BIT(1)
-
-/** This page contains critical kernel data and will never be swapped */
-#define Z_PAGE_FRAME_PINNED		BIT(2)
 
 /**
  * This physical page is mapped to some virtual memory address
@@ -85,17 +78,17 @@
  * Currently, we just support one mapping per page frame. If a page frame
  * is mapped to multiple virtual pages then it must be pinned.
  */
-#define Z_PAGE_FRAME_MAPPED		BIT(3)
+#define Z_PAGE_FRAME_MAPPED		BIT(2)
 
 /**
  * This page frame is currently involved in a page-in/out operation
  */
-#define Z_PAGE_FRAME_BUSY		BIT(4)
+#define Z_PAGE_FRAME_BUSY		BIT(3)
 
 /**
  * This page frame has a clean copy in the backing store
  */
-#define Z_PAGE_FRAME_BACKED		BIT(5)
+#define Z_PAGE_FRAME_BACKED		BIT(4)
 
 /**
  * Data structure for physical page frames
@@ -105,89 +98,68 @@
  */
 struct z_page_frame {
 	union {
-		/*
-		 * If mapped, Z_PAGE_FRAME_* flags and virtual address
-		 * this page is mapped to.
-		 */
-		uintptr_t va_and_flags;
+		/* If mapped, virtual address this page is mapped to */
+		void *addr;
 
-		/*
-		 * If unmapped and available, free pages list membership
-		 * with the Z_PAGE_FRAME_FREE flag.
-		 */
-		sys_sfnode_t node;
+		/* If unmapped and available, free pages list membership. */
+		sys_snode_t node;
 	};
 
-	/* Backing store and eviction algorithms may both need to
-	 * require additional per-frame custom data for accounting purposes.
-	 * They should declare their own array with indices matching
-	 * z_page_frames[] ones whenever possible.
-	 * They may also want additional flags bits that could be stored here
-	 * and they shouldn't clobber each other. At all costs the total
-	 * size of struct z_page_frame must be minimized.
-	 */
-};
+	/* Z_PAGE_FRAME_* flags */
+	uint8_t flags;
 
-/* Note: this must be false for the other flag bits to be valid */
-static inline bool z_page_frame_is_free(struct z_page_frame *pf)
-{
-	return (pf->va_and_flags & Z_PAGE_FRAME_FREE) != 0U;
-}
+	/* TODO: Backing store and eviction algorithms may both need to
+	 * introduce custom members for accounting purposes. Come up with
+	 * a layer of abstraction for this. They may also want additional
+	 * flags bits which shouldn't clobber each other. At all costs
+	 * the total size of struct z_page_frame must be minimized.
+	 */
+
+	/* On Xtensa we can't pack this struct because of the memory alignment.
+	 */
+#ifdef CONFIG_XTENSA
+} __aligned(4);
+#else
+} __packed;
+#endif
 
 static inline bool z_page_frame_is_pinned(struct z_page_frame *pf)
 {
-	return (pf->va_and_flags & Z_PAGE_FRAME_PINNED) != 0U;
+	return (pf->flags & Z_PAGE_FRAME_PINNED) != 0U;
 }
 
 static inline bool z_page_frame_is_reserved(struct z_page_frame *pf)
 {
-	return (pf->va_and_flags & Z_PAGE_FRAME_RESERVED) != 0U;
+	return (pf->flags & Z_PAGE_FRAME_RESERVED) != 0U;
 }
 
 static inline bool z_page_frame_is_mapped(struct z_page_frame *pf)
 {
-	return (pf->va_and_flags & Z_PAGE_FRAME_MAPPED) != 0U;
+	return (pf->flags & Z_PAGE_FRAME_MAPPED) != 0U;
 }
 
 static inline bool z_page_frame_is_busy(struct z_page_frame *pf)
 {
-	return (pf->va_and_flags & Z_PAGE_FRAME_BUSY) != 0U;
+	return (pf->flags & Z_PAGE_FRAME_BUSY) != 0U;
 }
 
 static inline bool z_page_frame_is_backed(struct z_page_frame *pf)
 {
-	return (pf->va_and_flags & Z_PAGE_FRAME_BACKED) != 0U;
+	return (pf->flags & Z_PAGE_FRAME_BACKED) != 0U;
 }
 
 static inline bool z_page_frame_is_evictable(struct z_page_frame *pf)
 {
-	return (!z_page_frame_is_free(pf) &&
-		!z_page_frame_is_reserved(pf) &&
-		z_page_frame_is_mapped(pf) &&
-		!z_page_frame_is_pinned(pf) &&
-		!z_page_frame_is_busy(pf));
+	return (!z_page_frame_is_reserved(pf) && z_page_frame_is_mapped(pf) &&
+		!z_page_frame_is_pinned(pf) && !z_page_frame_is_busy(pf));
 }
 
-/* If true, page is not being used for anything, is not reserved, is not
- * a member of some free pages list, isn't busy, and is ready to be mapped
- * in memory
+/* If true, page is not being used for anything, is not reserved, is a member
+ * of some free pages list, isn't busy, and may be mapped in memory
  */
 static inline bool z_page_frame_is_available(struct z_page_frame *page)
 {
-	return page->va_and_flags == 0U;
-}
-
-static inline void z_page_frame_set(struct z_page_frame *pf, uint8_t flags)
-{
-	pf->va_and_flags |= flags;
-}
-
-static inline void z_page_frame_clear(struct z_page_frame *pf, uint8_t flags)
-{
-	/* ensure bit inversion to follow is done on the proper type width */
-	uintptr_t wide_flags = flags;
-
-	pf->va_and_flags &= ~wide_flags;
+	return page->flags == 0U;
 }
 
 static inline void z_assert_phys_aligned(uintptr_t phys)
@@ -208,16 +180,13 @@ static inline uintptr_t z_page_frame_to_phys(struct z_page_frame *pf)
 /* Presumes there is but one mapping in the virtual address space */
 static inline void *z_page_frame_to_virt(struct z_page_frame *pf)
 {
-	uintptr_t flags_mask = CONFIG_MMU_PAGE_SIZE - 1;
-
-	return (void *)(pf->va_and_flags & ~flags_mask);
+	return pf->addr;
 }
 
 static inline bool z_is_page_frame(uintptr_t phys)
 {
 	z_assert_phys_aligned(phys);
-	return IN_RANGE(phys, (uintptr_t)Z_PHYS_RAM_START,
-			(uintptr_t)(Z_PHYS_RAM_END - 1));
+	return (phys >= Z_PHYS_RAM_START) && (phys < Z_PHYS_RAM_END);
 }
 
 static inline struct z_page_frame *z_phys_to_page_frame(uintptr_t phys)
@@ -237,12 +206,7 @@ static inline void z_mem_assert_virtual_region(uint8_t *addr, size_t size)
 		 "unaligned size %zu", size);
 	__ASSERT(!Z_DETECT_POINTER_OVERFLOW(addr, size),
 		 "region %p size %zu zero or wraps around", addr, size);
-	__ASSERT(IN_RANGE((uintptr_t)addr,
-			  (uintptr_t)Z_VIRT_RAM_START,
-			  ((uintptr_t)Z_VIRT_RAM_END - 1)) &&
-		 IN_RANGE(((uintptr_t)addr + size - 1),
-			  (uintptr_t)Z_VIRT_RAM_START,
-			  ((uintptr_t)Z_VIRT_RAM_END - 1)),
+	__ASSERT(addr >= Z_VIRT_RAM_START && addr + size < Z_VIRT_RAM_END,
 		 "invalid virtual address region %p (%zu)", addr, size);
 }
 
@@ -250,6 +214,9 @@ static inline void z_mem_assert_virtual_region(uint8_t *addr, size_t size)
  * concisely to printk.
  */
 void z_page_frames_dump(void);
+
+/* Number of free page frames. This information may go stale immediately */
+extern size_t z_free_page_count;
 
 /* Convenience macro for iterating over all page frames */
 #define Z_PAGE_FRAME_FOREACH(_phys, _pageframe) \
@@ -267,7 +234,7 @@ void z_page_frames_dump(void);
 				     CONFIG_MMU_PAGE_SIZE))
 #else
 #define Z_VM_RESERVED	0
-#endif /* CONFIG_DEMAND_PAGING */
+#endif
 
 #ifdef CONFIG_DEMAND_PAGING
 /*

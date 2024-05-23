@@ -11,9 +11,6 @@
  *
  * @defgroup bt_media_proxy Media Proxy
  *
- * @since 3.0
- * @version 0.8.0
- *
  * @ingroup bluetooth
  * @{
  *
@@ -34,6 +31,9 @@
  * application, or it may be a Media Control Service relaying requests
  * from a remote Media Control Client. There may be either local or
  * remote control, or both, or even multiple instances of each.
+ *
+ * [Experimental] Users should note that the APIs can change
+ * as a part of ongoing development.
  */
 
 #include <stdint.h>

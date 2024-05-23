@@ -16,12 +16,25 @@
 #include <zephyr/drivers/clock_control/stm32_clock_control.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/pinctrl.h>
-#include <zephyr/cache.h>
 
 #include "i2s_ll_stm32.h"
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
 LOG_MODULE_REGISTER(i2s_ll_stm32);
+
+/* FIXME change to
+ * #if __DCACHE_PRESENT == 1
+ * when cache support is added
+ */
+#if 0
+#define DCACHE_INVALIDATE(addr, size) \
+	SCB_InvalidateDCache_by_Addr((uint32_t *)addr, size)
+#define DCACHE_CLEAN(addr, size) \
+	SCB_CleanDCache_by_Addr((uint32_t *)addr, size)
+#else
+#define DCACHE_INVALIDATE(addr, size) {; }
+#define DCACHE_CLEAN(addr, size) {; }
+#endif
 
 #define MODULO_INC(val, max) { val = (++val < max) ? val : 0; }
 
@@ -174,9 +187,6 @@ static int i2s_stm32_configure(const struct device *dev, enum i2s_dir dir,
 	int ret;
 
 	if (dir == I2S_DIR_RX) {
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_i2s)
-		return -ENOSYS;
-#endif
 		stream = &dev_data->rx;
 	} else if (dir == I2S_DIR_TX) {
 		stream = &dev_data->tx;
@@ -539,11 +549,7 @@ static void dma_rx_callback(const struct device *dma_dev, void *arg,
 
 	ret = reload_dma(stream->dev_dma, stream->dma_channel,
 			&stream->dma_cfg,
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_i2s)
-			(void *)LL_SPI_DMA_GetRxRegAddr(cfg->i2s),
-#else
 			(void *)LL_SPI_DMA_GetRegAddr(cfg->i2s),
-#endif
 			stream->mem_block,
 			stream->cfg.block_size);
 	if (ret < 0) {
@@ -552,7 +558,7 @@ static void dma_rx_callback(const struct device *dma_dev, void *arg,
 	}
 
 	/* Assure cache coherency after DMA write operation */
-	sys_cache_data_invd_range(mblk_tmp, stream->cfg.block_size);
+	DCACHE_INVALIDATE(mblk_tmp, stream->cfg.block_size);
 
 	/* All block data received */
 	ret = queue_put(&stream->mem_block_queue, mblk_tmp,
@@ -623,17 +629,13 @@ static void dma_tx_callback(const struct device *dma_dev, void *arg,
 	k_sem_give(&stream->sem);
 
 	/* Assure cache coherency before DMA read operation */
-	sys_cache_data_flush_range(stream->mem_block, mem_block_size);
+	DCACHE_CLEAN(stream->mem_block, mem_block_size);
 
 	ret = reload_dma(stream->dev_dma, stream->dma_channel,
 			&stream->dma_cfg,
 			stream->mem_block,
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_i2s)
-			(void *)LL_SPI_DMA_GetTxRegAddr(cfg->i2s),
-#else
 			(void *)LL_SPI_DMA_GetRegAddr(cfg->i2s),
-#endif
-			mem_block_size);
+			stream->cfg.block_size);
 	if (ret < 0) {
 		LOG_DBG("Failed to start TX DMA transfer: %d", ret);
 		goto tx_disable;
@@ -647,7 +649,6 @@ tx_disable:
 
 static uint32_t i2s_stm32_irq_count;
 static uint32_t i2s_stm32_irq_ovr_count;
-static uint32_t i2s_stm32_irq_udr_count;
 
 static void i2s_stm32_isr(const struct device *dev)
 {
@@ -662,12 +663,6 @@ static void i2s_stm32_isr(const struct device *dev)
 	if (LL_I2S_IsActiveFlag_OVR(cfg->i2s)) {
 		i2s_stm32_irq_ovr_count++;
 		LL_I2S_ClearFlag_OVR(cfg->i2s);
-	}
-
-	/* NOTE: UDR error must be explicitly cleared on STM32H7 */
-	if (LL_I2S_IsActiveFlag_UDR(cfg->i2s)) {
-		i2s_stm32_irq_udr_count++;
-		LL_I2S_ClearFlag_UDR(cfg->i2s);
 	}
 
 	i2s_stm32_irq_count++;
@@ -741,11 +736,7 @@ static int rx_stream_start(struct stream *stream, const struct device *dev)
 
 	ret = start_dma(stream->dev_dma, stream->dma_channel,
 			&stream->dma_cfg,
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_i2s)
-			(void *)LL_SPI_DMA_GetRxRegAddr(cfg->i2s),
-#else
 			(void *)LL_SPI_DMA_GetRegAddr(cfg->i2s),
-#endif
 			stream->src_addr_increment, stream->mem_block,
 			stream->dst_addr_increment, stream->fifo_threshold,
 			stream->cfg.block_size);
@@ -756,17 +747,8 @@ static int rx_stream_start(struct stream *stream, const struct device *dev)
 
 	LL_I2S_EnableDMAReq_RX(cfg->i2s);
 
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_i2s)
-	LL_I2S_EnableIT_OVR(cfg->i2s);
-	LL_I2S_EnableIT_UDR(cfg->i2s);
-	LL_I2S_EnableIT_FRE(cfg->i2s);
-	LL_I2S_Enable(cfg->i2s);
-	LL_SPI_StartMasterTransfer(cfg->i2s);
-#else
 	LL_I2S_EnableIT_ERR(cfg->i2s);
 	LL_I2S_Enable(cfg->i2s);
-#endif
-
 
 	return 0;
 }
@@ -785,7 +767,7 @@ static int tx_stream_start(struct stream *stream, const struct device *dev)
 	k_sem_give(&stream->sem);
 
 	/* Assure cache coherency before DMA read operation */
-	sys_cache_data_flush_range(stream->mem_block, mem_block_size);
+	DCACHE_CLEAN(stream->mem_block, mem_block_size);
 
 	if (stream->master) {
 		LL_I2S_SetTransferMode(cfg->i2s, LL_I2S_MODE_MASTER_TX);
@@ -799,11 +781,7 @@ static int tx_stream_start(struct stream *stream, const struct device *dev)
 	ret = start_dma(stream->dev_dma, stream->dma_channel,
 			&stream->dma_cfg,
 			stream->mem_block, stream->src_addr_increment,
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_i2s)
-			(void *)LL_SPI_DMA_GetTxRegAddr(cfg->i2s),
-#else
 			(void *)LL_SPI_DMA_GetRegAddr(cfg->i2s),
-#endif
 			stream->dst_addr_increment, stream->fifo_threshold,
 			stream->cfg.block_size);
 	if (ret < 0) {
@@ -813,17 +791,8 @@ static int tx_stream_start(struct stream *stream, const struct device *dev)
 
 	LL_I2S_EnableDMAReq_TX(cfg->i2s);
 
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_i2s)
-	LL_I2S_EnableIT_OVR(cfg->i2s);
-	LL_I2S_EnableIT_UDR(cfg->i2s);
-	LL_I2S_EnableIT_FRE(cfg->i2s);
-
-	LL_I2S_Enable(cfg->i2s);
-	LL_SPI_StartMasterTransfer(cfg->i2s);
-#else
 	LL_I2S_EnableIT_ERR(cfg->i2s);
 	LL_I2S_Enable(cfg->i2s);
-#endif
 
 	return 0;
 }
@@ -833,13 +802,7 @@ static void rx_stream_disable(struct stream *stream, const struct device *dev)
 	const struct i2s_stm32_cfg *cfg = dev->config;
 
 	LL_I2S_DisableDMAReq_RX(cfg->i2s);
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_i2s)
-	LL_I2S_DisableIT_OVR(cfg->i2s);
-	LL_I2S_DisableIT_UDR(cfg->i2s);
-	LL_I2S_DisableIT_FRE(cfg->i2s);
-#else
 	LL_I2S_DisableIT_ERR(cfg->i2s);
-#endif
 
 	dma_stop(stream->dev_dma, stream->dma_channel);
 	if (stream->mem_block != NULL) {
@@ -857,13 +820,7 @@ static void tx_stream_disable(struct stream *stream, const struct device *dev)
 	const struct i2s_stm32_cfg *cfg = dev->config;
 
 	LL_I2S_DisableDMAReq_TX(cfg->i2s);
-#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32h7_i2s)
-	LL_I2S_DisableIT_OVR(cfg->i2s);
-	LL_I2S_DisableIT_UDR(cfg->i2s);
-	LL_I2S_DisableIT_FRE(cfg->i2s);
-#else
 	LL_I2S_DisableIT_ERR(cfg->i2s);
-#endif
 
 	dma_stop(stream->dev_dma, stream->dma_channel);
 	if (stream->mem_block != NULL) {

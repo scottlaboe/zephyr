@@ -450,23 +450,23 @@ static int sdio_set_bus_width(struct sd_card *card, enum sdhc_bus_width width)
 static inline void sdio_select_bus_speed(struct sd_card *card)
 {
 	if (card->host_props.host_caps.sdr104_support &&
-		(card->cccr_flags & SDIO_SUPPORT_SDR104)) {
+		(card->cccr_flags & SDIO_SUPPORT_SDR104) &&
+		(card->host_props.f_max >= SD_CLOCK_208MHZ)) {
 		card->card_speed = SD_TIMING_SDR104;
-		card->switch_caps.uhs_max_dtr = UHS_SDR104_MAX_DTR;
 	} else if (card->host_props.host_caps.ddr50_support &&
-		(card->cccr_flags & SDIO_SUPPORT_DDR50)) {
+		(card->cccr_flags & SDIO_SUPPORT_DDR50) &&
+		(card->host_props.f_max >= SD_CLOCK_50MHZ)) {
 		card->card_speed = SD_TIMING_DDR50;
-		card->switch_caps.uhs_max_dtr = UHS_DDR50_MAX_DTR;
 	} else if (card->host_props.host_caps.sdr50_support &&
-		(card->cccr_flags & SDIO_SUPPORT_SDR50)) {
+		(card->cccr_flags & SDIO_SUPPORT_SDR50) &&
+		(card->host_props.f_max >= SD_CLOCK_100MHZ)) {
 		card->card_speed = SD_TIMING_SDR50;
-		card->switch_caps.uhs_max_dtr = UHS_SDR50_MAX_DTR;
 	} else if (card->host_props.host_caps.high_spd_support &&
-		(card->cccr_flags & SDIO_SUPPORT_HS)) {
-		card->card_speed = SD_TIMING_HIGH_SPEED;
-		card->switch_caps.hs_max_dtr = HS_MAX_DTR;
+		(card->switch_caps.bus_speed & SDIO_SUPPORT_HS) &&
+		(card->host_props.f_max >= SD_CLOCK_50MHZ)) {
+		card->card_speed = SD_TIMING_SDR25;
 	} else {
-		card->card_speed = SD_TIMING_DEFAULT;
+		card->card_speed = SD_TIMING_SDR12;
 	}
 }
 
@@ -474,35 +474,34 @@ static inline void sdio_select_bus_speed(struct sd_card *card)
 static int sdio_set_bus_speed(struct sd_card *card)
 {
 	int ret, timing, retries = CONFIG_SD_RETRY_COUNT;
-	uint32_t bus_clock;
 	uint8_t speed_reg, target_speed;
 
 	switch (card->card_speed) {
 	/* Set bus clock speed */
 	case SD_TIMING_SDR104:
-		bus_clock = MIN(card->host_props.f_max, card->switch_caps.uhs_max_dtr);
+		card->switch_caps.uhs_max_dtr = SD_CLOCK_208MHZ;
 		target_speed = SDIO_CCCR_SPEED_SDR104;
 		timing = SDHC_TIMING_SDR104;
 		break;
 	case SD_TIMING_DDR50:
-		bus_clock = MIN(card->host_props.f_max, card->switch_caps.uhs_max_dtr);
+		card->switch_caps.uhs_max_dtr = SD_CLOCK_50MHZ;
 		target_speed = SDIO_CCCR_SPEED_DDR50;
 		timing = SDHC_TIMING_DDR50;
 		break;
 	case SD_TIMING_SDR50:
-		bus_clock = MIN(card->host_props.f_max, card->switch_caps.uhs_max_dtr);
+		card->switch_caps.uhs_max_dtr = SD_CLOCK_100MHZ;
 		target_speed = SDIO_CCCR_SPEED_SDR50;
 		timing = SDHC_TIMING_SDR50;
 		break;
-	case SD_TIMING_HIGH_SPEED:
-		bus_clock = MIN(card->host_props.f_max, card->switch_caps.hs_max_dtr);
+	case SD_TIMING_SDR25:
+		card->switch_caps.uhs_max_dtr = SD_CLOCK_50MHZ;
 		target_speed = SDIO_CCCR_SPEED_SDR25;
-		timing = SDHC_TIMING_HS;
+		timing = SDHC_TIMING_SDR25;
 		break;
-	case SD_TIMING_DEFAULT:
-		bus_clock = MIN(card->host_props.f_max, MHZ(25));
+	case SD_TIMING_SDR12:
+		card->switch_caps.uhs_max_dtr = SD_CLOCK_25MHZ;
 		target_speed = SDIO_CCCR_SPEED_SDR12;
-		timing = SDHC_TIMING_LEGACY;
+		timing = SDHC_TIMING_SDR12;
 		break;
 	default:
 		/* No need to change bus speed */
@@ -531,7 +530,7 @@ static int sdio_set_bus_speed(struct sd_card *card)
 	} else {
 		/* Set card bus clock and timing */
 		card->bus_io.timing = timing;
-		card->bus_io.clock = bus_clock;
+		card->bus_io.clock = card->switch_caps.uhs_max_dtr;
 		LOG_DBG("Setting bus clock to: %d", card->bus_io.clock);
 		ret = sdhc_set_io(card->sdhc, &card->bus_io);
 		if (ret) {
@@ -793,7 +792,7 @@ int sdio_read_byte(struct sdio_func *func, uint32_t reg, uint8_t *val)
 		LOG_WRN("Card does not support SDIO commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&func->card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&func->card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -823,7 +822,7 @@ int sdio_write_byte(struct sdio_func *func, uint32_t reg, uint8_t write_val)
 		LOG_WRN("Card does not support SDIO commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&func->card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&func->card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -856,7 +855,7 @@ int sdio_rw_byte(struct sdio_func *func, uint32_t reg, uint8_t write_val,
 		LOG_WRN("Card does not support SDIO commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&func->card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&func->card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -890,7 +889,7 @@ int sdio_read_fifo(struct sdio_func *func, uint32_t reg, uint8_t *data,
 		LOG_WRN("Card does not support SDIO commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&func->card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&func->card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -924,7 +923,7 @@ int sdio_write_fifo(struct sdio_func *func, uint32_t reg, uint8_t *data,
 		LOG_WRN("Card does not support SDIO commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&func->card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&func->card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -958,7 +957,7 @@ int sdio_read_blocks_fifo(struct sdio_func *func, uint32_t reg, uint8_t *data,
 		LOG_WRN("Card does not support SDIO commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&func->card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&func->card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -992,7 +991,7 @@ int sdio_write_blocks_fifo(struct sdio_func *func, uint32_t reg, uint8_t *data,
 		LOG_WRN("Card does not support SDIO commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&func->card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&func->card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -1025,7 +1024,7 @@ int sdio_read_addr(struct sdio_func *func, uint32_t reg, uint8_t *data,
 		LOG_WRN("Card does not support SDIO commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&func->card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&func->card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;
@@ -1059,7 +1058,7 @@ int sdio_write_addr(struct sdio_func *func, uint32_t reg, uint8_t *data,
 		LOG_WRN("Card does not support SDIO commands");
 		return -ENOTSUP;
 	}
-	ret = k_mutex_lock(&func->card->lock, K_MSEC(CONFIG_SD_DATA_TIMEOUT));
+	ret = k_mutex_lock(&func->card->lock, K_NO_WAIT);
 	if (ret) {
 		LOG_WRN("Could not get SD card mutex");
 		return -EBUSY;

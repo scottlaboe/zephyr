@@ -14,6 +14,8 @@
 
 #include "emul.h"
 
+#define CONFIG_SMBUS_LOG_LEVEL LOG_LEVEL_DBG
+
 #define PERIPH_ADDR	0x10
 
 static uint8_t mock_sys_in8(io_port_t port)
@@ -49,6 +51,7 @@ static void mock_conf_write(pcie_bdf_t bdf, unsigned int reg, uint32_t data)
 
 #define CONFIG_SMBUS_INTEL_PCH_ACCESS_IO
 #define device_map(a, b, c, d)
+#define pcie_probe(bdf, id)	1
 #define pcie_set_cmd(a, b, c)
 
 #define SMBUS_EMUL	"smbus_emul"
@@ -112,7 +115,7 @@ ZTEST(test_smbus_emul, test_byte)
 	ret = smbus_quick(dev, PERIPH_ADDR, 1);
 	zassert_ok(ret, "SMBus Quick failed");
 
-	snd_byte = sys_rand8_get();
+	snd_byte = (uint8_t)sys_rand32_get();
 
 	ret = smbus_byte_write(dev, PERIPH_ADDR, snd_byte);
 	zassert_ok(ret, "SMBus Byte Write failed");
@@ -140,7 +143,7 @@ ZTEST(test_smbus_emul, test_word)
 
 	zassert_not_null(dev, "Device not found");
 
-	snd_word = sys_rand16_get();
+	snd_word = (uint16_t)sys_rand32_get();
 
 	ret = smbus_word_data_write(dev, PERIPH_ADDR, 0, snd_word);
 	zassert_ok(ret, "SMBus Word Data Write failed");
@@ -152,7 +155,7 @@ ZTEST(test_smbus_emul, test_word)
 
 	/* Test 2 byte writes following word read */
 
-	snd_byte = sys_rand8_get();
+	snd_byte = (uint8_t)sys_rand32_get();
 
 	ret = smbus_byte_data_write(dev, PERIPH_ADDR, 0, snd_byte);
 	zassert_ok(ret, "SMBus Byte Data Write failed");
@@ -173,14 +176,14 @@ ZTEST(test_smbus_emul, test_proc_call)
 
 	zassert_not_null(dev, "Device not found");
 
-	snd_word = sys_rand16_get();
+	snd_word = (uint16_t)sys_rand32_get();
 	zassert_not_equal(snd_word, 0, "Random number generator misconfgured");
 
 	ret = smbus_pcall(dev, PERIPH_ADDR, 0x0, snd_word, &rcv_word);
 	zassert_ok(ret, "SMBus Proc Call failed");
 
 	/* Our emulated Proc Call swaps bytes */
-	zassert_equal(snd_word, BSWAP_16(rcv_word), "Data mismatch");
+	zassert_equal(snd_word, __bswap_16(rcv_word), "Data mismatch");
 }
 
 ZTEST(test_smbus_emul, test_block)
@@ -193,7 +196,9 @@ ZTEST(test_smbus_emul, test_block)
 
 	zassert_not_null(dev, "Device not found");
 
-	sys_rand_get(snd_block, sizeof(snd_block));
+	for (int i = 0; i < sizeof(snd_block); i++) {
+		snd_block[i] = (uint8_t)sys_rand32_get();
+	}
 
 	snd_count = sizeof(snd_block);
 
@@ -218,7 +223,9 @@ ZTEST(test_smbus_emul, test_block_pcall)
 
 	zassert_not_null(dev, "Device not found");
 
-	sys_rand_get(snd_block, sizeof(snd_block));
+	for (int i = 0; i < sizeof(snd_block); i++) {
+		snd_block[i] = (uint8_t)sys_rand32_get();
+	}
 
 	snd_count = SMBUS_BLOCK_BYTES_MAX / 2;
 	ret = smbus_block_pcall(dev, PERIPH_ADDR, 0, snd_count, snd_block,

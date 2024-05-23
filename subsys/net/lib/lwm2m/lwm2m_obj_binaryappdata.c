@@ -122,4 +122,4 @@ static int lwm2m_binaryappdata_init(void)
 	return ret;
 }
 
-LWM2M_OBJ_INIT(lwm2m_binaryappdata_init);
+SYS_INIT(lwm2m_binaryappdata_init, APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

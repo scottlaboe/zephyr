@@ -15,7 +15,7 @@
 #    ./scripts/footprint/fpdiff.py ram1.json ram2.json
 
 from anytree.importer import DictImporter
-from anytree import PreOrderIter, AnyNode
+from anytree import PreOrderIter
 from anytree.search  import find
 
 import colorama
@@ -46,10 +46,7 @@ def main():
 
     for idx, ch in enumerate(data1['symbols']['children']):
         root1 = importer.import_(ch)
-        if idx >= len(data2['symbols']['children']):
-            root2 = AnyNode(identifier=None)
-        else:
-            root2 = importer.import_(data2['symbols']['children'][idx])
+        root2 = importer.import_(data2['symbols']['children'][idx])
         print(f"{root1.name}\n+++++++++++++++++++++")
 
         for node in PreOrderIter(root1):

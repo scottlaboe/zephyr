@@ -59,8 +59,10 @@ LOG_MODULE_REGISTER(mcumgr_os_grp, CONFIG_MCUMGR_GRP_OS_LOG_LEVEL);
 
 #ifdef CONFIG_REBOOT
 static void os_mgmt_reset_work_handler(struct k_work *work);
+static void os_mgmt_reset_cb(struct k_timer *timer);
 
-K_WORK_DELAYABLE_DEFINE(os_mgmt_reset_work, os_mgmt_reset_work_handler);
+K_WORK_DEFINE(os_mgmt_reset_work, os_mgmt_reset_work_handler);
+static K_TIMER_DEFINE(os_mgmt_reset_timer, os_mgmt_reset_cb, NULL);
 #endif
 
 /* This is passed to zcbor_map_start/end_endcode as a number of
@@ -205,7 +207,7 @@ os_mgmt_taskstat_encode_thread_name(zcbor_state_t *zse, int idx,
 	snprintf(thread_name, sizeof(thread_name) - 1, "%d", idx);
 	thread_name[sizeof(thread_name) - 1] = 0;
 
-	return zcbor_tstr_put_term(zse, thread_name, sizeof(thread_name));
+	return zcbor_tstr_put_term(zse, thread_name);
 }
 
 #endif
@@ -356,9 +358,13 @@ static int os_mgmt_taskstat_read(struct smp_streamer *ctxt)
  */
 static void os_mgmt_reset_work_handler(struct k_work *work)
 {
-	ARG_UNUSED(work);
-
 	sys_reboot(SYS_REBOOT_WARM);
+}
+
+static void os_mgmt_reset_cb(struct k_timer *timer)
+{
+	/* Reboot the system from the system workqueue thread. */
+	k_work_submit(&os_mgmt_reset_work);
 }
 
 static int os_mgmt_reset(struct smp_streamer *ctxt)
@@ -398,9 +404,8 @@ static int os_mgmt_reset(struct smp_streamer *ctxt)
 	}
 #endif
 
-	/* Reboot the system from the system workqueue thread. */
-	k_work_schedule(&os_mgmt_reset_work, K_MSEC(CONFIG_MCUMGR_GRP_OS_RESET_MS));
-
+	k_timer_start(&os_mgmt_reset_timer, K_MSEC(CONFIG_MCUMGR_GRP_OS_RESET_MS),
+		      K_NO_WAIT);
 	return 0;
 }
 #endif
@@ -435,8 +440,6 @@ os_mgmt_mcumgr_params(struct smp_streamer *ctxt)
 #define BOOTLOADER_MODE MCUBOOT_MODE_DIRECT_XIP
 #elif IS_ENABLED(CONFIG_MCUBOOT_BOOTLOADER_MODE_DIRECT_XIP_WITH_REVERT)
 #define BOOTLOADER_MODE MCUBOOT_MODE_DIRECT_XIP_WITH_REVERT
-#elif IS_ENABLED(CONFIG_MCUBOOT_BOOTLOADER_MODE_FIRMWARE_UPDATER)
-#define BOOTLOADER_MODE MCUBOOT_MODE_FIRMWARE_LOADER
 #else
 #define BOOTLOADER_MODE -1
 #endif
@@ -469,9 +472,9 @@ os_mgmt_bootloader_info(struct smp_streamer *ctxt)
 
 		ok = zcbor_tstr_put_lit(zse, "mode") &&
 		     zcbor_int32_put(zse, BOOTLOADER_MODE);
-#ifdef CONFIG_MCUBOOT_BOOTLOADER_NO_DOWNGRADE
-		ok = ok && zcbor_tstr_put_lit(zse, "no-downgrade") &&
-		     zcbor_bool_encode(zse, &(bool){true});
+#if IS_ENABLED(MCUBOOT_BOOTLOADER_NO_DOWNGRADE)
+		ok = zcbor_tstr_put_lit(zse, "no-downgrade") &&
+		     zcbor_bool_encode(zse, true);
 #endif
 	} else {
 		return OS_MGMT_ERR_QUERY_YIELDS_NO_ANSWER;

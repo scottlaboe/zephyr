@@ -41,7 +41,7 @@ static bool not_first_start;
 /* Empty memory region array */
 __weak const struct gdb_mem_region gdb_mem_region_array[0];
 
-/* Number of memory regions */
+/* Number of memory regions, default to 0 */
 __weak const size_t gdb_mem_num_regions;
 
 /**
@@ -55,12 +55,6 @@ __weak const size_t gdb_mem_num_regions;
  * @return Pointer to the memory region description if found.
  *         NULL if not found.
  */
-#if defined(__GNUC__)
-#pragma GCC diagnostic push
-/* Required due to gdb_mem_region_array having a default size of zero. */
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#endif
-
 static inline const
 struct gdb_mem_region *find_memory_region(const uintptr_t addr, const size_t len)
 {
@@ -81,10 +75,6 @@ struct gdb_mem_region *find_memory_region(const uintptr_t addr, const size_t len
 
 	return ret;
 }
-
-#if defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
 
 bool gdb_mem_can_read(const uintptr_t addr, const size_t len, uint8_t *align)
 {
@@ -569,10 +559,6 @@ static int gdb_send_exception(uint8_t *buf, size_t len, uint8_t exception)
 {
 	size_t size;
 
-#ifdef CONFIG_GDBSTUB_TRACE
-	printk("gdbstub:%s exception=0x%x\n", __func__, exception);
-#endif
-
 	*buf = 'T';
 	size = gdb_bin2hex(&exception, 1, buf + 1, len - 1);
 	if (size == 0) {
@@ -585,33 +571,6 @@ static int gdb_send_exception(uint8_t *buf, size_t len, uint8_t exception)
 	return gdb_send_packet(buf, size);
 }
 
-static bool gdb_qsupported(uint8_t *buf, size_t len, enum gdb_loop_state *next_state)
-{
-	size_t n = 0;
-	const char *c_buf = (const char *) buf;
-
-	if (strstr(buf, "qSupported") != c_buf) {
-		return false;
-	}
-
-	gdb_send_packet(buf, n);
-	return true;
-}
-
-static void gdb_q_packet(uint8_t *buf, size_t len, enum gdb_loop_state *next_state)
-{
-	if (gdb_qsupported(buf, len, next_state)) {
-		return;
-	}
-
-	gdb_send_packet(NULL, 0);
-}
-
-static void gdb_v_packet(uint8_t *buf, size_t len, enum gdb_loop_state *next_state)
-{
-	gdb_send_packet(NULL, 0);
-}
-
 /**
  * Synchronously communicate with gdb on the host
  */
@@ -622,9 +581,14 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 	 * not have enough space.
 	 */
 	static uint8_t buf[GDB_PACKET_SIZE];
-	enum gdb_loop_state state;
 
-	state = GDB_LOOP_RECEIVING;
+	enum loop_state {
+		RECEIVING,
+		CONTINUE,
+		ERROR,
+	} state;
+
+	state = RECEIVING;
 
 	/* Only send exception if this is not the first
 	 * GDB break.
@@ -638,7 +602,7 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 #define CHECK_ERROR(condition)			\
 	{					\
 		if ((condition)) {		\
-			state = GDB_LOOP_ERROR;	\
+			state = ERROR;		\
 			break;			\
 		}				\
 	}
@@ -655,7 +619,7 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 		CHECK_ERROR(ptr == NULL);				\
 	}
 
-	while (state == GDB_LOOP_RECEIVING) {
+	while (state == RECEIVING) {
 		uint8_t *ptr;
 		size_t data_len, pkt_len;
 		uintptr_t addr;
@@ -679,10 +643,6 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 		}
 
 		ptr = buf;
-
-#ifdef CONFIG_GDBSTUB_TRACE
-		printk("gdbstub:%s got '%c'(0x%x) command\n", __func__, *ptr, *ptr);
-#endif
 
 		switch (*ptr++) {
 
@@ -740,7 +700,7 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 		 */
 		case 'c':
 			arch_gdb_continue();
-			state = GDB_LOOP_CONTINUE;
+			state = CONTINUE;
 			break;
 
 		/*
@@ -749,7 +709,7 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 		 */
 		case 's':
 			arch_gdb_step();
-			state = GDB_LOOP_CONTINUE;
+			state = CONTINUE;
 			break;
 
 		/*
@@ -822,7 +782,7 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 				/* breakpoint/watchpoint not supported */
 				gdb_send_packet(NULL, 0);
 			} else if (ret == -1) {
-				state = GDB_LOOP_ERROR;
+				state = ERROR;
 			} else {
 				gdb_send_packet("OK", 2);
 			}
@@ -834,18 +794,6 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 		case '?':
 			gdb_send_exception(buf, sizeof(buf),
 					   ctx->exception);
-			break;
-
-		/* Query packets*/
-		case 'q':
-			__fallthrough;
-		case 'Q':
-			gdb_q_packet(buf, sizeof(buf), &state);
-			break;
-
-		/* v packets */
-		case 'v':
-			gdb_v_packet(buf, sizeof(buf), &state);
 			break;
 
 		/*
@@ -860,9 +808,9 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 		 * If this is an recoverable error, send an error message to
 		 * GDB and continue the debugging session.
 		 */
-		if (state == GDB_LOOP_ERROR) {
+		if (state == ERROR) {
 			gdb_send_packet(GDB_ERROR_GENERAL, 3);
-			state = GDB_LOOP_RECEIVING;
+			state = RECEIVING;
 		}
 	}
 
@@ -875,19 +823,13 @@ int z_gdb_main_loop(struct gdb_ctx *ctx)
 
 int gdb_init(void)
 {
-#ifdef CONFIG_GDBSTUB_TRACE
-	printk("gdbstub:%s enter\n", __func__);
-#endif
+
 	if (z_gdb_backend_init() == -1) {
 		LOG_ERR("Could not initialize gdbstub backend.");
 		return -1;
 	}
 
 	arch_gdb_init();
-
-#ifdef CONFIG_GDBSTUB_TRACE
-	printk("gdbstub:%s exit\n", __func__);
-#endif
 	return 0;
 }
 

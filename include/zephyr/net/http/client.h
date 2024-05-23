@@ -16,8 +16,6 @@
 /**
  * @brief HTTP client API
  * @defgroup http_client HTTP client API
- * @since 2.1
- * @version 0.2.0
  * @ingroup networking
  * @{
  */
@@ -30,8 +28,6 @@
 extern "C" {
 #endif
 
-/** @cond INTERNAL_HIDDEN */
-
 #if !defined(HTTP_CRLF)
 #define HTTP_CRLF "\r\n"
 #endif
@@ -40,12 +36,10 @@ extern "C" {
 #define HTTP_STATUS_STR_SIZE	32
 #endif
 
-/** @endcond */
-
-/** Is there more data to come */
+/* Is there more data to come */
 enum http_final_call {
-	HTTP_DATA_MORE = 0,  /**< More data will come */
-	HTTP_DATA_FINAL = 1, /**< End of data */
+	HTTP_DATA_MORE = 0,
+	HTTP_DATA_FINAL = 1,
 };
 
 struct http_request;
@@ -178,7 +172,7 @@ struct http_response {
 	 */
 	size_t processed;
 
-	/** See https://tools.ietf.org/html/rfc7230#section-3.1.2 for more information.
+	/* https://tools.ietf.org/html/rfc7230#section-3.1.2
 	 * The status-code element is a 3-digit integer code
 	 *
 	 * The reason-phrase element exists for the sole
@@ -197,9 +191,9 @@ struct http_response {
 	 */
 	uint16_t http_status_code;
 
-	uint8_t cl_present : 1;       /**< Is Content-Length field present */
-	uint8_t body_found : 1;       /**< Is message body found */
-	uint8_t message_complete : 1; /**< Is HTTP message parsing complete */
+	uint8_t cl_present : 1;
+	uint8_t body_found : 1;
+	uint8_t message_complete : 1;
 };
 
 /** HTTP client internal data that the application should not touch

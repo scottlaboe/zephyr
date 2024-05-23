@@ -10,8 +10,6 @@
 /**
  * @brief Input Interface
  * @defgroup input_interface Input Interface
- * @since 3.4
- * @version 0.1.0
  * @ingroup io_interfaces
  * @{
  */
@@ -52,7 +50,7 @@ struct input_event {
 /**
  * @brief Report a new input event.
  *
- * This causes all the callbacks for the specified device to be executed,
+ * This causes all the listeners for the specified device to be triggered,
  * either synchronously or through the input thread if utilized.
  *
  * @param dev Device generating the event or NULL.
@@ -118,9 +116,9 @@ static inline int input_report_abs(const struct device *dev,
 bool input_queue_empty(void);
 
 /**
- * @brief Input callback structure.
+ * @brief Input listener callback structure.
  */
-struct input_callback {
+struct input_listener {
 	/** @ref device pointer or NULL. */
 	const struct device *dev;
 	/** The callback function. */
@@ -138,8 +136,8 @@ struct input_callback {
  * @param _callback The callback function.
  */
 #define INPUT_CALLBACK_DEFINE(_dev, _callback)                                 \
-	static const STRUCT_SECTION_ITERABLE(input_callback,                   \
-					     _input_callback__##_callback) = { \
+	static const STRUCT_SECTION_ITERABLE(input_listener,                   \
+					     _input_listener__##_callback) = { \
 		.dev = _dev,                                                   \
 		.callback = _callback,                                         \
 	}

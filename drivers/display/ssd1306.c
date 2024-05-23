@@ -60,7 +60,8 @@ struct ssd1306_config {
 };
 
 struct ssd1306_data {
-	enum display_pixel_format pf;
+	uint8_t contrast;
+	uint8_t scan_mode;
 };
 
 #if (DT_HAS_COMPAT_ON_BUS_STATUS_OKAY(solomon_ssd1306fb, i2c) || \
@@ -317,6 +318,28 @@ static int ssd1306_write(const struct device *dev, const uint16_t x, const uint1
 	return ssd1306_write_default(dev, x, y, desc, buf, buf_len);
 }
 
+static int ssd1306_read(const struct device *dev, const uint16_t x,
+			const uint16_t y,
+			const struct display_buffer_descriptor *desc,
+			void *buf)
+{
+	LOG_ERR("Unsupported");
+	return -ENOTSUP;
+}
+
+static void *ssd1306_get_framebuffer(const struct device *dev)
+{
+	LOG_ERR("Unsupported");
+	return NULL;
+}
+
+static int ssd1306_set_brightness(const struct device *dev,
+				  const uint8_t brightness)
+{
+	LOG_WRN("Unsupported");
+	return -ENOTSUP;
+}
+
 static int ssd1306_set_contrast(const struct device *dev, const uint8_t contrast)
 {
 	uint8_t cmd_buf[] = {
@@ -331,58 +354,41 @@ static void ssd1306_get_capabilities(const struct device *dev,
 				     struct display_capabilities *caps)
 {
 	const struct ssd1306_config *config = dev->config;
-	struct ssd1306_data *data = dev->data;
-
+	memset(caps, 0, sizeof(struct display_capabilities));
 	caps->x_resolution = config->width;
 	caps->y_resolution = config->height;
-	caps->supported_pixel_formats = PIXEL_FORMAT_MONO10 | PIXEL_FORMAT_MONO01;
-	caps->current_pixel_format = data->pf;
+	caps->supported_pixel_formats = PIXEL_FORMAT_MONO10;
+	caps->current_pixel_format = PIXEL_FORMAT_MONO10;
 	caps->screen_info = SCREEN_INFO_MONO_VTILED;
-	caps->current_orientation = DISPLAY_ORIENTATION_NORMAL;
+}
+
+static int ssd1306_set_orientation(const struct device *dev,
+				   const enum display_orientation
+				   orientation)
+{
+	LOG_ERR("Unsupported");
+	return -ENOTSUP;
 }
 
 static int ssd1306_set_pixel_format(const struct device *dev,
 				    const enum display_pixel_format pf)
 {
-	struct ssd1306_data *data = dev->data;
-	uint8_t cmd;
-	int ret;
-
-	if (pf == data->pf) {
+	if (pf == PIXEL_FORMAT_MONO10) {
 		return 0;
 	}
-
-	if (pf == PIXEL_FORMAT_MONO10) {
-		cmd = SSD1306_SET_REVERSE_DISPLAY;
-	} else if (pf == PIXEL_FORMAT_MONO01) {
-		cmd = SSD1306_SET_NORMAL_DISPLAY;
-	} else {
-		LOG_WRN("Unsupported pixel format");
-		return -ENOTSUP;
-	}
-
-	ret = ssd1306_write_bus(dev, &cmd, 1, true);
-	if (ret) {
-		return ret;
-	}
-
-	data->pf = pf;
-
-	return 0;
+	LOG_ERR("Unsupported");
+	return -ENOTSUP;
 }
 
 static int ssd1306_init_device(const struct device *dev)
 {
 	const struct ssd1306_config *config = dev->config;
-	struct ssd1306_data *data = dev->data;
 
 	uint8_t cmd_buf[] = {
 		SSD1306_SET_ENTIRE_DISPLAY_OFF,
 		(config->color_inversion ? SSD1306_SET_REVERSE_DISPLAY
 					 : SSD1306_SET_NORMAL_DISPLAY),
 	};
-
-	data->pf = config->color_inversion ? PIXEL_FORMAT_MONO10 : PIXEL_FORMAT_MONO01;
 
 	/* Reset if pin connected */
 	if (config->reset.port) {
@@ -430,6 +436,8 @@ static int ssd1306_init(const struct device *dev)
 {
 	const struct ssd1306_config *config = dev->config;
 
+	LOG_DBG("");
+
 	k_sleep(K_TIMEOUT_ABS_MS(config->ready_time_ms));
 
 	if (!ssd1306_bus_ready(dev)) {
@@ -459,9 +467,13 @@ static struct display_driver_api ssd1306_driver_api = {
 	.blanking_on = ssd1306_suspend,
 	.blanking_off = ssd1306_resume,
 	.write = ssd1306_write,
+	.read = ssd1306_read,
+	.get_framebuffer = ssd1306_get_framebuffer,
+	.set_brightness = ssd1306_set_brightness,
 	.set_contrast = ssd1306_set_contrast,
 	.get_capabilities = ssd1306_get_capabilities,
 	.set_pixel_format = ssd1306_set_pixel_format,
+	.set_orientation = ssd1306_set_orientation,
 };
 
 #define SSD1306_CONFIG_SPI(node_id)                                                                \

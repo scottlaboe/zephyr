@@ -302,14 +302,12 @@ try_ipv4:
 		}
 
 		if (netmask) {
-			struct in_addr nm;
-
-			if (net_addr_pton(AF_INET, netmask, &nm)) {
+			if (net_addr_pton(AF_INET, netmask, &addr4)) {
 				LOG_ERR("Invalid netmask: %s", netmask);
 				return -EINVAL;
 			}
 
-			net_if_ipv4_set_netmask_by_addr(iface, &addr4, &nm);
+			net_if_ipv4_set_netmask(iface, &addr4);
 		}
 
 		if (!peer4addr || *peer4addr == '\0') {

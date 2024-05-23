@@ -15,7 +15,7 @@ class Artifacts:
     def make_tarfile(self, output_filename, source_dirs):
         root = os.path.basename(self.options.outdir)
         with tarfile.open(output_filename, "w:bz2") as tar:
-            tar.add(self.options.outdir, recursive=False)
+            tar.add("twister-out", recursive=False)
             for d in source_dirs:
                 f = os.path.relpath(d, self.options.outdir)
                 tar.add(d, arcname=os.path.join(root, f))
@@ -26,9 +26,7 @@ class Artifacts:
             jtp = json.load(json_test_plan)
             for t in jtp['testsuites']:
                 if t['status'] != "filtered":
-                    p = t['platform']
-                    normalized  = p.replace("/", "_")
-                    dirs.append(os.path.join(self.options.outdir, normalized, t['name']))
+                    dirs.append(os.path.join(self.options.outdir, t['platform'], t['name']))
 
         dirs.extend(
             [

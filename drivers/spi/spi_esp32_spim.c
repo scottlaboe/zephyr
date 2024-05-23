@@ -9,13 +9,12 @@
 /* Include esp-idf headers first to avoid redefining BIT() macro */
 #include <hal/spi_hal.h>
 #include <esp_attr.h>
-#include <esp_clk_tree.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(esp32_spi, CONFIG_SPI_LOG_LEVEL);
 
 #include <soc.h>
-#include <esp_memory_utils.h>
+#include <soc/soc_memory_types.h>
 #include <zephyr/drivers/spi.h>
 #ifndef CONFIG_SOC_SERIES_ESP32C3
 #include <zephyr/drivers/interrupt_controller/intc_esp32.h>
@@ -72,8 +71,7 @@ static int IRAM_ATTR spi_esp32_transfer(const struct device *dev)
 	size_t max_buf_sz =
 		cfg->dma_enabled ? SPI_DMA_MAX_BUFFER_SIZE : SOC_SPI_MAXIMUM_BUFFER_SIZE;
 	size_t transfer_len_bytes = MIN(chunk_len_bytes, max_buf_sz);
-	size_t transfer_len_frames = transfer_len_bytes / data->dfs;
-	size_t bit_len = transfer_len_bytes << 3;
+	size_t bit_len =  transfer_len_bytes << 3;
 	uint8_t *rx_temp = NULL;
 	uint8_t *tx_temp = NULL;
 	uint8_t dma_len_tx = MIN(ctx->tx_len * data->dfs, SPI_DMA_MAX_BUFFER_SIZE);
@@ -92,7 +90,7 @@ static int IRAM_ATTR spi_esp32_transfer(const struct device *dev)
 			memcpy(tx_temp, &ctx->tx_buf[0], dma_len_tx);
 		}
 		if (ctx->rx_buf && (!esp_ptr_dma_capable((uint32_t *)&ctx->rx_buf[0]) ||
-				    ((int)&ctx->rx_buf[0] % 4 != 0) || (dma_len_rx % 4 != 0))) {
+				    ((int)&ctx->rx_buf[0] % 4 != 0) || (dma_len_tx % 4 != 0))) {
 			/* The rx buffer need to be length of
 			 * multiples of 32 bits to avoid heap
 			 * corruption.
@@ -114,11 +112,9 @@ static int IRAM_ATTR spi_esp32_transfer(const struct device *dev)
 	hal_trans->tx_bitlen = bit_len;
 	hal_trans->rx_bitlen = bit_len;
 
-	/* keep cs line active until last transmission */
+	/* keep cs line active ultil last transmission */
 	hal_trans->cs_keep_active =
-		(!ctx->num_cs_gpios &&
-		 (ctx->rx_count > 1 || ctx->tx_count > 1 || ctx->rx_len > transfer_len_frames ||
-		  ctx->tx_len > transfer_len_frames));
+		(!ctx->num_cs_gpios && (ctx->rx_count > 1 || ctx->tx_count > 1));
 
 	/* configure SPI */
 	spi_hal_setup_trans(hal, hal_dev, hal_trans);
@@ -126,7 +122,7 @@ static int IRAM_ATTR spi_esp32_transfer(const struct device *dev)
 
 	/* send data */
 	spi_hal_user_start(hal);
-	spi_context_update_tx(&data->ctx, data->dfs, transfer_len_frames);
+	spi_context_update_tx(&data->ctx, data->dfs, transfer_len_bytes/data->dfs);
 
 	while (!spi_hal_usr_is_done(hal)) {
 		/* nop */
@@ -139,7 +135,7 @@ static int IRAM_ATTR spi_esp32_transfer(const struct device *dev)
 		memcpy(&ctx->rx_buf[0], rx_temp, transfer_len_bytes);
 	}
 
-	spi_context_update_rx(&data->ctx, data->dfs, transfer_len_frames);
+	spi_context_update_rx(&data->ctx, data->dfs, transfer_len_bytes/data->dfs);
 
 	k_free(tx_temp);
 	k_free(rx_temp);
@@ -178,10 +174,8 @@ static int spi_esp32_init_dma(const struct device *dev)
 	gdma_ll_enable_clock(data->hal_gdma.dev, true);
 	gdma_ll_tx_reset_channel(data->hal_gdma.dev, cfg->dma_host);
 	gdma_ll_rx_reset_channel(data->hal_gdma.dev, cfg->dma_host);
-	gdma_ll_tx_connect_to_periph(data->hal_gdma.dev, cfg->dma_host, GDMA_TRIG_PERIPH_SPI,
-				     cfg->dma_host);
-	gdma_ll_rx_connect_to_periph(data->hal_gdma.dev, cfg->dma_host, GDMA_TRIG_PERIPH_SPI,
-				     cfg->dma_host);
+	gdma_ll_tx_connect_to_periph(data->hal_gdma.dev, cfg->dma_host, cfg->dma_host);
+	gdma_ll_rx_connect_to_periph(data->hal_gdma.dev, cfg->dma_host, cfg->dma_host);
 	channel_offset = 0;
 #else
 	channel_offset = 1;
@@ -235,13 +229,6 @@ static int spi_esp32_init(const struct device *dev)
 
 	err = spi_context_cs_configure_all(&data->ctx);
 	if (err < 0) {
-		return err;
-	}
-
-	err = esp_clk_tree_src_get_freq_hz(
-		cfg->clock_source, ESP_CLK_TREE_SRC_FREQ_PRECISION_APPROX, &data->clock_source_hz);
-	if (err) {
-		LOG_ERR("Could not get clock source frequency (%d)", err);
 		return err;
 	}
 
@@ -322,11 +309,11 @@ static int IRAM_ATTR spi_esp32_configure(const struct device *dev,
 	spi_hal_timing_param_t timing_param = {
 		.half_duplex = hal_dev->half_duplex,
 		.no_compensate = hal_dev->no_compensate,
-		.expected_freq = spi_cfg->frequency,
+		.clock_speed_hz = spi_cfg->frequency,
 		.duty_cycle = cfg->duty_cycle == 0 ? 128 : cfg->duty_cycle,
 		.input_delay_ns = cfg->input_delay_ns,
 		.use_gpio = !cfg->use_iomux,
-		.clk_src_hz = data->clock_source_hz,
+
 	};
 
 	spi_hal_cal_clock_conf(&timing_param, &freq, &hal_dev->timing_conf);
@@ -530,7 +517,6 @@ static const struct spi_driver_api spi_api = {
 		.cs_setup = DT_INST_PROP_OR(idx, cs_setup_time, 0), \
 		.cs_hold = DT_INST_PROP_OR(idx, cs_hold_time, 0), \
 		.line_idle_low = DT_INST_PROP(idx, line_idle_low), \
-		.clock_source = SPI_CLK_SRC_DEFAULT,	\
 	};	\
 		\
 	DEVICE_DT_INST_DEFINE(idx, &spi_esp32_init,	\

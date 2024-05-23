@@ -16,7 +16,6 @@
 #include <DA1469xAB.h>
 #include <da1469x_config.h>
 #include <da1469x_pdc.h>
-#include "rtc_utils.h"
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(rtc_smartbond, CONFIG_RTC_LOG_LEVEL);
@@ -267,7 +266,8 @@ static int rtc_smartbond_get_time(const struct device *dev, struct rtc_time *tim
 	}
 
 	if (!data->is_rtc_configured) {
-		LOG_WRN("RTC is not initialized yet");
+		LOG_ERR("RTC is not initialized yet");
+		return -ENODATA;
 	}
 
 	k_mutex_lock(&data->lock, K_FOREVER);
@@ -286,10 +286,7 @@ static int rtc_smartbond_get_time(const struct device *dev, struct rtc_time *tim
 #if defined(CONFIG_RTC_ALARM)
 BUILD_ASSERT(RTC_ALARMS_COUNT, "At least one alarm event should be supported");
 
-/*
- * Parse only the alarm fields indicated by the mask. Default valid values should be assigned
- * to unused fields as it might happen that application has provided with invalid values.
- */
+/* Define a valid calendar value as a zero sub-field is not valid for the alarm calendar value */
 static uint32_t alarm_calendar_to_bcd(const struct rtc_time *timeptr, uint16_t mask)
 {
 	uint32_t rtc_calendar_alarm_reg = 0x0108;
@@ -307,28 +304,14 @@ static uint32_t alarm_calendar_to_bcd(const struct rtc_time *timeptr, uint16_t m
 	return rtc_calendar_alarm_reg;
 }
 
-/*
- * Parse only the alarm fields indicated by the mask. Default valid values should be assigned
- * to unused fields as it might happen that application has provided with invalid values.
- */
-static inline uint32_t alarm_time_to_bcd(const struct rtc_time *timeptr, uint16_t mask)
+/* No need to parse the alarm mask as a zero sub-field is valid for the alarm time counter. */
+static inline uint32_t alarm_time_to_bcd(const struct rtc_time *timeptr)
 {
 	uint32_t rtc_time_alarm_reg = 0;
 
-	if (mask & RTC_ALARM_TIME_MASK_SECOND) {
-		/*[0, 59]*/
-		RTC_TIME_ALARM_REG_SET_FIELD(S, rtc_time_alarm_reg, bin2bcd(timeptr->tm_sec));
-	}
-
-	if (mask & RTC_ALARM_TIME_MASK_MINUTE) {
-		/*[0, 59]*/
-		RTC_TIME_ALARM_REG_SET_FIELD(M, rtc_time_alarm_reg, bin2bcd(timeptr->tm_min));
-	}
-
-	if (mask & RTC_ALARM_TIME_MASK_HOUR) {
-		/*[0, 23]*/
-		RTC_TIME_ALARM_REG_SET_FIELD(HR, rtc_time_alarm_reg, bin2bcd(timeptr->tm_hour));
-	}
+	RTC_TIME_ALARM_REG_SET_FIELD(S, rtc_time_alarm_reg, bin2bcd(timeptr->tm_sec)); /*[0, 59]*/
+	RTC_TIME_ALARM_REG_SET_FIELD(M, rtc_time_alarm_reg, bin2bcd(timeptr->tm_min)); /*[0, 59]*/
+	RTC_TIME_ALARM_REG_SET_FIELD(HR, rtc_time_alarm_reg, bin2bcd(timeptr->tm_hour)); /*[0, 23]*/
 
 	return rtc_time_alarm_reg;
 }
@@ -425,11 +408,6 @@ static int rtc_smartbond_alarm_set_time(const struct device *dev, uint16_t id, u
 		return -EINVAL;
 	}
 
-	if (!rtc_utils_validate_rtc_time(timeptr, mask)) {
-		LOG_ERR("Invalid alarm fields values");
-		return -EINVAL;
-	}
-
 	if (!data->is_rtc_configured) {
 		LOG_WRN("RTC is not initialized yet");
 	}
@@ -447,7 +425,7 @@ static int rtc_smartbond_alarm_set_time(const struct device *dev, uint16_t id, u
 		rtc_time_alarm_reg = RTC->RTC_TIME_ALARM_REG;
 		rtc_calendar_alarm_reg = RTC->RTC_CALENDAR_ALARM_REG;
 
-		RTC->RTC_TIME_ALARM_REG = alarm_time_to_bcd(timeptr, mask);
+		RTC->RTC_TIME_ALARM_REG = alarm_time_to_bcd(timeptr);
 		RTC->RTC_CALENDAR_ALARM_REG = alarm_calendar_to_bcd(timeptr, mask);
 
 		rtc_status_reg = RTC->RTC_STATUS_REG;
@@ -583,7 +561,7 @@ static int rtc_smartbond_update_set_callback(const struct device *dev, rtc_updat
 }
 #endif
 
-static const struct rtc_driver_api rtc_smartbond_driver_api = {
+struct rtc_driver_api rtc_smartbond_driver_api = {
 	.get_time = rtc_smartbond_get_time,
 	.set_time = rtc_smartbond_set_time,
 #if defined(CONFIG_RTC_ALARM)

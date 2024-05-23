@@ -37,7 +37,7 @@ properties:
 
   clock-source:
     type: phandle
-    description: System clock source
+    description: System clock sorce
 
   "#clock-cells":
     const: 1

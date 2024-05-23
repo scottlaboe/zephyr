@@ -5,7 +5,6 @@
  */
 
 #include <zephyr/ipc/icmsg_me.h>
-#include <zephyr/sys/math_extras.h>
 
 #include <string.h>
 
@@ -21,24 +20,14 @@ static void *icmsg_buffer_to_user_buffer(const void *icmsg_buffer)
 	return (void *)(((char *)icmsg_buffer) + HEADER_SIZE);
 }
 
-static ssize_t icmsg_buffer_len_to_user_buffer_len(size_t icmsg_buffer_len)
+static size_t icmsg_buffer_len_to_user_buffer_len(size_t icmsg_buffer_len)
 {
-	if (icmsg_buffer_len < HEADER_SIZE) {
-		return -EINVAL;
-	}
-
-	return (ssize_t)(icmsg_buffer_len - HEADER_SIZE);
+	return icmsg_buffer_len - HEADER_SIZE;
 }
 
-static ssize_t user_buffer_len_to_icmsg_buffer_len(size_t user_buffer_len)
+static size_t user_buffer_len_to_icmsg_buffer_len(size_t user_buffer_len)
 {
-	size_t ret;
-
-	if (size_add_overflow(user_buffer_len, HEADER_SIZE, &ret)) {
-		return -EINVAL;
-	}
-
-	return (ssize_t)ret;
+	return user_buffer_len + HEADER_SIZE;
 }
 
 static void set_ept_id_in_send_buffer(uint8_t *send_buffer,
@@ -152,7 +141,6 @@ void icmsg_me_received_data(struct icmsg_me_data_t *data, icmsg_me_ept_id_t id,
 {
 	int r;
 	const struct ipc_ept_cfg *ept;
-	ssize_t user_buffer_len;
 
 	r = icmsg_me_get_ept_cfg(data, id, &ept);
 	if (r < 0) {
@@ -163,14 +151,10 @@ void icmsg_me_received_data(struct icmsg_me_data_t *data, icmsg_me_ept_id_t id,
 		return;
 	}
 
-	user_buffer_len = icmsg_buffer_len_to_user_buffer_len(len);
-	if (user_buffer_len < 0) {
-		return;
-	}
-
 	if (ept->cb.received) {
 		ept->cb.received(icmsg_buffer_to_user_buffer(msg),
-				 user_buffer_len, ept->priv);
+				 icmsg_buffer_len_to_user_buffer_len(len),
+				 ept->priv);
 	}
 }
 
@@ -180,9 +164,8 @@ int icmsg_me_send(const struct icmsg_config_t *conf,
 {
 	int r;
 	int sent_bytes = 0;
-	ssize_t icmsg_buffer_len = user_buffer_len_to_icmsg_buffer_len(len);
 
-	if ((icmsg_buffer_len < 0) || (icmsg_buffer_len >= SEND_BUF_SIZE)) {
+	if (user_buffer_len_to_icmsg_buffer_len(len) >= SEND_BUF_SIZE) {
 		return -EBADMSG;
 	}
 
@@ -196,7 +179,7 @@ int icmsg_me_send(const struct icmsg_config_t *conf,
 	memcpy(icmsg_buffer_to_user_buffer(data->send_buffer), msg, len);
 
 	r = icmsg_send(conf, &data->icmsg_data, data->send_buffer,
-		       icmsg_buffer_len);
+		       user_buffer_len_to_icmsg_buffer_len(len));
 	if (r > 0) {
 		sent_bytes = icmsg_buffer_len_to_user_buffer_len(r);
 	}

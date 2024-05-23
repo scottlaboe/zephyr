@@ -73,31 +73,8 @@ int set_socketoptions(struct lwm2m_ctx *ctx)
 			ret = -errno;
 			LOG_ERR("Failed to enable TLS_DTLS_CID: %d", ret);
 		}
-
-		/* Allow DTLS handshake to timeout much faster.
-		 * these tests run on TUN/TAP network, so there should be no network latency.
-		 */
-		uint32_t min = 100;
-		uint32_t max = 500;
-
-		zsock_setsockopt(ctx->sock_fd, SOL_TLS, TLS_DTLS_HANDSHAKE_TIMEOUT_MIN, &min,
-				 sizeof(min));
-		zsock_setsockopt(ctx->sock_fd, SOL_TLS, TLS_DTLS_HANDSHAKE_TIMEOUT_MAX, &max,
-				 sizeof(max));
 	}
 	return lwm2m_set_default_sockopt(ctx);
-}
-
-static int create_appdata(uint16_t obj_inst_id)
-{
-	/* Create BinaryAppData object */
-	static uint8_t data[4096];
-	static char description[16];
-
-	lwm2m_set_res_buf(&LWM2M_OBJ(19, 0, 0, 0), data, sizeof(data), 0, 0);
-	lwm2m_set_res_buf(&LWM2M_OBJ(19, 0, 3), description, sizeof(description), 0, 0);
-
-	return 0;
 }
 
 static int lwm2m_setup(void)
@@ -130,8 +107,6 @@ static int lwm2m_setup(void)
 	lwm2m_create_res_inst(&LWM2M_OBJ(3, 0, 8, 1));
 	lwm2m_set_res_buf(&LWM2M_OBJ(3, 0, 8, 1), &usb_ma, sizeof(usb_ma), sizeof(usb_ma), 0);
 
-	lwm2m_register_create_callback(19, create_appdata);
-
 	return 0;
 }
 
@@ -142,10 +117,6 @@ static void rd_client_event(struct lwm2m_ctx *client,
 
 	case LWM2M_RD_CLIENT_EVENT_NONE:
 		/* do nothing */
-		break;
-
-	case LWM2M_RD_CLIENT_EVENT_SERVER_DISABLED:
-		LOG_DBG("LwM2M server disabled");
 		break;
 
 	case LWM2M_RD_CLIENT_EVENT_BOOTSTRAP_REG_FAILURE:
@@ -237,6 +208,10 @@ static void observe_cb(enum lwm2m_observe_event event,
 int main(void)
 {
 	int ret;
+
+#if defined(CONFIG_BOARD_NATIVE_POSIX)
+	srandom(time(NULL));
+#endif
 
 	ret = lwm2m_setup();
 	if (ret < 0) {

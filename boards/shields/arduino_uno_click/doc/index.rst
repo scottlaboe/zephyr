@@ -44,7 +44,7 @@ other mikroBUS shields. For example:
 .. zephyr-app-commands::
    :zephyr-app: samples/net/sockets/echo_server
    :host-os: unix
-   :board: sam_v71_xult/samv71q21
+   :board: sam_v71_xult
    :gen-args: -DOVERLAY_CONFIG=overlay-802154.conf
    :shield: "arduino_uno_click atmel_rf2xx_mikrobus"
    :goals: build

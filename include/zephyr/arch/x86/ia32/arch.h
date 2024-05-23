@@ -45,7 +45,7 @@
  */
 #if defined(CONFIG_USERSPACE)
 #define GS_TLS_SEG	(0x38 | 0x03)
-#elif defined(CONFIG_X86_STACK_PROTECTION)
+#elif defined(CONFIG_HW_STACK_PROTECTION)
 #define GS_TLS_SEG	(0x28 | 0x03)
 #else
 #define GS_TLS_SEG	(0x18 | 0x03)
@@ -266,8 +266,8 @@ static inline void arch_irq_direct_pm(void)
  * tracing/tracing.h cannot be included here due to circular dependency
  */
 #if defined(CONFIG_TRACING)
-void sys_trace_isr_enter(void);
-void sys_trace_isr_exit(void);
+extern void sys_trace_isr_enter(void);
+extern void sys_trace_isr_exit(void);
 #endif
 
 static inline void arch_isr_direct_header(void)
@@ -287,7 +287,7 @@ static inline void arch_isr_direct_header(void)
  *	  cannot be referenced from a public header, so we move it to an
  *	  external function.
  */
-void arch_isr_direct_footer_swap(unsigned int key);
+extern void arch_isr_direct_footer_swap(unsigned int key);
 
 static inline void arch_isr_direct_footer(int swap)
 {
@@ -396,6 +396,18 @@ static ALWAYS_INLINE unsigned int arch_irq_lock(void)
  * correspond to any IRQ line (such as spurious vector or SW IRQ)
  */
 #define NANO_SOFT_IRQ	((unsigned int) (-1))
+
+/**
+ * @defgroup float_apis Floating Point APIs
+ * @ingroup kernel_apis
+ * @{
+ */
+
+struct k_thread;
+
+/**
+ * @}
+ */
 
 #ifdef CONFIG_X86_ENABLE_TSS
 extern struct task_state_segment _main_tss;

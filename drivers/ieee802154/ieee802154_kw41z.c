@@ -935,7 +935,11 @@ static inline uint8_t *get_mac(const struct device *dev)
 	 *       and how to allow for a OUI portion?
 	 */
 
-	sys_rand_get(kw41z->mac_addr, sizeof(kw41z->mac_addr));
+	uint32_t *ptr = (uint32_t *)(kw41z->mac_addr);
+
+	UNALIGNED_PUT(sys_rand32_get(), ptr);
+	ptr = (uint32_t *)(kw41z->mac_addr + 4);
+	UNALIGNED_PUT(sys_rand32_get(), ptr);
 
 	/*
 	 * Clear bit 0 to ensure it isn't a multicast address and set
@@ -1087,7 +1091,7 @@ static int kw41z_attr_get(const struct device *dev, enum ieee802154_attr attr,
 		&drv_attr.phy_supported_channels, value);
 }
 
-static const struct ieee802154_radio_api kw41z_radio_api = {
+static struct ieee802154_radio_api kw41z_radio_api = {
 	.iface_api.init	= kw41z_iface_init,
 
 	.get_capabilities	= kw41z_get_capabilities,

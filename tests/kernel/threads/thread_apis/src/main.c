@@ -18,10 +18,7 @@
 #include <zephyr/kernel.h>
 #include <kernel_internal.h>
 #include <string.h>
-
-/* internal kernel APIs */
 #include <ksched.h>
-#include <kthread.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(test);
@@ -46,7 +43,7 @@ static ZTEST_DMEM int tp = 10;
  */
 ZTEST(threads_lifecycle, test_systhreads_main)
 {
-	zassert_true(main_prio == CONFIG_MAIN_THREAD_PRIORITY, "%d", CONFIG_MAIN_THREAD_PRIORITY);
+	zassert_true(main_prio == CONFIG_MAIN_THREAD_PRIORITY);
 }
 
 /**
@@ -188,7 +185,7 @@ ZTEST_USER(threads_lifecycle, test_thread_name_user_get_set)
 	zassert_equal(ret, -EINVAL, "not a thread object");
 	ret = k_thread_name_copy(&z_main_thread, thread_name,
 				     sizeof(thread_name));
-	zassert_equal(ret, 0, "couldn't get main thread name: %s (%d)", thread_name, ret);
+	zassert_equal(ret, 0, "couldn't get main thread name");
 	LOG_DBG("Main thread name is '%s'", thread_name);
 
 	/* Set and get child thread's name */
@@ -232,7 +229,7 @@ static void umode_entry(void *thread_id, void *p2, void *p3)
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
-	if (!z_is_thread_essential(_current) &&
+	if (!z_is_thread_essential() &&
 	    (k_current_get() == (k_tid_t)thread_id)) {
 		ztest_test_pass();
 	} else {
@@ -249,9 +246,9 @@ static void umode_entry(void *thread_id, void *p2, void *p3)
  */
 static void enter_user_mode_entry(void *p1, void *p2, void *p3)
 {
-	z_thread_essential_set(_current);
+	z_thread_essential_set();
 
-	zassert_true(z_is_thread_essential(_current), "Thread isn't set"
+	zassert_true(z_is_thread_essential(), "Thread isn't set"
 		     " as essential\n");
 
 	k_thread_user_mode_enter(umode_entry,
@@ -575,13 +572,7 @@ ZTEST(threads_lifecycle, test_k_busy_wait)
 
 	/* execution_cycles increases correctly */
 	dt = test_stats.execution_cycles - cycles;
-
-	/* execution cycles may not increase by the full 100µs as the
-	 * system may be doing something else during the busy
-	 * wait. Experimentally, we see at least 80% of the cycles
-	 * consumed in the busy wait loop on current test targets.
-	 */
-	zassert_true(dt >= k_us_to_cyc_floor64(80));
+	zassert_true(dt >= k_us_to_cyc_floor64(100));
 }
 
 static void tp_entry(void *p1, void *p2, void *p3)

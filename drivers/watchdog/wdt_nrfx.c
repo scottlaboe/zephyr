@@ -60,23 +60,13 @@ static int wdt_nrf_disable(const struct device *dev)
 {
 #if NRFX_WDT_HAS_STOP
 	const struct wdt_nrfx_config *config = dev->config;
-	struct wdt_nrfx_data *data = dev->data;
 	nrfx_err_t err_code;
-	int channel_id;
 
 	err_code = nrfx_wdt_stop(&config->wdt);
 
 	if (err_code != NRFX_SUCCESS) {
-		/* This can only happen if wdt_nrf_setup() is not called first. */
-		return -EFAULT;
+		return -ENOTSUP;
 	}
-
-	nrfx_wdt_channels_free(&config->wdt);
-
-	for (channel_id = 0; channel_id < data->m_allocated_channels; channel_id++) {
-		data->m_callbacks[channel_id] = NULL;
-	}
-	data->m_allocated_channels = 0;
 
 	return 0;
 #else
@@ -138,7 +128,7 @@ static int wdt_nrf_feed(const struct device *dev, int channel_id)
 	const struct wdt_nrfx_config *config = dev->config;
 	struct wdt_nrfx_data *data = dev->data;
 
-	if ((channel_id >= data->m_allocated_channels) || (channel_id < 0)) {
+	if (channel_id > data->m_allocated_channels) {
 		return -EINVAL;
 	}
 
@@ -155,12 +145,8 @@ static const struct wdt_driver_api wdt_nrfx_driver_api = {
 	.feed = wdt_nrf_feed,
 };
 
-static void wdt_event_handler(const struct device *dev, nrf_wdt_event_t event_type,
-			      uint32_t requests, void *p_context)
+static void wdt_event_handler(const struct device *dev, uint32_t requests)
 {
-	(void)event_type;
-	(void)p_context;
-
 	struct wdt_nrfx_data *data = dev->data;
 
 	while (requests) {
@@ -176,12 +162,9 @@ static void wdt_event_handler(const struct device *dev, nrf_wdt_event_t event_ty
 #define WDT(idx) DT_NODELABEL(wdt##idx)
 
 #define WDT_NRFX_WDT_DEVICE(idx)					       \
-	static void wdt_##idx##_event_handler(nrf_wdt_event_t event_type,      \
-					      uint32_t requests,	       \
-					      void *p_context)		       \
+	static void wdt_##idx##_event_handler(uint32_t requests)	       \
 	{								       \
-		wdt_event_handler(DEVICE_DT_GET(WDT(idx)), event_type,         \
-				  requests, p_context);			       \
+		wdt_event_handler(DEVICE_DT_GET(WDT(idx)), requests);	       \
 	}								       \
 	static int wdt_##idx##_init(const struct device *dev)		       \
 	{								       \
@@ -191,8 +174,7 @@ static void wdt_event_handler(const struct device *dev, nrf_wdt_event_t event_ty
 			    nrfx_isr, nrfx_wdt_##idx##_irq_handler, 0);	       \
 		err_code = nrfx_wdt_init(&config->wdt,			       \
 					 NULL,				       \
-					 wdt_##idx##_event_handler,	       \
-					 NULL);				       \
+					 wdt_##idx##_event_handler);	       \
 		if (err_code != NRFX_SUCCESS) {				       \
 			return -EBUSY;					       \
 		}							       \
@@ -219,32 +201,4 @@ WDT_NRFX_WDT_DEVICE(0);
 
 #ifdef CONFIG_HAS_HW_NRF_WDT1
 WDT_NRFX_WDT_DEVICE(1);
-#endif
-
-#ifdef CONFIG_HAS_HW_NRF_WDT30
-WDT_NRFX_WDT_DEVICE(30);
-#endif
-
-#ifdef CONFIG_HAS_HW_NRF_WDT31
-WDT_NRFX_WDT_DEVICE(31);
-#endif
-
-#ifdef CONFIG_HAS_HW_NRF_WDT010
-WDT_NRFX_WDT_DEVICE(010);
-#endif
-
-#ifdef CONFIG_HAS_HW_NRF_WDT011
-WDT_NRFX_WDT_DEVICE(011);
-#endif
-
-#ifdef CONFIG_HAS_HW_NRF_WDT130
-WDT_NRFX_WDT_DEVICE(130);
-#endif
-
-#ifdef CONFIG_HAS_HW_NRF_WDT131
-WDT_NRFX_WDT_DEVICE(131);
-#endif
-
-#ifdef CONFIG_HAS_HW_NRF_WDT132
-WDT_NRFX_WDT_DEVICE(132);
 #endif

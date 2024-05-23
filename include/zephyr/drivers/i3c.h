@@ -1,6 +1,5 @@
 /*
  * Copyright 2022 Intel Corporation
- * Copyright 2023 Meta Platforms, Inc. and its affiliates
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,8 +10,6 @@
 /**
  * @brief I3C Interface
  * @defgroup i3c_interface I3C Interface
- * @since 3.2
- * @version 0.1.0
  * @ingroup io_interfaces
  * @{
  */
@@ -38,34 +35,27 @@ extern "C" {
  *   - 1: I3C Controller capable
  *   - 2: Reserved
  *   - 3: Reserved
- *   .
  * - BCR[5]: Advanced Capabilities
  *   - 0: Does not support optional advanced capabilities.
  *   - 1: Supports optional advanced capabilities which
  *        can be viewed via GETCAPS CCC.
- *   .
- * - BCR[4]: Virtual Target Support
+ * - BCR[4}: Virtual Target Support
  *   - 0: Is not a virtual target.
  *   - 1: Is a virtual target.
- *   .
  * - BCR[3]: Offline Capable
  *   - 0: Will always response to I3C commands.
  *   - 1: Will not always response to I3C commands.
- *   .
  * - BCR[2]: IBI Payload
  *   - 0: No data bytes following the accepted IBI.
  *   - 1: One data byte (MDB, Mandatory Data Byte) follows
  *        the accepted IBI. Additional data bytes may also
  *        follows.
- *   .
  * - BCR[1]: IBI Request Capable
  *   - 0: Not capable
  *   - 1: Capable
- *   .
  * - BCR[0]: Max Data Speed Limitation
  *   - 0: No Limitation
  *   - 1: Limitation obtained via GETMXDS CCC.
- *   .
  *
  * @{
  */
@@ -140,7 +130,7 @@ extern "C" {
 /** @} */
 
 /**
- * @name Legacy Virtual Register (LVR)
+ * @name Device Characteristic Register (DCR)
  *
  * Legacy Virtual Register (LVR)
  * - LVR[7:5]: I2C device index:
@@ -159,26 +149,26 @@ extern "C" {
  */
 
 /** I2C FM+ Mode. */
-#define I3C_LVR_I2C_FM_PLUS_MODE			0
+#define I3C_DCR_I2C_FM_PLUS_MODE			0
 
 /** I2C FM Mode. */
-#define I3C_LVR_I2C_FM_MODE				1
+#define I3C_DCR_I2C_FM_MODE				1
 
 /** I2C Mode Indicator bit shift value. */
-#define I3C_LVR_I2C_MODE_SHIFT				4
+#define I3C_DCR_I2C_MODE_SHIFT				4
 
 /** I2C Mode Indicator bitmask. */
-#define I3C_LVR_I2C_MODE_MASK				BIT(4)
+#define I3C_DCR_I2C_MODE_MASK				BIT(4)
 
 /**
  * @brief I2C Mode
  *
- * Obtain I2C Mode value from the LVR value.
+ * Obtain I2C Mode value from the DCR value obtained via GETDCR.
  *
- * @param lvr LVR value
+ * @param dcr DCR value
  */
-#define I3C_LVR_I2C_MODE(lvr)				\
-	(((lvr) & I3C_LVR_I2C_MODE_MASK) >> I3C_LVR_I2C_MODE_SHIFT)
+#define I3C_DCR_I2C_MODE(dcr)				\
+	(((mode) & I3C_DCR_I2C_MODE_MASK) >> I3C_DCR_I2C_MODE_SHIFT)
 
 /**
  * @brief I2C Device Index 0.
@@ -186,7 +176,7 @@ extern "C" {
  * I2C device has a 50 ns spike filter where it is not affected by high
  * frequency on SCL.
  */
-#define I3C_LVR_I2C_DEV_IDX_0				0
+#define I3C_DCR_I2C_DEV_IDX_0				0
 
 /**
  * @brief I2C Device Index 1.
@@ -194,7 +184,7 @@ extern "C" {
  * I2C device does not have a 50 ns spike filter but can work with high
  * frequency on SCL.
  */
-#define I3C_LVR_I2C_DEV_IDX_1				1
+#define I3C_DCR_I2C_DEV_IDX_1				1
 
 /**
  * @brief I2C Device Index 2.
@@ -202,23 +192,23 @@ extern "C" {
  * I2C device does not have a 50 ns spike filter and cannot work with high
  * frequency on SCL.
  */
-#define I3C_LVR_I2C_DEV_IDX_2				2
+#define I3C_DCR_I2C_DEV_IDX_2				2
 
 /** I2C Device Index bit shift value. */
-#define I3C_LVR_I2C_DEV_IDX_SHIFT			5
+#define I3C_DCR_I2C_DEV_IDX_SHIFT			5
 
 /** I2C Device Index bitmask. */
-#define I3C_LVR_I2C_DEV_IDX_MASK			(0x07U << I3C_LVR_I2C_DEV_IDX_SHIFT)
+#define I3C_DCR_I2C_DEV_IDX_MASK			(0x07U << I3C_DCR_I2C_DEV_IDX_SHIFT)
 
 /**
  * @brief I2C Device Index
  *
- * Obtain I2C Device Index value from the LVR value.
+ * Obtain I2C Device Index value from the DCR value obtained via GETDCR.
  *
- * @param lvr LVR value
+ * @param dcr DCR value
  */
-#define I3C_LVR_I2C_DEV_IDX(lvr)			\
-	(((lvr) & I3C_LVR_I2C_DEV_IDX_MASK) >> I3C_LVR_I2C_DEV_IDX_SHIFT)
+#define I3C_DCR_I2C_DEV_IDX(dcr)			\
+	(((dcr) & I3C_DCR_I2C_DEV_IDX_MASK) >> I3C_DCR_I2C_DEV_IDX_SHIFT)
 
 /** @} */
 
@@ -478,15 +468,6 @@ struct i3c_msg {
 
 	/** Length of buffer in bytes */
 	uint32_t		len;
-
-	/**
-	 * Total number of bytes transferred
-	 *
-	 * A Target can issue an EoD or the Controller can abort a transfer
-	 * before the length of the buffer. It is expected for the driver to
-	 * write to this after the transfer.
-	 */
-	uint32_t		num_xfer;
 
 	/** Flags for this message */
 	uint8_t			flags;
@@ -1039,58 +1020,6 @@ struct i3c_device_desc {
 		/** Maximum IBI Payload Size. Valid only if BCR[2] is 1. */
 		uint8_t max_ibi;
 	} data_length;
-
-	/** Describes advanced (Target) capabilities and features */
-	struct {
-		union {
-			/**
-			 * I3C v1.0 HDR Capabilities (@c I3C_CCC_GETCAPS1_*)
-			 * - Bit[0]: HDR-DDR
-			 * - Bit[1]: HDR-TSP
-			 * - Bit[2]: HDR-TSL
-			 * - Bit[7:3]: Reserved
-			 */
-			uint8_t gethdrcap;
-
-			/**
-			 * I3C v1.1+ GETCAPS1 (@c I3C_CCC_GETCAPS1_*)
-			 * - Bit[0]: HDR-DDR
-			 * - Bit[1]: HDR-TSP
-			 * - Bit[2]: HDR-TSL
-			 * - Bit[3]: HDR-BT
-			 * - Bit[7:4]: Reserved
-			 */
-			uint8_t getcap1;
-		};
-
-		/**
-		 *  GETCAPS2 (@c I3C_CCC_GETCAPS2_*)
-		 * - Bit[3:0]: I3C 1.x Specification Version
-		 * - Bit[5:4]: Group Address Capabilities
-		 * - Bit[6]: HDR-DDR Write Abort
-		 * - Bit[7]: HDR-DDR Abort CRC
-		 */
-		uint8_t getcap2;
-
-		/**
-		 * GETCAPS3 (@c I3C_CCC_GETCAPS3_*)
-		 * - Bit[0]: Multi-Lane (ML) Data Transfer Support
-		 * - Bit[1]: Device to Device Transfer (D2DXFER) Support
-		 * - Bit[2]: Device to Device Transfer (D2DXFER) IBI Capable
-		 * - Bit[3]: Defining Byte Support in GETCAPS
-		 * - Bit[4]: Defining Byte Support in GETSTATUS
-		 * - Bit[5]: HDR-BT CRC-32 Support
-		 * - Bit[6]: IBI MDB Support for Pending Read Notification
-		 * - Bit[7]: Reserved
-		 */
-		uint8_t getcap3;
-
-		/**
-		 * GETCAPS4
-		 * - Bit[7:0]: Reserved
-		 */
-		uint8_t getcap4;
-	} getcaps;
 
 	/**
 	 * Private data by the controller to aid in transactions. Do not modify.

@@ -9,7 +9,6 @@
 #define ZEPHYR_INCLUDE_PM_DEVICE_RUNTIME_H_
 
 #include <zephyr/device.h>
-#include <zephyr/kernel.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,7 +47,7 @@ int pm_device_runtime_auto_enable(const struct device *dev);
  * @param dev Device instance.
  *
  * @retval 0 If the device runtime PM is enabled successfully.
- * @retval -EBUSY If device is busy.
+ * @retval -EPERM If device has power state locked.
  * @retval -ENOTSUP If the device does not support PM.
  * @retval -errno Other negative errno, result of suspending the device.
  *
@@ -132,7 +131,6 @@ int pm_device_runtime_put(const struct device *dev);
  * @funcprops \pre_kernel_ok, \async, \isr_ok
  *
  * @param dev Device instance.
- * @param delay Minimum amount of time before triggering the action.
  *
  * @retval 0 If it succeeds. In case device runtime PM is not enabled or not
  * available this function will be a no-op and will also return 0.
@@ -142,7 +140,7 @@ int pm_device_runtime_put(const struct device *dev);
  *
  * @see pm_device_runtime_put()
  */
-int pm_device_runtime_put_async(const struct device *dev, k_timeout_t delay);
+int pm_device_runtime_put_async(const struct device *dev);
 
 /**
  * @brief Check if device runtime is enabled for a given device.
@@ -157,17 +155,6 @@ int pm_device_runtime_put_async(const struct device *dev, k_timeout_t delay);
  * @see pm_device_runtime_enable()
  */
 bool pm_device_runtime_is_enabled(const struct device *dev);
-
-/**
- * @brief Return the current device usage counter.
- *
- * @param dev Device instance.
- *
- * @returns the current usage counter.
- * @retval -ENOTSUP If the device is not using runtime PM.
- * @retval -ENOSYS If the runtime PM is not enabled at all.
- */
-int pm_device_runtime_usage(const struct device *dev);
 
 #else
 
@@ -201,11 +188,9 @@ static inline int pm_device_runtime_put(const struct device *dev)
 	return 0;
 }
 
-static inline int pm_device_runtime_put_async(const struct device *dev,
-		k_timeout_t delay)
+static inline int pm_device_runtime_put_async(const struct device *dev)
 {
 	ARG_UNUSED(dev);
-	ARG_UNUSED(delay);
 	return 0;
 }
 
@@ -213,12 +198,6 @@ static inline bool pm_device_runtime_is_enabled(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 	return false;
-}
-
-static inline int pm_device_runtime_usage(const struct device *dev)
-{
-	ARG_UNUSED(dev);
-	return -ENOSYS;
 }
 
 #endif

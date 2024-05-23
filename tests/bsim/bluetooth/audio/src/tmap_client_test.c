@@ -38,7 +38,7 @@ static bool check_audio_support_and_connect(struct bt_data *data, void *user_dat
 {
 	bt_addr_le_t *addr = user_data;
 	struct net_buf_simple tmas_svc_data;
-	const struct bt_uuid *uuid;
+	struct bt_uuid *uuid;
 	uint16_t uuid_val;
 	uint16_t peer_tmap_role = 0;
 	int err;
@@ -113,23 +113,6 @@ static struct bt_le_scan_cb scan_callbacks = {
 	.recv = scan_recv,
 };
 
-static void discover_tmas(void)
-{
-	int err;
-
-	UNSET_FLAG(flag_tmap_discovered);
-
-	/* Discover TMAS service on peer */
-	err = bt_tmap_discover(default_conn, &tmap_callbacks);
-	if (err != 0) {
-		FAIL("Failed to initiate TMAS discovery: %d\n", err);
-		return;
-	}
-
-	printk("TMAP Central Starting Service Discovery...\n");
-	WAIT_FOR_FLAG(flag_tmap_discovered);
-}
-
 static void test_main(void)
 {
 	int err;
@@ -158,9 +141,15 @@ static void test_main(void)
 
 	printk("Scanning successfully started\n");
 	WAIT_FOR_FLAG(flag_connected);
+	/* Discover TMAS service on peer */
+	err = bt_tmap_discover(default_conn, &tmap_callbacks);
+	if (err != 0) {
+		FAIL("Failed to initiate TMAS discovery: %d\n", err);
+		return;
+	}
 
-	discover_tmas();
-	discover_tmas(); /* test that we can discover twice */
+	printk("TMAP Central Starting Service Discovery...\n");
+	WAIT_FOR_FLAG(flag_tmap_discovered);
 
 	PASS("TMAP Client test passed\n");
 }

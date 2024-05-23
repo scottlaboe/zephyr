@@ -7,10 +7,10 @@ tests:
     # Requires multiple kernels in an AMP config. See README.rst
     build_only: true
     platform_allow:
-      - nsim/nsim_sem
-      - em_starterkit/emsk_em7d
+      - nsim_sem
+      - em_starterkit_em7d
     integration_platforms:
-      - nsim/nsim_sem
+      - nsim_sem
     tags: secure
     harness: console
     harness_config:

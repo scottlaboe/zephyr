@@ -211,7 +211,7 @@ struct i3c_target_callbacks {
 	int (*stop_cb)(struct i3c_target_config *config);
 };
 
-__subsystem struct i3c_target_driver_api {
+struct i3c_target_driver_api {
 	int (*driver_register)(const struct device *dev);
 	int (*driver_unregister)(const struct device *dev);
 };

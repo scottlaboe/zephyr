@@ -149,8 +149,7 @@ static int send_icmpv4_echo_request(struct net_icmp_ctx *ctx,
 	    params->priority >= NET_MAX_PRIORITIES) {
 		NET_ERR("Priority %d is too large, maximum allowed is %d",
 			params->priority, NET_MAX_PRIORITIES - 1);
-		ret = -EINVAL;
-		goto drop;
+		return -EINVAL;
 	}
 
 	if (params->priority < 0) {
@@ -270,8 +269,7 @@ static int send_icmpv6_echo_request(struct net_icmp_ctx *ctx,
 	    params->priority >= NET_MAX_PRIORITIES) {
 		NET_ERR("Priority %d is too large, maximum allowed is %d",
 			params->priority, NET_MAX_PRIORITIES - 1);
-		ret = -EINVAL;
-		goto drop;
+		return -EINVAL;
 	}
 
 	if (params->priority < 0) {
@@ -360,7 +358,7 @@ static struct net_icmp_ping_params *get_default_params(void)
 {
 	static struct net_icmp_ping_params params = { 0 };
 
-	params.identifier = sys_rand16_get();
+	params.identifier = sys_rand32_get();
 
 	return &params;
 }

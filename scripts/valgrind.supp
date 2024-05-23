@@ -18,7 +18,7 @@
 {
    POSIX soc no cpu cleanup
    Memcheck:Leak
-   match-leak-kinds: reachable,possible
+   match-leak-kinds: reachable
    ...
    fun:posix_boot_cpu
    ...

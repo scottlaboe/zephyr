@@ -17,8 +17,6 @@
 /**
  * @brief COAP library
  * @defgroup coap COAP Library
- * @since 1.10
- * @version 0.8.0
  * @ingroup networking
  * @{
  */
@@ -27,7 +25,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <zephyr/net/net_ip.h>
-#include <zephyr/sys/math_extras.h>
+
 #include <zephyr/sys/slist.h>
 
 #ifdef __cplusplus
@@ -82,15 +80,9 @@ enum coap_method {
 	COAP_METHOD_IPATCH = 7,  /**< IPATCH */
 };
 
-/** @cond INTERNAL_HIDDEN */
-
 #define COAP_REQUEST_MASK 0x07
 
 #define COAP_VERSION_1 1U
-
-#define COAP_OBSERVE_MAX_AGE 0xFFFFFF
-
-/** @endcond */
 
 /**
  * @brief CoAP packets may be of one of these types.
@@ -197,13 +189,9 @@ enum coap_response_code {
 						COAP_MAKE_RESPONSE_CODE(5, 5)
 };
 
-/** @cond INTERNAL_HIDDEN */
-
 #define COAP_CODE_EMPTY (0)
 
 #define COAP_TOKEN_MAX_LEN 8UL
-
-/** @endcond */
 
 /**
  * @brief Set of Content-Format option values for CoAP.
@@ -222,14 +210,10 @@ enum coap_content_format {
 	COAP_CONTENT_FORMAT_APP_CBOR = 60               /**< application/cbor */
 };
 
-/** @cond INTERNAL_HIDDEN */
-
 /* block option helper */
 #define GET_BLOCK_NUM(v)        ((v) >> 4)
 #define GET_BLOCK_SIZE(v)       (((v) & 0x7))
 #define GET_MORE(v)             (!!((v) & 0x08))
-
-/** @endcond */
 
 struct coap_observer;
 struct coap_packet;
@@ -255,6 +239,29 @@ typedef void (*coap_notify_t)(struct coap_resource *resource,
 			      struct coap_observer *observer);
 
 /**
+ * @brief Event types for observer event callbacks.
+ */
+enum coap_observer_event {
+	/** An observer was added. */
+	COAP_OBSERVER_ADDED = 0,
+	/** An observer was removed. */
+	COAP_OBSERVER_REMOVED,
+};
+
+/**
+ * @typedef coap_observer_event_handler_t
+ * @brief Type of the handler being called when a resource's observers has been modified.
+ * Either an observer was added or removed.
+ *
+ * @param resource A pointer to a CoAP resource for which the event occurred
+ * @param observer The observer being added/removed
+ * @param event The event type
+ */
+typedef void (*coap_observer_event_handler_t)(struct coap_resource *resource,
+					      struct coap_observer *observer,
+					      enum coap_observer_event event);
+
+/**
  * @brief Description of CoAP resource.
  *
  * CoAP servers often want to register resources, so that clients can act on
@@ -263,29 +270,27 @@ typedef void (*coap_notify_t)(struct coap_resource *resource,
 struct coap_resource {
 	/** Which function to be called for each CoAP method */
 	coap_method_t get, post, put, del, fetch, patch, ipatch;
-	/** Notify function to call */
 	coap_notify_t notify;
-	/** Resource path */
 	const char * const *path;
-	/** User specific opaque data */
 	void *user_data;
-	/** List of resource observers */
 	sys_slist_t observers;
-	/** Resource age */
 	int age;
+#if defined(CONFIG_COAP_OBSERVER_EVENTS) || defined(DOXYGEN)
+	/**
+	 * Optional observer event callback function
+	 * Only available when @kconfig{CONFIG_COAP_OBSERVER_EVENTS} is enabled.
+	 */
+	coap_observer_event_handler_t observer_event_handler;
+#endif
 };
 
 /**
  * @brief Represents a remote device that is observing a local resource.
  */
 struct coap_observer {
-	/** Observer list node */
 	sys_snode_t list;
-	/** Observer connection end point information */
 	struct sockaddr addr;
-	/** Observer token */
 	uint8_t token[8];
-	/** Extended token length */
 	uint8_t tkl;
 };
 
@@ -335,18 +340,6 @@ typedef int (*coap_reply_t)(const struct coap_packet *response,
 			    const struct sockaddr *from);
 
 /**
- * @brief CoAP transmission parameters.
- */
-struct coap_transmission_parameters {
-	/**  Initial ACK timeout. Value is used as a base value to retry pending CoAP packets. */
-	uint32_t ack_timeout;
-	/** Set CoAP retry backoff factor. A value of 200 means a factor of 2.0. */
-	uint16_t coap_backoff_percent;
-	/** Maximum number of retransmissions. */
-	uint8_t max_retransmission;
-};
-
-/**
  * @brief Represents a request awaiting for an acknowledgment (ACK).
  */
 struct coap_pending {
@@ -357,7 +350,6 @@ struct coap_pending {
 	uint8_t *data;        /**< User allocated buffer */
 	uint16_t len;         /**< Length of the CoAP packet */
 	uint8_t retries;      /**< Number of times the request has been sent */
-	struct coap_transmission_parameters params; /**< Transmission parameters */
 };
 
 /**
@@ -365,17 +357,11 @@ struct coap_pending {
  * also used when observing resources.
  */
 struct coap_reply {
-	/** CoAP reply callback */
 	coap_reply_t reply;
-	/** User specific opaque data */
 	void *user_data;
-	/** Reply age */
 	int age;
-	/** Reply id */
 	uint16_t id;
-	/** Reply token */
 	uint8_t token[8];
-	/** Extended token length */
 	uint8_t tkl;
 };
 
@@ -724,35 +710,11 @@ static inline uint16_t coap_block_size_to_bytes(
 }
 
 /**
- * @brief Helper for converting block size in bytes to enumeration.
- *
- * NOTE: Only valid CoAP block sizes map correctly.
- *
- * @param bytes CoAP block size in bytes.
- * @return enum coap_block_size
- */
-static inline enum coap_block_size coap_bytes_to_block_size(uint16_t bytes)
-{
-	int sz = u32_count_trailing_zeros(bytes) - 4;
-
-	if (sz < COAP_BLOCK_16) {
-		return COAP_BLOCK_16;
-	}
-	if (sz > COAP_BLOCK_1024) {
-		return COAP_BLOCK_1024;
-	}
-	return sz;
-}
-
-/**
  * @brief Represents the current state of a block-wise transaction.
  */
 struct coap_block_context {
-	/** Total size of the block-wise transaction */
 	size_t total_size;
-	/** Current size of the block-wise transaction */
 	size_t current;
-	/** Block size */
 	enum coap_block_size block_size;
 };
 
@@ -807,15 +769,6 @@ bool coap_has_descriptive_block_option(struct coap_packet *cpkt);
  * @return 0 in case of success or negative in case of error.
  */
 int coap_remove_descriptive_block_option(struct coap_packet *cpkt);
-
-/**
- * @brief Check if BLOCK1 or BLOCK2 option has more flag set
- *
- * @param cpkt Packet to be checked.
- * @return true If more flag is set in BLOCK1 or BLOCK2
- * @return false If MORE flag is not set or BLOCK header not found.
- */
-bool coap_block_has_more(struct coap_packet *cpkt);
 
 /**
  * @brief Append BLOCK1 option to the packet.
@@ -1066,15 +1019,14 @@ void coap_reply_init(struct coap_reply *reply,
  * confirmation message, initialized with data from @a request
  * @param request Message waiting for confirmation
  * @param addr Address to send the retransmission
- * @param params Pointer to the CoAP transmission parameters struct,
- * or NULL to use default values
+ * @param retries Maximum number of retransmissions of the message.
  *
  * @return 0 in case of success or negative in case of error.
  */
 int coap_pending_init(struct coap_pending *pending,
 		      const struct coap_packet *request,
 		      const struct sockaddr *addr,
-		      const struct coap_transmission_parameters *params);
+		      uint8_t retries);
 
 /**
  * @brief Returns the next available pending struct, that can be used
@@ -1177,15 +1129,6 @@ void coap_pending_clear(struct coap_pending *pending);
 void coap_pendings_clear(struct coap_pending *pendings, size_t len);
 
 /**
- * @brief Count number of pending requests.
- *
- * @param len Number of elements in array.
- * @param pendings Array of pending requests.
- * @return count of elements where timeout is not zero.
- */
-size_t coap_pendings_count(struct coap_pending *pendings, size_t len);
-
-/**
  * @brief Cancels awaiting for this reply, so it becomes available
  * again. User responsibility to free the memory associated with data.
  *
@@ -1220,20 +1163,6 @@ int coap_resource_notify(struct coap_resource *resource);
  * otherwise
  */
 bool coap_request_is_observe(const struct coap_packet *request);
-
-/**
- * @brief Get currently active CoAP transmission parameters.
- *
- * @return CoAP transmission parameters structure.
- */
-struct coap_transmission_parameters coap_get_transmission_parameters(void);
-
-/**
- * @brief Set CoAP transmission parameters.
- *
- * @param params Pointer to the transmission parameters structure.
- */
-void coap_set_transmission_parameters(const struct coap_transmission_parameters *params);
 
 #ifdef __cplusplus
 }

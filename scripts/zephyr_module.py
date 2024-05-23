@@ -28,11 +28,6 @@ import pykwalify.core
 from pathlib import Path, PurePath
 from collections import namedtuple
 
-try:
-    from yaml import CSafeLoader as SafeLoader
-except ImportError:
-    from yaml import SafeLoader
-
 METADATA_SCHEMA = '''
 ## A pykwalify schema for basic validation of the structure of a
 ## metadata YAML file.
@@ -161,7 +156,7 @@ BLOB_PRESENT = 'A'
 BLOB_NOT_PRESENT = 'D'
 BLOB_OUTDATED = 'M'
 
-schema = yaml.load(METADATA_SCHEMA, Loader=SafeLoader)
+schema = yaml.safe_load(METADATA_SCHEMA)
 
 
 def validate_setting(setting, module_path, filename=None):
@@ -185,7 +180,7 @@ def process_module(module):
                        module_path / MODULE_YML_PATH.with_suffix('.yaml')]:
         if Path(module_yml).is_file():
             with Path(module_yml).open('r') as f:
-                meta = yaml.load(f.read(), Loader=SafeLoader)
+                meta = yaml.safe_load(f.read())
 
             try:
                 pykwalify.core.Core(source_data=meta, schema_data=schema)\
@@ -375,15 +370,14 @@ def process_sysbuildkconfig(module, meta):
                  'not point to a valid Kconfig file.'
                  .format(module_yml, kconfig_setting))
 
-    if kconfig_setting is not None:
-        kconfig_file = os.path.join(module, kconfig_setting)
-        if os.path.isfile(kconfig_file):
-            return kconfig_snippet(meta, module_path, Path(kconfig_file))
+    if kconfig_setting is None:
+        return ""
 
-    name_sanitized = meta['name-sanitized']
-    return (f'config ZEPHYR_{name_sanitized.upper()}_MODULE\n'
-            f'   bool\n'
-            f'   default y\n')
+    kconfig_file = os.path.join(module, kconfig_setting)
+    if os.path.isfile(kconfig_file):
+        return kconfig_snippet(meta, module_path, Path(kconfig_file))
+    else:
+        return ""
 
 
 def process_twister(module, meta):

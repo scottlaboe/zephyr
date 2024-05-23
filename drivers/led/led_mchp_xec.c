@@ -12,7 +12,7 @@
  */
 
 #include <soc.h>
-#ifndef CONFIG_SOC_SERIES_MEC15XX
+#ifndef CONFIG_SOC_SERIES_MEC1501X
 #include <zephyr/drivers/clock_control/mchp_xec_clock_control.h>
 #include <zephyr/drivers/interrupt_controller/intc_mchp_xec_ecia.h>
 #endif
@@ -207,7 +207,7 @@ static int xec_bbled_off(const struct device *dev, uint32_t led)
 	return 0;
 }
 
-#ifdef CONFIG_SOC_SERIES_MEC15XX
+#ifdef CONFIG_SOC_SERIES_MEC1501X
 static inline void xec_bbled_slp_en_clr(const struct device *dev)
 {
 	const struct xec_bbled_config * const cfg = dev->config;

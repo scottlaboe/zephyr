@@ -123,10 +123,7 @@ static void dma_stm32_irq_handler(const struct device *dev, uint32_t id)
 		stream->dma_callback(dev, stream->user_data, callback_arg, DMA_STATUS_BLOCK);
 	} else if (stm32_dma_is_tc_irq_active(dma, id)) {
 #ifdef CONFIG_DMAMUX_STM32
-		/* Circular buffer never stops receiving as long as peripheral is enabled */
-		if (!stream->cyclic) {
-			stream->busy = false;
-		}
+		stream->busy = false;
 #endif
 		/* Let HAL DMA handle flags on its own */
 		if (!stream->hal_override) {
@@ -315,7 +312,6 @@ DMA_STM32_EXPORT_API int dma_stm32_configure(const struct device *dev,
 		stream->hal_override = true;
 		stream->dma_callback = config->dma_callback;
 		stream->user_data = config->user_data;
-		stream->cyclic = false;
 		return 0;
 	}
 
@@ -365,7 +361,6 @@ DMA_STM32_EXPORT_API int dma_stm32_configure(const struct device *dev,
 	stream->user_data       = config->user_data;
 	stream->src_size	= config->source_data_size;
 	stream->dst_size	= config->dest_data_size;
-	stream->cyclic		= config->head_block->source_reload_en;
 
 	/* Check dest or source memory address, warn if 0 */
 	if (config->head_block->source_address == 0) {
@@ -437,7 +432,7 @@ DMA_STM32_EXPORT_API int dma_stm32_configure(const struct device *dev,
 	LOG_DBG("Channel (%d) peripheral inc (%x).",
 				id, DMA_InitStruct.PeriphOrM2MSrcIncMode);
 
-	if (stream->cyclic) {
+	if (config->head_block->source_reload_en) {
 		DMA_InitStruct.Mode = LL_DMA_MODE_CIRCULAR;
 	} else {
 		DMA_InitStruct.Mode = LL_DMA_MODE_NORMAL;
@@ -499,7 +494,7 @@ DMA_STM32_EXPORT_API int dma_stm32_configure(const struct device *dev,
 	LL_DMA_EnableIT_TC(dma, dma_stm32_id_to_stream(id));
 
 	/* Enable Half-Transfer irq if circular mode is enabled */
-	if (stream->cyclic) {
+	if (config->head_block->source_reload_en) {
 		LL_DMA_EnableIT_HT(dma, dma_stm32_id_to_stream(id));
 	}
 
@@ -693,6 +688,20 @@ static const struct dma_driver_api dma_funcs = {
 	.get_status	 = dma_stm32_get_status,
 };
 
+#ifdef CONFIG_DMAMUX_STM32
+#define DMA_STM32_OFFSET_INIT(index)			\
+	.offset = DT_INST_PROP(index, dma_offset),
+#else
+#define DMA_STM32_OFFSET_INIT(index)
+#endif /* CONFIG_DMAMUX_STM32 */
+
+#ifdef CONFIG_DMA_STM32_V1
+#define DMA_STM32_MEM2MEM_INIT(index)					\
+	.support_m2m = DT_INST_PROP(index, st_mem2mem),
+#else
+#define DMA_STM32_MEM2MEM_INIT(index)
+#endif /* CONFIG_DMA_STM32_V1 */					\
+
 #define DMA_STM32_INIT_DEV(index)					\
 static struct dma_stm32_stream						\
 	dma_stm32_streams_##index[DMA_STM32_##index##_STREAM_COUNT];	\
@@ -702,12 +711,10 @@ const struct dma_stm32_config dma_stm32_config_##index = {		\
 		    .enr = DT_INST_CLOCKS_CELL(index, bits) },		\
 	.config_irq = dma_stm32_config_irq_##index,			\
 	.base = DT_INST_REG_ADDR(index),				\
-	IF_ENABLED(CONFIG_DMA_STM32_V1,					\
-		(.support_m2m = DT_INST_PROP(index, st_mem2mem),))	\
+	DMA_STM32_MEM2MEM_INIT(index)					\
 	.max_streams = DMA_STM32_##index##_STREAM_COUNT,		\
 	.streams = dma_stm32_streams_##index,				\
-	IF_ENABLED(CONFIG_DMAMUX_STM32,					\
-		(.offset = DT_INST_PROP(index, dma_offset),))		\
+	DMA_STM32_OFFSET_INIT(index)					\
 };									\
 									\
 static struct dma_stm32_data dma_stm32_data_##index = {			\

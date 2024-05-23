@@ -5,8 +5,7 @@ tests:
   sample.application_development.code_relocation_nocopy:
     platform_allow:
       - qemu_cortex_m3
-      - nrf5340dk/nrf5340/cpuapp
-      - stm32f769i_disco
+      - nrf5340dk_nrf5340_cpuapp
     integration_platforms:
       - qemu_cortex_m3
     tags: linker

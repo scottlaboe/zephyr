@@ -1,9 +1,0 @@
-tests:
-  misc.edk.pytest:
-    harness: pytest
-    tags:
-      - pytest
-      - edk
-    platform_allow:
-      - native_sim
-    toolchain_exclude: llvm

@@ -15,7 +15,6 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/emul.h>
-#include <zephyr/drivers/i2c.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/types.h>
 
@@ -42,12 +41,6 @@ struct i2c_emul {
 
 	/* API provided for this device */
 	const struct i2c_emul_api *api;
-
-	/**
-	 * A mock API that if not NULL will take precedence over the actual API. If set, a return
-	 * value of -ENOSYS will revert back to the default api.
-	 */
-	struct i2c_emul_api *mock_api;
 
 	/* I2C address of the emulated device */
 	uint16_t addr;

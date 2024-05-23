@@ -35,11 +35,11 @@ properties:
   xtpre:
     type: boolean
     description: |
-        Optional HSE divider for PLL entry
+        Otpional HSE divider for PLL entry
 
   usbpre:
     type: boolean
     description: |
-        Optional PLL output divisor to generate a 48MHz USB clock.
+        Otpional PLL output divisor to generate a 48MHz USB clock.
         When set, PLL clock is not divided.
         Otherwise, PLL output clock is divided by 1.5.

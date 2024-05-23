@@ -40,7 +40,7 @@ static void core_thread(void)
 
 			struct sensor_data_msg data;
 
-			zbus_chan_read(&sensor_data_chan, &data, K_FOREVER);
+			zbus_chan_read(&sensor_data_chan, &data, K_NO_WAIT);
 
 			struct net_pkt_msg pkt = {.total = data.a + data.b};
 
@@ -66,7 +66,8 @@ static void net_thread(void)
 	while (1) {
 		if (!zbus_sub_wait(&net_sub, &chan, K_FOREVER)) {
 			count_net++;
-			zbus_chan_read(&net_pkt_chan, &pkt, K_FOREVER);
+
+			zbus_chan_read(&net_pkt_chan, &pkt, K_NO_WAIT);
 
 			LOG_DBG("[Net] Total %d", pkt.total);
 

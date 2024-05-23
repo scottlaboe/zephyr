@@ -60,7 +60,7 @@ static uint32_t l1_page_table[CONFIG_XTENSA_MMU_NUM_L1_TABLES][XTENSA_L1_PAGE_TA
 /*
  * That is an alias for the page tables set used by the kernel.
  */
-uint32_t *xtensa_kernel_ptables = (uint32_t *)l1_page_table[0];
+uint32_t *z_xtensa_kernel_ptables = (uint32_t *)l1_page_table[0];
 
 /*
  * Each table in the level 2 maps a 4Mb memory range. It consists of 1024 entries each one
@@ -106,6 +106,11 @@ static sys_slist_t xtensa_domain_list;
 
 extern char _heap_end[];
 extern char _heap_start[];
+extern char __data_start[];
+extern char __data_end[];
+extern char _bss_start[];
+extern char _bss_end[];
+
 /*
  * Static definition of all code & data memory regions of the
  * current Zephyr image. This information must be available &
@@ -122,21 +127,21 @@ static const struct xtensa_mmu_range mmu_zephyr_ranges[] = {
 		.start = (uint32_t)_image_ram_start,
 		.end   = (uint32_t)_image_ram_end,
 #ifdef CONFIG_XTENSA_RPO_CACHE
-		.attrs = XTENSA_MMU_PERM_W,
+		.attrs = Z_XTENSA_MMU_W,
 #else
-		.attrs = XTENSA_MMU_PERM_W | XTENSA_MMU_CACHED_WB,
+		.attrs = Z_XTENSA_MMU_W | Z_XTENSA_MMU_CACHED_WB,
 #endif
 		.name = "data",
 	},
-#if K_HEAP_MEM_POOL_SIZE > 0
+#if CONFIG_HEAP_MEM_POOL_SIZE > 0
 	/* System heap memory */
 	{
 		.start = (uint32_t)_heap_start,
 		.end   = (uint32_t)_heap_end,
 #ifdef CONFIG_XTENSA_RPO_CACHE
-		.attrs = XTENSA_MMU_PERM_W,
+		.attrs = Z_XTENSA_MMU_W,
 #else
-		.attrs = XTENSA_MMU_PERM_W | XTENSA_MMU_CACHED_WB,
+		.attrs = Z_XTENSA_MMU_W | Z_XTENSA_MMU_CACHED_WB,
 #endif
 		.name = "heap",
 	},
@@ -145,14 +150,14 @@ static const struct xtensa_mmu_range mmu_zephyr_ranges[] = {
 	{
 		.start = (uint32_t)__text_region_start,
 		.end   = (uint32_t)__text_region_end,
-		.attrs = XTENSA_MMU_PERM_X | XTENSA_MMU_CACHED_WB | XTENSA_MMU_MAP_SHARED,
+		.attrs = Z_XTENSA_MMU_X | Z_XTENSA_MMU_CACHED_WB | Z_XTENSA_MMU_MAP_SHARED,
 		.name = "text",
 	},
 	/* Mark rodata segment cacheable, read only and non-executable */
 	{
 		.start = (uint32_t)__rodata_region_start,
 		.end   = (uint32_t)__rodata_region_end,
-		.attrs = XTENSA_MMU_CACHED_WB | XTENSA_MMU_MAP_SHARED,
+		.attrs = Z_XTENSA_MMU_CACHED_WB | Z_XTENSA_MMU_MAP_SHARED,
 		.name = "rodata",
 	},
 };
@@ -165,7 +170,7 @@ static inline uint32_t *thread_page_tables_get(const struct k_thread *thread)
 	}
 #endif
 
-	return xtensa_kernel_ptables;
+	return z_xtensa_kernel_ptables;
 }
 
 /**
@@ -175,7 +180,7 @@ static inline uint32_t *thread_page_tables_get(const struct k_thread *thread)
  */
 static inline bool is_pte_illegal(uint32_t pte)
 {
-	uint32_t attr = pte & XTENSA_MMU_PTE_ATTR_MASK;
+	uint32_t attr = pte & Z_XTENSA_PTE_ATTR_MASK;
 
 	/*
 	 * The ISA manual states only 12 and 14 are illegal values.
@@ -196,7 +201,7 @@ static void init_page_table(uint32_t *ptable, size_t num_entries)
 	int i;
 
 	for (i = 0; i < num_entries; i++) {
-		ptable[i] = XTENSA_MMU_PTE_ILLEGAL;
+		ptable[i] = Z_XTENSA_MMU_ILLEGAL;
 	}
 }
 
@@ -214,22 +219,18 @@ static inline uint32_t *alloc_l2_table(void)
 }
 
 static void map_memory_range(const uint32_t start, const uint32_t end,
-			     const uint32_t attrs)
+			     const uint32_t attrs, bool shared)
 {
 	uint32_t page, *table;
-	bool shared = !!(attrs & XTENSA_MMU_MAP_SHARED);
-	uint32_t sw_attrs = (attrs & XTENSA_MMU_PTE_ATTR_ORIGINAL) == XTENSA_MMU_PTE_ATTR_ORIGINAL ?
-		attrs : 0;
 
 	for (page = start; page < end; page += CONFIG_MMU_PAGE_SIZE) {
-		uint32_t pte = XTENSA_MMU_PTE(page,
-					      shared ? XTENSA_MMU_SHARED_RING :
-						       XTENSA_MMU_KERNEL_RING,
-					      sw_attrs, attrs);
-		uint32_t l2_pos = XTENSA_MMU_L2_POS(page);
-		uint32_t l1_pos = XTENSA_MMU_L1_POS(page);
+		uint32_t pte = Z_XTENSA_PTE(page,
+					    shared ? Z_XTENSA_SHARED_RING : Z_XTENSA_KERNEL_RING,
+					    attrs);
+		uint32_t l2_pos = Z_XTENSA_L2_POS(page);
+		uint32_t l1_pos = Z_XTENSA_L1_POS(page);
 
-		if (is_pte_illegal(xtensa_kernel_ptables[l1_pos])) {
+		if (is_pte_illegal(z_xtensa_kernel_ptables[l1_pos])) {
 			table  = alloc_l2_table();
 
 			__ASSERT(table != NULL, "There is no l2 page table available to "
@@ -237,29 +238,29 @@ static void map_memory_range(const uint32_t start, const uint32_t end,
 
 			init_page_table(table, XTENSA_L2_PAGE_TABLE_ENTRIES);
 
-			xtensa_kernel_ptables[l1_pos] =
-				XTENSA_MMU_PTE((uint32_t)table, XTENSA_MMU_KERNEL_RING,
-					       sw_attrs, XTENSA_MMU_PAGE_TABLE_ATTR);
+			z_xtensa_kernel_ptables[l1_pos] =
+				Z_XTENSA_PTE((uint32_t)table, Z_XTENSA_KERNEL_RING,
+					     Z_XTENSA_PAGE_TABLE_ATTR);
 		}
 
-		table = (uint32_t *)(xtensa_kernel_ptables[l1_pos] & XTENSA_MMU_PTE_PPN_MASK);
+		table = (uint32_t *)(z_xtensa_kernel_ptables[l1_pos] & Z_XTENSA_PTE_PPN_MASK);
 		table[l2_pos] = pte;
 	}
 }
 
 static void map_memory(const uint32_t start, const uint32_t end,
-		       const uint32_t attrs)
+		       const uint32_t attrs, bool shared)
 {
-	map_memory_range(start, end, attrs);
+	map_memory_range(start, end, attrs, shared);
 
 #ifdef CONFIG_XTENSA_MMU_DOUBLE_MAP
-	if (sys_cache_is_ptr_uncached((void *)start)) {
-		map_memory_range(POINTER_TO_UINT(sys_cache_cached_ptr_get((void *)start)),
-			POINTER_TO_UINT(sys_cache_cached_ptr_get((void *)end)),
-			attrs | XTENSA_MMU_CACHED_WB);
-	} else if (sys_cache_is_ptr_cached((void *)start)) {
-		map_memory_range(POINTER_TO_UINT(sys_cache_uncached_ptr_get((void *)start)),
-			POINTER_TO_UINT(sys_cache_uncached_ptr_get((void *)end)), attrs);
+	if (arch_xtensa_is_ptr_uncached((void *)start)) {
+		map_memory_range(POINTER_TO_UINT(z_soc_cached_ptr((void *)start)),
+			POINTER_TO_UINT(z_soc_cached_ptr((void *)end)),
+			attrs | Z_XTENSA_MMU_CACHED_WB, shared);
+	} else if (arch_xtensa_is_ptr_cached((void *)start)) {
+		map_memory_range(POINTER_TO_UINT(z_soc_uncached_ptr((void *)start)),
+			POINTER_TO_UINT(z_soc_uncached_ptr((void *)end)), attrs, shared);
 	}
 #endif
 }
@@ -268,21 +269,46 @@ static void xtensa_init_page_tables(void)
 {
 	volatile uint8_t entry;
 
-	init_page_table(xtensa_kernel_ptables, XTENSA_L1_PAGE_TABLE_ENTRIES);
+	init_page_table(z_xtensa_kernel_ptables, XTENSA_L1_PAGE_TABLE_ENTRIES);
 	atomic_set_bit(l1_page_table_track, 0);
 
 	for (entry = 0; entry < ARRAY_SIZE(mmu_zephyr_ranges); entry++) {
 		const struct xtensa_mmu_range *range = &mmu_zephyr_ranges[entry];
+		bool shared;
+		uint32_t attrs;
 
-		map_memory(range->start, range->end, range->attrs | XTENSA_MMU_PTE_ATTR_ORIGINAL);
+		shared = !!(range->attrs & Z_XTENSA_MMU_MAP_SHARED);
+		attrs = range->attrs & ~Z_XTENSA_MMU_MAP_SHARED;
+
+		map_memory(range->start, range->end, attrs, shared);
 	}
 
+/**
+ * GCC complains about usage of the SoC MMU range ARRAY_SIZE
+ * (xtensa_soc_mmu_ranges) as the default weak declaration is
+ * an empty array, and any access to its element is considered
+ * out of bound access. However, we have a number of element
+ * variable to guard against this (... if done correctly).
+ * Besides, this will almost be overridden by the SoC layer.
+ * So tell GCC to ignore this.
+ */
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
 	for (entry = 0; entry < xtensa_soc_mmu_ranges_num; entry++) {
 		const struct xtensa_mmu_range *range = &xtensa_soc_mmu_ranges[entry];
+		bool shared;
+		uint32_t attrs;
 
-		map_memory(range->start, range->end, range->attrs | XTENSA_MMU_PTE_ATTR_ORIGINAL);
+		shared = !!(range->attrs & Z_XTENSA_MMU_MAP_SHARED);
+		attrs = range->attrs & ~Z_XTENSA_MMU_MAP_SHARED;
+
+		map_memory(range->start, range->end, attrs, shared);
 	}
-
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 	/* Finally, the direct-mapped pages used in the page tables
 	 * must be fixed up to use the same cache attribute (but these
 	 * must be writable, obviously).  They shouldn't be left at
@@ -290,10 +316,10 @@ static void xtensa_init_page_tables(void)
 	 */
 	map_memory_range((uint32_t) &l1_page_table[0],
 			 (uint32_t) &l1_page_table[CONFIG_XTENSA_MMU_NUM_L1_TABLES],
-			 XTENSA_MMU_PAGE_TABLE_ATTR | XTENSA_MMU_PERM_W);
+			 Z_XTENSA_PAGE_TABLE_ATTR | Z_XTENSA_MMU_W, false);
 	map_memory_range((uint32_t) &l2_page_tables[0],
 			 (uint32_t) &l2_page_tables[CONFIG_XTENSA_MMU_NUM_L2_TABLES],
-			 XTENSA_MMU_PAGE_TABLE_ATTR | XTENSA_MMU_PERM_W);
+			 Z_XTENSA_PAGE_TABLE_ATTR | Z_XTENSA_MMU_W, false);
 
 	sys_cache_data_flush_all();
 }
@@ -303,7 +329,7 @@ __weak void arch_xtensa_mmu_post_init(bool is_core0)
 	ARG_UNUSED(is_core0);
 }
 
-void xtensa_mmu_init(void)
+void z_xtensa_mmu_init(void)
 {
 	if (_current_cpu->id == 0) {
 		/* This is normally done via arch_kernel_init() inside z_cstart().
@@ -315,7 +341,7 @@ void xtensa_mmu_init(void)
 		xtensa_init_page_tables();
 	}
 
-	xtensa_init_paging(xtensa_kernel_ptables);
+	xtensa_init_paging(z_xtensa_kernel_ptables);
 
 	arch_xtensa_mmu_post_init(_current_cpu->id == 0);
 }
@@ -330,12 +356,15 @@ void xtensa_mmu_init(void)
 __weak void arch_reserved_pages_update(void)
 {
 	uintptr_t page;
+	struct z_page_frame *pf;
 	int idx;
 
 	for (page = CONFIG_SRAM_BASE_ADDRESS, idx = 0;
 	     page < (uintptr_t)z_mapped_start;
 	     page += CONFIG_MMU_PAGE_SIZE, idx++) {
-		z_page_frame_set(&z_page_frames[idx], Z_PAGE_FRAME_RESERVED);
+		pf = &z_page_frames[idx];
+
+		pf->flags |= Z_PAGE_FRAME_RESERVED;
 	}
 }
 #endif /* CONFIG_ARCH_HAS_RESERVED_PAGE_FRAMES */
@@ -343,8 +372,8 @@ __weak void arch_reserved_pages_update(void)
 static bool l2_page_table_map(uint32_t *l1_table, void *vaddr, uintptr_t phys,
 			      uint32_t flags, bool is_user)
 {
-	uint32_t l1_pos = XTENSA_MMU_L1_POS((uint32_t)vaddr);
-	uint32_t l2_pos = XTENSA_MMU_L2_POS((uint32_t)vaddr);
+	uint32_t l1_pos = Z_XTENSA_L1_POS((uint32_t)vaddr);
+	uint32_t l2_pos = Z_XTENSA_L2_POS((uint32_t)vaddr);
 	uint32_t *table;
 
 	sys_cache_data_invd_range((void *)&l1_table[l1_pos], sizeof(l1_table[0]));
@@ -358,16 +387,15 @@ static bool l2_page_table_map(uint32_t *l1_table, void *vaddr, uintptr_t phys,
 
 		init_page_table(table, XTENSA_L2_PAGE_TABLE_ENTRIES);
 
-		l1_table[l1_pos] = XTENSA_MMU_PTE((uint32_t)table, XTENSA_MMU_KERNEL_RING,
-						  0, XTENSA_MMU_PAGE_TABLE_ATTR);
+		l1_table[l1_pos] = Z_XTENSA_PTE((uint32_t)table, Z_XTENSA_KERNEL_RING,
+						Z_XTENSA_PAGE_TABLE_ATTR);
 
 		sys_cache_data_flush_range((void *)&l1_table[l1_pos], sizeof(l1_table[0]));
 	}
 
-	table = (uint32_t *)(l1_table[l1_pos] & XTENSA_MMU_PTE_PPN_MASK);
-	table[l2_pos] = XTENSA_MMU_PTE(phys, is_user ? XTENSA_MMU_USER_RING :
-						       XTENSA_MMU_KERNEL_RING,
-				       0, flags);
+	table = (uint32_t *)(l1_table[l1_pos] & Z_XTENSA_PTE_PPN_MASK);
+	table[l2_pos] = Z_XTENSA_PTE(phys, is_user ? Z_XTENSA_USER_RING : Z_XTENSA_KERNEL_RING,
+				     flags);
 
 	sys_cache_data_flush_range((void *)&table[l2_pos], sizeof(table[0]));
 	xtensa_tlb_autorefill_invalidate();
@@ -383,36 +411,36 @@ static inline void __arch_mem_map(void *va, uintptr_t pa, uint32_t xtensa_flags,
 	uint32_t flags, flags_uc;
 
 	if (IS_ENABLED(CONFIG_XTENSA_MMU_DOUBLE_MAP)) {
-		if (sys_cache_is_ptr_cached(va)) {
+		if (arch_xtensa_is_ptr_cached(va)) {
 			vaddr = va;
-			vaddr_uc = sys_cache_uncached_ptr_get(va);
+			vaddr_uc = arch_xtensa_uncached_ptr(va);
 		} else {
-			vaddr = sys_cache_cached_ptr_get(va);
+			vaddr = arch_xtensa_cached_ptr(va);
 			vaddr_uc = va;
 		}
 
-		if (sys_cache_is_ptr_cached((void *)pa)) {
+		if (arch_xtensa_is_ptr_cached((void *)pa)) {
 			paddr = pa;
-			paddr_uc = (uintptr_t)sys_cache_uncached_ptr_get((void *)pa);
+			paddr_uc = (uintptr_t)arch_xtensa_uncached_ptr((void *)pa);
 		} else {
-			paddr = (uintptr_t)sys_cache_cached_ptr_get((void *)pa);
+			paddr = (uintptr_t)arch_xtensa_cached_ptr((void *)pa);
 			paddr_uc = pa;
 		}
 
-		flags_uc = (xtensa_flags & ~XTENSA_MMU_PTE_ATTR_CACHED_MASK);
-		flags = flags_uc | XTENSA_MMU_CACHED_WB;
+		flags_uc = (xtensa_flags & ~Z_XTENSA_PTE_ATTR_CACHED_MASK);
+		flags = flags_uc | Z_XTENSA_MMU_CACHED_WB;
 	} else {
 		vaddr = va;
 		paddr = pa;
 		flags = xtensa_flags;
 	}
 
-	ret = l2_page_table_map(xtensa_kernel_ptables, (void *)vaddr, paddr,
+	ret = l2_page_table_map(z_xtensa_kernel_ptables, (void *)vaddr, paddr,
 				flags, is_user);
 	__ASSERT(ret, "Virtual address (%p) already mapped", va);
 
 	if (IS_ENABLED(CONFIG_XTENSA_MMU_DOUBLE_MAP) && ret) {
-		ret = l2_page_table_map(xtensa_kernel_ptables, (void *)vaddr_uc, paddr_uc,
+		ret = l2_page_table_map(z_xtensa_kernel_ptables, (void *)vaddr_uc, paddr_uc,
 					flags_uc, is_user);
 		__ASSERT(ret, "Virtual address (%p) already mapped", vaddr_uc);
 	}
@@ -465,10 +493,10 @@ void arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags)
 	switch (flags & K_MEM_CACHE_MASK) {
 
 	case K_MEM_CACHE_WB:
-		xtensa_flags |= XTENSA_MMU_CACHED_WB;
+		xtensa_flags |= Z_XTENSA_MMU_CACHED_WB;
 		break;
 	case K_MEM_CACHE_WT:
-		xtensa_flags |= XTENSA_MMU_CACHED_WT;
+		xtensa_flags |= Z_XTENSA_MMU_CACHED_WT;
 		break;
 	case K_MEM_CACHE_NONE:
 		__fallthrough;
@@ -477,10 +505,10 @@ void arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags)
 	}
 
 	if ((flags & K_MEM_PERM_RW) == K_MEM_PERM_RW) {
-		xtensa_flags |= XTENSA_MMU_PERM_W;
+		xtensa_flags |= Z_XTENSA_MMU_W;
 	}
 	if ((flags & K_MEM_PERM_EXEC) == K_MEM_PERM_EXEC) {
-		xtensa_flags |= XTENSA_MMU_PERM_X;
+		xtensa_flags |= Z_XTENSA_MMU_X;
 	}
 
 	is_user = (flags & K_MEM_PERM_USER) == K_MEM_PERM_USER;
@@ -496,7 +524,7 @@ void arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags)
 	}
 
 #if CONFIG_MP_MAX_NUM_CPUS > 1
-	xtensa_mmu_tlb_ipi();
+	z_xtensa_mmu_tlb_ipi();
 #endif
 
 	sys_cache_data_flush_and_invd_all();
@@ -509,8 +537,8 @@ void arch_mem_map(void *virt, uintptr_t phys, size_t size, uint32_t flags)
  */
 static bool l2_page_table_unmap(uint32_t *l1_table, void *vaddr)
 {
-	uint32_t l1_pos = XTENSA_MMU_L1_POS((uint32_t)vaddr);
-	uint32_t l2_pos = XTENSA_MMU_L2_POS((uint32_t)vaddr);
+	uint32_t l1_pos = Z_XTENSA_L1_POS((uint32_t)vaddr);
+	uint32_t l2_pos = Z_XTENSA_L2_POS((uint32_t)vaddr);
 	uint32_t *l2_table;
 	uint32_t table_pos;
 	bool exec;
@@ -524,13 +552,13 @@ static bool l2_page_table_unmap(uint32_t *l1_table, void *vaddr)
 		return true;
 	}
 
-	exec = l1_table[l1_pos] & XTENSA_MMU_PERM_X;
+	exec = l1_table[l1_pos] & Z_XTENSA_MMU_X;
 
-	l2_table = (uint32_t *)(l1_table[l1_pos] & XTENSA_MMU_PTE_PPN_MASK);
+	l2_table = (uint32_t *)(l1_table[l1_pos] & Z_XTENSA_PTE_PPN_MASK);
 
 	sys_cache_data_invd_range((void *)&l2_table[l2_pos], sizeof(l2_table[0]));
 
-	l2_table[l2_pos] = XTENSA_MMU_PTE_ILLEGAL;
+	l2_table[l2_pos] = Z_XTENSA_MMU_ILLEGAL;
 
 	sys_cache_data_flush_range((void *)&l2_table[l2_pos], sizeof(l2_table[0]));
 
@@ -540,7 +568,7 @@ static bool l2_page_table_unmap(uint32_t *l1_table, void *vaddr)
 		}
 	}
 
-	l1_table[l1_pos] = XTENSA_MMU_PTE_ILLEGAL;
+	l1_table[l1_pos] = Z_XTENSA_MMU_ILLEGAL;
 	sys_cache_data_flush_range((void *)&l1_table[l1_pos], sizeof(l1_table[0]));
 
 	table_pos = (l2_table - (uint32_t *)l2_page_tables) / (XTENSA_L2_PAGE_TABLE_ENTRIES);
@@ -558,21 +586,21 @@ static inline void __arch_mem_unmap(void *va)
 	void *vaddr, *vaddr_uc;
 
 	if (IS_ENABLED(CONFIG_XTENSA_MMU_DOUBLE_MAP)) {
-		if (sys_cache_is_ptr_cached(va)) {
+		if (arch_xtensa_is_ptr_cached(va)) {
 			vaddr = va;
-			vaddr_uc = sys_cache_uncached_ptr_get(va);
+			vaddr_uc = arch_xtensa_uncached_ptr(va);
 		} else {
-			vaddr = sys_cache_cached_ptr_get(va);
+			vaddr = arch_xtensa_cached_ptr(va);
 			vaddr_uc = va;
 		}
 	} else {
 		vaddr = va;
 	}
 
-	is_exec = l2_page_table_unmap(xtensa_kernel_ptables, (void *)vaddr);
+	is_exec = l2_page_table_unmap(z_xtensa_kernel_ptables, (void *)vaddr);
 
 	if (IS_ENABLED(CONFIG_XTENSA_MMU_DOUBLE_MAP)) {
-		(void)l2_page_table_unmap(xtensa_kernel_ptables, (void *)vaddr_uc);
+		(void)l2_page_table_unmap(z_xtensa_kernel_ptables, (void *)vaddr_uc);
 	}
 
 #ifdef CONFIG_USERSPACE
@@ -620,7 +648,7 @@ void arch_mem_unmap(void *addr, size_t size)
 	}
 
 #if CONFIG_MP_MAX_NUM_CPUS > 1
-	xtensa_mmu_tlb_ipi();
+	z_xtensa_mmu_tlb_ipi();
 #endif
 
 	sys_cache_data_flush_and_invd_all();
@@ -630,11 +658,11 @@ void arch_mem_unmap(void *addr, size_t size)
 /* This should be implemented in the SoC layer.
  * This weak version is here to avoid build errors.
  */
-void __weak xtensa_mmu_tlb_ipi(void)
+void __weak z_xtensa_mmu_tlb_ipi(void)
 {
 }
 
-void xtensa_mmu_tlb_shootdown(void)
+void z_xtensa_mmu_tlb_shootdown(void)
 {
 	unsigned int key;
 
@@ -662,21 +690,19 @@ void xtensa_mmu_tlb_shootdown(void)
 	 * is different from the currently used one.
 	 */
 	if ((thread->base.user_options & K_USER) == K_USER) {
-		uint32_t ptevaddr_entry, ptevaddr,
-			thread_ptables, current_ptables;
+		uint32_t ptevaddr_entry, ptevaddr, thread_ptables;
 
 		/* Need to read the currently used L1 page table.
 		 * We know that L1 page table is always mapped at way
 		 * MMU_PTE_WAY, so we can skip the probing step by
 		 * generating the query entry directly.
 		 */
-		ptevaddr = (uint32_t)xtensa_ptevaddr_get();
-		ptevaddr_entry = XTENSA_MMU_PTE_ENTRY_VADDR(ptevaddr, ptevaddr)
-				 | XTENSA_MMU_PTE_WAY;
-		current_ptables = xtensa_dtlb_paddr_read(ptevaddr_entry);
+		ptevaddr_entry = (uint32_t)xtensa_ptevaddr_get() | Z_XTENSA_MMU_PTE_WAY;
+		ptevaddr = xtensa_dtlb_paddr_read(ptevaddr_entry);
+
 		thread_ptables = (uint32_t)thread->arch.ptables;
 
-		if (thread_ptables != current_ptables) {
+		if (thread_ptables != ptevaddr) {
 			/* Need to remap the thread page tables if the ones
 			 * indicated by the current thread are different
 			 * than the current mapped page table.
@@ -715,7 +741,7 @@ static inline uint32_t *alloc_l1_table(void)
 	return NULL;
 }
 
-static uint32_t *dup_table(void)
+static uint32_t *dup_table(uint32_t *source_table)
 {
 	uint16_t i, j;
 	uint32_t *dst_table = alloc_l1_table();
@@ -727,38 +753,26 @@ static uint32_t *dup_table(void)
 	for (i = 0; i < XTENSA_L1_PAGE_TABLE_ENTRIES; i++) {
 		uint32_t *l2_table, *src_l2_table;
 
-		if (is_pte_illegal(xtensa_kernel_ptables[i]) ||
-			(i == XTENSA_MMU_L1_POS(XTENSA_MMU_PTEVADDR))) {
-			dst_table[i] = XTENSA_MMU_PTE_ILLEGAL;
+		if (is_pte_illegal(source_table[i])) {
+			dst_table[i] = Z_XTENSA_MMU_ILLEGAL;
 			continue;
 		}
 
-		src_l2_table = (uint32_t *)(xtensa_kernel_ptables[i] & XTENSA_MMU_PTE_PPN_MASK);
+		src_l2_table = (uint32_t *)(source_table[i] & Z_XTENSA_PTE_PPN_MASK);
 		l2_table = alloc_l2_table();
 		if (l2_table == NULL) {
 			goto err;
 		}
 
 		for (j = 0; j < XTENSA_L2_PAGE_TABLE_ENTRIES; j++) {
-			uint32_t original_attr =  XTENSA_MMU_PTE_SW_GET(src_l2_table[j]);
-
 			l2_table[j] =  src_l2_table[j];
-			if (original_attr != 0x0) {
-				uint8_t ring;
-
-				ring = XTENSA_MMU_PTE_RING_GET(l2_table[j]);
-				l2_table[j] =  XTENSA_MMU_PTE_ATTR_SET(l2_table[j], original_attr);
-				l2_table[j] =  XTENSA_MMU_PTE_RING_SET(l2_table[j],
-						ring == XTENSA_MMU_SHARED_RING ?
-						XTENSA_MMU_SHARED_RING : XTENSA_MMU_KERNEL_RING);
-			}
 		}
 
 		/* The page table is using kernel ASID because we don't
 		 * user thread manipulate it.
 		 */
-		dst_table[i] = XTENSA_MMU_PTE((uint32_t)l2_table, XTENSA_MMU_KERNEL_RING,
-					      0, XTENSA_MMU_PAGE_TABLE_ATTR);
+		dst_table[i] = Z_XTENSA_PTE((uint32_t)l2_table, Z_XTENSA_KERNEL_RING,
+					    Z_XTENSA_PAGE_TABLE_ATTR);
 
 		sys_cache_data_flush_range((void *)l2_table, XTENSA_L2_PAGE_TABLE_SIZE);
 	}
@@ -782,22 +796,10 @@ int arch_mem_domain_init(struct k_mem_domain *domain)
 	 * For now, lets just assert if we have reached the maximum number
 	 * of asid we assert.
 	 */
-	__ASSERT(asid_count < (XTENSA_MMU_SHARED_ASID), "Reached maximum of ASID available");
+	__ASSERT(asid_count < (Z_XTENSA_MMU_SHARED_ASID), "Reached maximum of ASID available");
 
 	key = k_spin_lock(&xtensa_mmu_lock);
-	/* If this is the default domain, we don't need
-	 * to create a new set of page tables. We can just
-	 * use the kernel page tables and save memory.
-	 */
-
-	if (domain == &k_mem_domain_default) {
-		domain->arch.ptables = xtensa_kernel_ptables;
-		domain->arch.asid = asid_count;
-		goto end;
-	}
-
-
-	ptables = dup_table();
+	ptables = dup_table(z_xtensa_kernel_ptables);
 
 	if (ptables == NULL) {
 		ret = -ENOMEM;
@@ -809,7 +811,6 @@ int arch_mem_domain_init(struct k_mem_domain *domain)
 
 	sys_slist_append(&xtensa_domain_list, &domain->arch.node);
 
-end:
 	ret = 0;
 
 err:
@@ -826,17 +827,17 @@ static int region_map_update(uint32_t *ptables, uintptr_t start,
 	for (size_t offset = 0; offset < size; offset += CONFIG_MMU_PAGE_SIZE) {
 		uint32_t *l2_table, pte;
 		uint32_t page = start + offset;
-		uint32_t l1_pos = XTENSA_MMU_L1_POS(page);
-		uint32_t l2_pos = XTENSA_MMU_L2_POS(page);
+		uint32_t l1_pos = Z_XTENSA_L1_POS(page);
+		uint32_t l2_pos = Z_XTENSA_L2_POS(page);
 		/* Make sure we grab a fresh copy of L1 page table */
 		sys_cache_data_invd_range((void *)&ptables[l1_pos], sizeof(ptables[0]));
 
-		l2_table = (uint32_t *)(ptables[l1_pos] & XTENSA_MMU_PTE_PPN_MASK);
+		l2_table = (uint32_t *)(ptables[l1_pos] & Z_XTENSA_PTE_PPN_MASK);
 
 		sys_cache_data_invd_range((void *)&l2_table[l2_pos], sizeof(l2_table[0]));
 
-		pte = XTENSA_MMU_PTE_RING_SET(l2_table[l2_pos], ring);
-		pte = XTENSA_MMU_PTE_ATTR_SET(pte, flags);
+		pte = Z_XTENSA_PTE_RING_SET(l2_table[l2_pos], ring);
+		pte = Z_XTENSA_PTE_ATTR_SET(pte, flags);
 
 		l2_table[l2_pos] = pte;
 
@@ -861,16 +862,16 @@ static inline int update_region(uint32_t *ptables, uintptr_t start,
 	uintptr_t va, va_uc;
 	uint32_t new_flags, new_flags_uc;
 
-	if (sys_cache_is_ptr_cached((void *)start)) {
+	if (arch_xtensa_is_ptr_cached((void *)start)) {
 		va = start;
-		va_uc = (uintptr_t)sys_cache_uncached_ptr_get((void *)start);
+		va_uc = (uintptr_t)arch_xtensa_uncached_ptr((void *)start);
 	} else {
-		va = (uintptr_t)sys_cache_cached_ptr_get((void *)start);
+		va = (uintptr_t)arch_xtensa_cached_ptr((void *)start);
 		va_uc = start;
 	}
 
-	new_flags_uc = (flags & ~XTENSA_MMU_PTE_ATTR_CACHED_MASK);
-	new_flags = new_flags_uc | XTENSA_MMU_CACHED_WB;
+	new_flags_uc = (flags & ~Z_XTENSA_PTE_ATTR_CACHED_MASK);
+	new_flags = new_flags_uc | Z_XTENSA_MMU_CACHED_WB;
 
 	ret = region_map_update(ptables, va, size, ring, new_flags);
 
@@ -883,7 +884,7 @@ static inline int update_region(uint32_t *ptables, uintptr_t start,
 
 #if CONFIG_MP_MAX_NUM_CPUS > 1
 	if ((option & OPTION_NO_TLB_IPI) != OPTION_NO_TLB_IPI) {
-		xtensa_mmu_tlb_ipi();
+		z_xtensa_mmu_tlb_ipi();
 	}
 #endif
 
@@ -895,8 +896,7 @@ static inline int update_region(uint32_t *ptables, uintptr_t start,
 
 static inline int reset_region(uint32_t *ptables, uintptr_t start, size_t size, uint32_t option)
 {
-	return update_region(ptables, start, size,
-			     XTENSA_MMU_KERNEL_RING, XTENSA_MMU_PERM_W, option);
+	return update_region(ptables, start, size, Z_XTENSA_KERNEL_RING, Z_XTENSA_MMU_W, option);
 }
 
 void xtensa_user_stack_perms(struct k_thread *thread)
@@ -907,7 +907,7 @@ void xtensa_user_stack_perms(struct k_thread *thread)
 
 	update_region(thread_page_tables_get(thread),
 		      thread->stack_info.start, thread->stack_info.size,
-		      XTENSA_MMU_USER_RING, XTENSA_MMU_PERM_W | XTENSA_MMU_CACHED_WB, 0);
+		      Z_XTENSA_USER_RING, Z_XTENSA_MMU_W | Z_XTENSA_MMU_CACHED_WB, 0);
 }
 
 int arch_mem_domain_max_partitions_get(void)
@@ -928,9 +928,8 @@ int arch_mem_domain_partition_remove(struct k_mem_domain *domain,
 int arch_mem_domain_partition_add(struct k_mem_domain *domain,
 				uint32_t partition_id)
 {
+	uint32_t ring = domain->arch.asid == 0 ? Z_XTENSA_KERNEL_RING : Z_XTENSA_USER_RING;
 	struct k_mem_partition *partition = &domain->partitions[partition_id];
-	uint32_t ring = K_MEM_PARTITION_IS_USER(partition->attr) ? XTENSA_MMU_USER_RING :
-			XTENSA_MMU_KERNEL_RING;
 
 	return update_region(domain->arch.ptables, partition->start,
 			     partition->size, ring, partition->attr, 0);
@@ -957,8 +956,8 @@ int arch_mem_domain_thread_add(struct k_thread *thread)
 		 */
 		update_region(thread_page_tables_get(thread),
 			      thread->stack_info.start, thread->stack_info.size,
-			      XTENSA_MMU_USER_RING,
-			      XTENSA_MMU_PERM_W | XTENSA_MMU_CACHED_WB,
+			      Z_XTENSA_USER_RING,
+			      Z_XTENSA_MMU_W | Z_XTENSA_MMU_CACHED_WB,
 			      OPTION_NO_TLB_IPI);
 		/* and reset thread's stack permission in
 		 * the old page tables.
@@ -983,7 +982,7 @@ int arch_mem_domain_thread_add(struct k_thread *thread)
 	 * migration as it was sent above during reset_region().
 	 */
 	if ((thread != _current_cpu->current) && !is_migration) {
-		xtensa_mmu_tlb_ipi();
+		z_xtensa_mmu_tlb_ipi();
 	}
 #endif
 
@@ -1024,14 +1023,14 @@ static bool page_validate(uint32_t *ptables, uint32_t page, uint8_t ring, bool w
 {
 	uint8_t asid_ring;
 	uint32_t rasid, pte, *l2_table;
-	uint32_t l1_pos = XTENSA_MMU_L1_POS(page);
-	uint32_t l2_pos = XTENSA_MMU_L2_POS(page);
+	uint32_t l1_pos = Z_XTENSA_L1_POS(page);
+	uint32_t l2_pos = Z_XTENSA_L2_POS(page);
 
 	if (is_pte_illegal(ptables[l1_pos])) {
 		return false;
 	}
 
-	l2_table = (uint32_t *)(ptables[l1_pos] & XTENSA_MMU_PTE_PPN_MASK);
+	l2_table = (uint32_t *)(ptables[l1_pos] & Z_XTENSA_PTE_PPN_MASK);
 	pte = l2_table[l2_pos];
 
 	if (is_pte_illegal(pte)) {
@@ -1041,7 +1040,8 @@ static bool page_validate(uint32_t *ptables, uint32_t page, uint8_t ring, bool w
 	asid_ring = 0;
 	rasid = xtensa_rasid_get();
 	for (uint32_t i = 0; i < 4; i++) {
-		if (XTENSA_MMU_PTE_ASID_GET(pte, rasid) == XTENSA_MMU_RASID_ASID_GET(rasid, i)) {
+		if (Z_XTENSA_PTE_ASID_GET(pte, rasid) ==
+				Z_XTENSA_RASID_ASID_GET(rasid, i)) {
 			asid_ring = i;
 			break;
 		}
@@ -1052,13 +1052,13 @@ static bool page_validate(uint32_t *ptables, uint32_t page, uint8_t ring, bool w
 	}
 
 	if (write) {
-		return (XTENSA_MMU_PTE_ATTR_GET((pte)) & XTENSA_MMU_PERM_W) != 0;
+		return (Z_XTENSA_PTE_ATTR_GET((pte)) & Z_XTENSA_MMU_W) != 0;
 	}
 
 	return true;
 }
 
-int arch_buffer_validate(const void *addr, size_t size, int write)
+int arch_buffer_validate(void *addr, size_t size, int write)
 {
 	int ret = 0;
 	uint8_t *virt;
@@ -1066,7 +1066,7 @@ int arch_buffer_validate(const void *addr, size_t size, int write)
 	const struct k_thread *thread = _current;
 	uint32_t *ptables = thread_page_tables_get(thread);
 	uint8_t ring = ((thread->base.user_options & K_USER) != 0) ?
-		XTENSA_MMU_USER_RING : XTENSA_MMU_KERNEL_RING;
+		Z_XTENSA_USER_RING : Z_XTENSA_KERNEL_RING;
 
 	/* addr/size arbitrary, fix this up into an aligned region */
 	k_mem_region_align((uintptr_t *)&virt, &aligned_size,
@@ -1083,26 +1083,13 @@ int arch_buffer_validate(const void *addr, size_t size, int write)
 	return ret;
 }
 
-void xtensa_swap_update_page_tables(struct k_thread *incoming)
+void z_xtensa_swap_update_page_tables(struct k_thread *incoming)
 {
 	uint32_t *ptables = incoming->arch.ptables;
 	struct arch_mem_domain *domain =
 		&(incoming->mem_domain_info.mem_domain->arch);
 
 	xtensa_set_paging(domain->asid, ptables);
-
-#ifdef CONFIG_XTENSA_INVALIDATE_MEM_DOMAIN_TLB_ON_SWAP
-	struct k_mem_domain *mem_domain = incoming->mem_domain_info.mem_domain;
-
-	for (int idx = 0; idx < mem_domain->num_partitions; idx++) {
-		struct k_mem_partition *part = &mem_domain->partitions[idx];
-		uintptr_t end = part->start + part->size;
-
-		for (uintptr_t addr = part->start; addr < end; addr += CONFIG_MMU_PAGE_SIZE) {
-			xtensa_dtlb_vaddr_invalidate((void *)addr);
-		}
-	}
-#endif
 }
 
 #endif /* CONFIG_USERSPACE */

@@ -72,7 +72,7 @@ struct log_msg_hdr {
 /* Attempting to keep best alignment. When address is 64 bit and timestamp 32
  * swap the order to have 16 byte header instead of 24 byte.
  */
-#if (INTPTR_MAX > INT32_MAX) && !defined(CONFIG_LOG_TIMESTAMP_64BIT)
+#if (INTPTR_MAX > INT32_MAX) && !CONFIG_LOG_TIMESTAMP_64BIT
 	log_timestamp_t timestamp;
 	const void *source;
 #else
@@ -241,7 +241,7 @@ enum z_log_msg_mode {
 #define LOG_MSG_SIMPLE_ARG_TYPE_CHECK_0(fmt) 1
 #define LOG_MSG_SIMPLE_ARG_TYPE_CHECK_1(fmt, arg) Z_CBPRINTF_IS_WORD_NUM(arg)
 #define LOG_MSG_SIMPLE_ARG_TYPE_CHECK_2(fmt, arg0, arg1) \
-	Z_CBPRINTF_IS_WORD_NUM(arg0) && Z_CBPRINTF_IS_WORD_NUM(arg1)
+	Z_CBPRINTF_IS_WORD_NUM(arg0) || Z_CBPRINTF_IS_WORD_NUM(arg1)
 
 /** brief Determine if string arguments types allow to use simplified message creation mode.
  *
@@ -464,7 +464,7 @@ do { \
  *
  * Macro handles creation of log message which includes storing log message
  * description, timestamp, arguments, copying string arguments into message and
- * copying user data into the message space. There are 3 modes of message
+ * copying user data into the message space. The are 3 modes of message
  * creation:
  * - at compile time message size is determined, message is allocated and
  *   content is written directly to the message. It is the fastest but cannot
@@ -652,7 +652,7 @@ __syscall void z_log_msg_simple_create_2(const void *source, uint32_t level,
  *
  * @param package Package.
  *
- * @param data Data.
+ * @oaram data Data.
  */
 __syscall void z_log_msg_static_create(const void *source,
 					const struct log_msg_desc desc,
@@ -787,14 +787,6 @@ static inline const void *log_msg_get_source(struct log_msg *msg)
 {
 	return msg->hdr.source;
 }
-
-/** @brief Get log message source ID.
- *
- * @param msg Log message.
- *
- * @return Source ID, or -1 if not available.
- */
-int16_t log_msg_get_source_id(struct log_msg *msg);
 
 /** @brief Get timestamp.
  *

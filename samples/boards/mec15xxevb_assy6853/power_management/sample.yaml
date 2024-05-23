@@ -13,3 +13,4 @@ tests:
       regex:
         - "Wake from Light Sleep"
         - "Wake from Deep Sleep"
+      repeat: 3

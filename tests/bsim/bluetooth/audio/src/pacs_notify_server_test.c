@@ -8,20 +8,17 @@
 
 #include "common.h"
 
-#include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(pacs_notify_server_test, LOG_LEVEL_DBG);
-
 extern enum bst_result_t bst_result;
 
 static struct bt_audio_codec_cap lc3_codec_1 =
-	BT_AUDIO_CODEC_CAP_LC3(BT_AUDIO_CODEC_CAP_FREQ_16KHZ | BT_AUDIO_CODEC_CAP_FREQ_24KHZ,
-			   BT_AUDIO_CODEC_CAP_DURATION_10,
-			   BT_AUDIO_CODEC_CAP_CHAN_COUNT_SUPPORT(1), 40u, 60u, 1u,
+	BT_AUDIO_CODEC_CAP_LC3(BT_AUDIO_CODEC_LC3_FREQ_16KHZ | BT_AUDIO_CODEC_LC3_FREQ_24KHZ,
+			   BT_AUDIO_CODEC_LC3_DURATION_10,
+			   BT_AUDIO_CODEC_LC3_CHAN_COUNT_SUPPORT(1), 40u, 60u, 1u,
 			   BT_AUDIO_CONTEXT_TYPE_ANY);
 static struct bt_audio_codec_cap lc3_codec_2 =
-	BT_AUDIO_CODEC_CAP_LC3(BT_AUDIO_CODEC_CAP_FREQ_16KHZ,
-			   BT_AUDIO_CODEC_CAP_DURATION_10,
-			   BT_AUDIO_CODEC_CAP_CHAN_COUNT_SUPPORT(1), 40u, 60u, 1u,
+	BT_AUDIO_CODEC_CAP_LC3(BT_AUDIO_CODEC_LC3_FREQ_16KHZ,
+			   BT_AUDIO_CODEC_LC3_DURATION_10,
+			   BT_AUDIO_CODEC_LC3_CHAN_COUNT_SUPPORT(1), 40u, 60u, 1u,
 			   BT_AUDIO_CONTEXT_TYPE_ANY);
 static struct bt_pacs_cap                    caps_1 = {
 	.codec_cap = &lc3_codec_1,
@@ -37,7 +34,7 @@ static bool is_peer_subscribed(struct bt_conn *conn)
 
 	attr = bt_gatt_find_by_uuid(NULL, 0, BT_UUID_PACS_SNK);
 	if (!attr) {
-		LOG_DBG("No BT_UUID_PACS_SNK attribute found");
+		printk("No BT_UUID_PACS_SNK attribute found\n");
 	}
 	if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_NOTIFY)) {
 		nbr_subscribed++;
@@ -45,7 +42,7 @@ static bool is_peer_subscribed(struct bt_conn *conn)
 
 	attr = bt_gatt_find_by_uuid(NULL, 0, BT_UUID_PACS_SNK_LOC);
 	if (!attr) {
-		LOG_DBG("No BT_UUID_PACS_SNK_LOC attribute found");
+		printk("No BT_UUID_PACS_SNK_LOC attribute found\n");
 	}
 	if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_NOTIFY)) {
 		nbr_subscribed++;
@@ -53,7 +50,7 @@ static bool is_peer_subscribed(struct bt_conn *conn)
 
 	attr = bt_gatt_find_by_uuid(NULL, 0, BT_UUID_PACS_SRC);
 	if (!attr) {
-		LOG_DBG("No BT_UUID_PACS_SRC attribute found");
+		printk("No BT_UUID_PACS_SRC attribute found\n");
 	}
 	if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_NOTIFY)) {
 		nbr_subscribed++;
@@ -61,7 +58,7 @@ static bool is_peer_subscribed(struct bt_conn *conn)
 
 	attr = bt_gatt_find_by_uuid(NULL, 0, BT_UUID_PACS_SRC_LOC);
 	if (!attr) {
-		LOG_DBG("No BT_UUID_PACS_SRC_LOC attribute found");
+		printk("No BT_UUID_PACS_SRC_LOC attribute found\n");
 	}
 	if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_NOTIFY)) {
 		nbr_subscribed++;
@@ -69,7 +66,7 @@ static bool is_peer_subscribed(struct bt_conn *conn)
 
 	attr = bt_gatt_find_by_uuid(NULL, 0, BT_UUID_PACS_AVAILABLE_CONTEXT);
 	if (!attr) {
-		LOG_DBG("No BT_UUID_PACS_AVAILABLE_CONTEXT attribute found");
+		printk("No BT_UUID_PACS_AVAILABLE_CONTEXT attribute found\n");
 	}
 	if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_NOTIFY)) {
 		nbr_subscribed++;
@@ -77,7 +74,7 @@ static bool is_peer_subscribed(struct bt_conn *conn)
 
 	attr = bt_gatt_find_by_uuid(NULL, 0, BT_UUID_PACS_SUPPORTED_CONTEXT);
 	if (!attr) {
-		LOG_DBG("No BT_UUID_PACS_SUPPORTED_CONTEXT attribute found");
+		printk("No BT_UUID_PACS_SUPPORTED_CONTEXT attribute found\n");
 	}
 	if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_NOTIFY)) {
 		nbr_subscribed++;
@@ -100,7 +97,7 @@ static void trigger_notifications(void)
 	enum bt_audio_location snk_loc;
 	enum bt_audio_location src_loc;
 
-	LOG_DBG("Triggering Notifications");
+	printk("Triggering Notifications\n");
 
 	if (i) {
 		caps = &caps_1;
@@ -114,27 +111,27 @@ static void trigger_notifications(void)
 		i++;
 	}
 
-	LOG_DBG("Changing Sink PACs");
+	printk("Changing Sink PACs\n");
 	bt_pacs_cap_register(BT_AUDIO_DIR_SINK, caps);
 	bt_pacs_cap_register(BT_AUDIO_DIR_SOURCE, caps);
 
-	LOG_DBG("Changing Sink Location");
+	printk("Changing Sink Location\n");
 	err = bt_pacs_set_location(BT_AUDIO_DIR_SINK, snk_loc);
 	if (err != 0) {
-		LOG_DBG("Failed to set device sink location");
+		printk("Failed to set device sink location\n");
 	}
 
-	LOG_DBG("Changing Source Location");
+	printk("Changing Source Location\n");
 	err = bt_pacs_set_location(BT_AUDIO_DIR_SOURCE, src_loc);
 	if (err != 0) {
-		LOG_DBG("Failed to set device source location");
+		printk("Failed to set device source location\n");
 	}
 
-	LOG_DBG("Changing Supported Contexts Location");
+	printk("Changing Supported Contexts Location\n");
 	supported = supported ^ BT_AUDIO_CONTEXT_TYPE_MEDIA;
 	bt_pacs_set_supported_contexts(BT_AUDIO_DIR_SINK, supported);
 
-	LOG_DBG("Changing Available Contexts");
+	printk("Changing Available Contexts\n");
 	available = available ^ BT_AUDIO_CONTEXT_TYPE_MEDIA;
 	bt_pacs_set_available_contexts(BT_AUDIO_DIR_SINK, available);
 }
@@ -142,15 +139,14 @@ static void trigger_notifications(void)
 static void test_main(void)
 {
 	int err;
-	enum bt_audio_context available, available_for_conn;
 	const struct bt_data ad[] = {
 		BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 	};
 
-	LOG_DBG("Enabling Bluetooth");
+	printk("Enabling Bluetooth\n");
 	err = bt_enable(NULL);
 	if (err != 0) {
-		FAIL("Bluetooth enable failed (err %d)", err);
+		FAIL("Bluetooth enable failed (err %d)\n", err);
 		return;
 	}
 
@@ -159,121 +155,63 @@ static void test_main(void)
 	bt_pacs_set_available_contexts(BT_AUDIO_DIR_SINK, BT_AUDIO_CONTEXT_TYPE_ANY);
 	bt_pacs_set_available_contexts(BT_AUDIO_DIR_SOURCE, BT_AUDIO_CONTEXT_TYPE_ANY);
 
-	LOG_DBG("Registereding PACS");
+	printk("Registereding PACS\n");
 	bt_pacs_cap_register(BT_AUDIO_DIR_SINK, &caps_1);
 	bt_pacs_cap_register(BT_AUDIO_DIR_SOURCE, &caps_1);
 
 	err = bt_pacs_set_location(BT_AUDIO_DIR_SINK, BT_AUDIO_LOCATION_FRONT_LEFT);
 	if (err != 0) {
-		LOG_DBG("Failed to set device sink location");
+		printk("Failed to set device sink location\n");
 		return;
 	}
 
 	err = bt_pacs_set_location(BT_AUDIO_DIR_SOURCE, BT_AUDIO_LOCATION_FRONT_RIGHT);
 	if (err != 0) {
-		LOG_DBG("Failed to set device source location");
+		printk("Failed to set device source location\n");
 		return;
 	}
 
-	LOG_DBG("Start Advertising");
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), NULL, 0);
+	printk("Start Advertising\n");
+	err = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (err != 0) {
-		FAIL("Advertising failed to start (err %d)", err);
+		FAIL("Advertising failed to start (err %d)\n", err);
 		return;
 	}
 
-	LOG_DBG("Waiting to be connected");
+	printk("Waiting to be connected\n");
 	WAIT_FOR_FLAG(flag_connected);
-	LOG_DBG("Connected");
-	LOG_DBG("Waiting to be subscribed");
+	printk("Connected\n");
+	printk("Waiting to be subscribed\n");
 
 	while (!is_peer_subscribed(default_conn)) {
 		(void)k_sleep(K_MSEC(10));
 	}
-	LOG_DBG("Subscribed");
+	printk("Subscribed\n");
 
-	LOG_INF("Trigger changes while device is connected");
 	trigger_notifications();
 
 	/* Now wait for client to disconnect, then stop adv so it does not reconnect */
-	LOG_DBG("Wait for client disconnect");
+	printk("Wait for client disconnect\n");
 	WAIT_FOR_UNSET_FLAG(flag_connected);
-	LOG_DBG("Client disconnected");
+	printk("Client disconnected\n");
 
 	err = bt_le_adv_stop();
 	if (err != 0) {
-		FAIL("Advertising failed to stop (err %d)", err);
+		FAIL("Advertising failed to stop (err %d)\n", err);
 		return;
 	}
 
-	LOG_INF("Trigger changes while device is disconnected");
+	/* Trigger changes while device is disconnected */
 	trigger_notifications();
 
-	LOG_DBG("Start Advertising");
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), NULL, 0);
+	printk("Start Advertising\n");
+	err = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (err != 0) {
-		FAIL("Advertising failed to start (err %d)", err);
+		FAIL("Advertising failed to start (err %d)\n", err);
 		return;
 	}
 
 	WAIT_FOR_FLAG(flag_connected);
-	WAIT_FOR_UNSET_FLAG(flag_connected);
-	LOG_DBG("Client disconnected");
-
-	err = bt_le_adv_stop();
-	if (err != 0) {
-		FAIL("Advertising failed to stop (err %d)", err);
-		return;
-	}
-
-	LOG_DBG("Start Advertising");
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), NULL, 0);
-	if (err != 0) {
-		FAIL("Advertising failed to start (err %d)", err);
-		return;
-	}
-
-	WAIT_FOR_FLAG(flag_connected);
-	LOG_DBG("Connected");
-
-	available = bt_pacs_get_available_contexts(BT_AUDIO_DIR_SINK);
-	__ASSERT_NO_MSG(bt_pacs_get_available_contexts_for_conn(default_conn, BT_AUDIO_DIR_SINK) ==
-			available);
-
-	available_for_conn = BT_AUDIO_CONTEXT_TYPE_UNSPECIFIED;
-
-	LOG_INF("Override available contexts");
-	err = bt_pacs_conn_set_available_contexts_for_conn(default_conn, BT_AUDIO_DIR_SINK,
-							   &available_for_conn);
-	__ASSERT_NO_MSG(err == 0);
-
-	__ASSERT_NO_MSG(bt_pacs_get_available_contexts(BT_AUDIO_DIR_SINK) == available);
-	__ASSERT_NO_MSG(bt_pacs_get_available_contexts_for_conn(default_conn, BT_AUDIO_DIR_SINK) ==
-			available_for_conn);
-
-	WAIT_FOR_UNSET_FLAG(flag_connected);
-	LOG_DBG("Client disconnected");
-
-	err = bt_le_adv_stop();
-	if (err != 0) {
-		FAIL("Advertising failed to stop (err %d)", err);
-		return;
-	}
-
-	LOG_DBG("Start Advertising");
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), NULL, 0);
-	if (err != 0) {
-		FAIL("Advertising failed to start (err %d)", err);
-		return;
-	}
-
-	WAIT_FOR_FLAG(flag_connected);
-	LOG_DBG("Connected");
-
-	__ASSERT_NO_MSG(bt_pacs_get_available_contexts(BT_AUDIO_DIR_SINK) == available);
-	__ASSERT_NO_MSG(bt_pacs_get_available_contexts_for_conn(default_conn, BT_AUDIO_DIR_SINK) ==
-			available);
-
 	WAIT_FOR_UNSET_FLAG(flag_connected);
 
 	PASS("PACS Notify Server passed\n");

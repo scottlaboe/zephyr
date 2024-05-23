@@ -15,7 +15,7 @@ config CAN_TRANSCEIVER_GPIO
 	bool "GPIO controlled CAN transceiver"
 	default y
 	depends on DT_HAS_CAN_TRANSCEIVER_GPIO_ENABLED
-	select GPIO
+	depends on GPIO
 	help
 	  Enable support for GPIO controlled CAN transceivers.
 

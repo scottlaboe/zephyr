@@ -34,5 +34,5 @@ properties:
   nxp,pxp:
     type: phandle
     description:
-      NXP PXP device phandle. The LCDIF can utilize the PXP for accelerated
+      NXP PXP device phandle. The LCDIF can utilize the PXP for acclerated
       display rotation via the DMA API, when present and enabled.

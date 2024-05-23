@@ -20,42 +20,10 @@ LOG_MODULE_REGISTER(usbd_dev, CONFIG_USBD_LOG_LEVEL);
  * All the functions below are part of public USB device support API.
  */
 
-enum usbd_speed usbd_bus_speed(const struct usbd_contex *const uds_ctx)
-{
-	return uds_ctx->status.speed;
-}
-
-enum usbd_speed usbd_caps_speed(const struct usbd_contex *const uds_ctx)
-{
-	struct udc_device_caps caps = udc_caps(uds_ctx->dev);
-
-	/* For now, either high speed is supported or not. */
-	if (caps.hs) {
-		return USBD_SPEED_HS;
-	}
-
-	return USBD_SPEED_FS;
-}
-
-static struct usb_device_descriptor *
-get_device_descriptor(struct usbd_contex *const uds_ctx,
-		      const enum usbd_speed speed)
-{
-	switch (speed) {
-	case USBD_SPEED_FS:
-		return uds_ctx->fs_desc;
-	case USBD_SPEED_HS:
-		return uds_ctx->hs_desc;
-	default:
-		__ASSERT(false, "Not supported speed");
-		return NULL;
-	}
-}
-
 int usbd_device_set_bcd(struct usbd_contex *const uds_ctx,
-			const enum usbd_speed speed, const uint16_t bcd)
+			const uint16_t bcd)
 {
-	struct usb_device_descriptor *desc;
+	struct usb_device_descriptor *desc = uds_ctx->desc;
 	int ret = 0;
 
 	usbd_device_lock(uds_ctx);
@@ -65,7 +33,6 @@ int usbd_device_set_bcd(struct usbd_contex *const uds_ctx,
 		goto set_bcd_exit;
 	}
 
-	desc = get_device_descriptor(uds_ctx, speed);
 	desc->bcdUSB = sys_cpu_to_le16(bcd);
 
 set_bcd_exit:
@@ -76,7 +43,7 @@ set_bcd_exit:
 int usbd_device_set_vid(struct usbd_contex *const uds_ctx,
 			 const uint16_t vid)
 {
-	struct usb_device_descriptor *fs_desc, *hs_desc;
+	struct usb_device_descriptor *desc = uds_ctx->desc;
 	int ret = 0;
 
 	usbd_device_lock(uds_ctx);
@@ -86,11 +53,7 @@ int usbd_device_set_vid(struct usbd_contex *const uds_ctx,
 		goto set_vid_exit;
 	}
 
-	fs_desc = get_device_descriptor(uds_ctx, USBD_SPEED_FS);
-	fs_desc->idVendor = sys_cpu_to_le16(vid);
-
-	hs_desc = get_device_descriptor(uds_ctx, USBD_SPEED_HS);
-	hs_desc->idVendor = sys_cpu_to_le16(vid);
+	desc->idVendor = sys_cpu_to_le16(vid);
 
 set_vid_exit:
 	usbd_device_unlock(uds_ctx);
@@ -100,7 +63,7 @@ set_vid_exit:
 int usbd_device_set_pid(struct usbd_contex *const uds_ctx,
 			 const uint16_t pid)
 {
-	struct usb_device_descriptor *fs_desc, *hs_desc;
+	struct usb_device_descriptor *desc = uds_ctx->desc;
 	int ret = 0;
 
 	usbd_device_lock(uds_ctx);
@@ -110,38 +73,69 @@ int usbd_device_set_pid(struct usbd_contex *const uds_ctx,
 		goto set_pid_exit;
 	}
 
-	fs_desc = get_device_descriptor(uds_ctx, USBD_SPEED_FS);
-	fs_desc->idProduct = sys_cpu_to_le16(pid);
-
-	hs_desc = get_device_descriptor(uds_ctx, USBD_SPEED_HS);
-	hs_desc->idProduct = sys_cpu_to_le16(pid);
+	desc->idProduct = sys_cpu_to_le16(pid);
 
 set_pid_exit:
 	usbd_device_unlock(uds_ctx);
 	return ret;
 }
 
-int usbd_device_set_code_triple(struct usbd_contex *const uds_ctx,
-				const enum usbd_speed speed,
-				const uint8_t base_class,
-				const uint8_t subclass, const uint8_t protocol)
+int usbd_device_set_class(struct usbd_contex *const uds_ctx,
+			   const uint8_t value)
 {
-	struct usb_device_descriptor *desc;
+	struct usb_device_descriptor *desc = uds_ctx->desc;
 	int ret = 0;
 
 	usbd_device_lock(uds_ctx);
 
 	if (usbd_is_enabled(uds_ctx)) {
 		ret = -EALREADY;
-		goto set_code_triple_exit;
+		goto set_class_exit;
 	}
 
-	desc = get_device_descriptor(uds_ctx, speed);
-	desc->bDeviceClass = base_class;
-	desc->bDeviceSubClass = subclass;
-	desc->bDeviceProtocol = protocol;
+	desc->bDeviceClass = value;
 
-set_code_triple_exit:
+set_class_exit:
+	usbd_device_unlock(uds_ctx);
+	return ret;
+}
+
+int usbd_device_set_subclass(struct usbd_contex *const uds_ctx,
+			     const uint8_t value)
+{
+	struct usb_device_descriptor *desc = uds_ctx->desc;
+	int ret = 0;
+
+	usbd_device_lock(uds_ctx);
+
+	if (usbd_is_enabled(uds_ctx)) {
+		ret = -EALREADY;
+		goto set_subclass_exit;
+	}
+
+	desc->bDeviceSubClass = value;
+
+set_subclass_exit:
+	usbd_device_unlock(uds_ctx);
+	return ret;
+}
+
+int usbd_device_set_proto(struct usbd_contex *const uds_ctx,
+			  const uint8_t value)
+{
+	struct usb_device_descriptor *desc = uds_ctx->desc;
+	int ret = 0;
+
+	usbd_device_lock(uds_ctx);
+
+	if (usbd_is_enabled(uds_ctx)) {
+		ret = -EALREADY;
+		goto set_proto_exit;
+	}
+
+	desc->bDeviceProtocol = value;
+
+set_proto_exit:
 	usbd_device_unlock(uds_ctx);
 	return ret;
 }
@@ -182,11 +176,6 @@ int usbd_init(struct usbd_contex *const uds_ctx)
 {
 	int ret;
 
-	/*
-	 * Lock the scheduler to ensure that the context is not preempted
-	 * before it is fully initialized.
-	 */
-	k_sched_lock();
 	usbd_device_lock(uds_ctx);
 
 	if (uds_ctx->dev == NULL) {
@@ -216,8 +205,6 @@ int usbd_init(struct usbd_contex *const uds_ctx)
 
 init_exit:
 	usbd_device_unlock(uds_ctx);
-	k_sched_unlock();
-
 	return ret;
 }
 
@@ -302,11 +289,4 @@ int usbd_shutdown(struct usbd_contex *const uds_ctx)
 	usbd_device_unlock(uds_ctx);
 
 	return 0;
-}
-
-bool usbd_can_detect_vbus(struct usbd_contex *const uds_ctx)
-{
-	const struct udc_device_caps caps = udc_caps(uds_ctx->dev);
-
-	return caps.can_detect_vbus;
 }

@@ -524,11 +524,9 @@ static int gpio_stm32_config(const struct device *dev,
 	}
 
 	/* Enable device clock before configuration (requires bank writes) */
-	if (((flags & GPIO_OUTPUT) != 0) || ((flags & GPIO_INPUT) != 0)) {
-		err = pm_device_runtime_get(dev);
-		if (err < 0) {
-			return err;
-		}
+	err = pm_device_runtime_get(dev);
+	if (err < 0) {
+		return err;
 	}
 
 	if ((flags & GPIO_OUTPUT) != 0) {
@@ -623,6 +621,8 @@ static int gpio_stm32_pin_interrupt_configure(const struct device *dev,
 		goto exit;
 	}
 
+	gpio_stm32_enable_int(cfg->port, pin);
+
 	switch (trig) {
 	case GPIO_INT_TRIG_LOW:
 		edge = STM32_EXTI_TRIG_FALLING;
@@ -633,12 +633,7 @@ static int gpio_stm32_pin_interrupt_configure(const struct device *dev,
 	case GPIO_INT_TRIG_BOTH:
 		edge = STM32_EXTI_TRIG_BOTH;
 		break;
-	default:
-		err = -EINVAL;
-		goto exit;
 	}
-
-	gpio_stm32_enable_int(cfg->port, pin);
 
 	stm32_exti_trigger(pin, edge);
 
@@ -724,9 +719,7 @@ static int gpio_stm32_init(const struct device *dev)
 		return ret;
 	}
 
-	if (IS_ENABLED(CONFIG_PM_DEVICE_RUNTIME)) {
-		pm_device_init_suspended(dev);
-	}
+	pm_device_init_suspended(dev);
 	(void)pm_device_runtime_enable(dev);
 
 	return 0;

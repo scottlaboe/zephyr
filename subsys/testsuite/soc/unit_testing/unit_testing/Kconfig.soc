@@ -6,6 +6,3 @@ config SOC_UNIT_TESTING
 	bool "Unit testing SoC"
 	help
 	  SoC for unit testing
-
-config SOC
-	default "unit_testing"

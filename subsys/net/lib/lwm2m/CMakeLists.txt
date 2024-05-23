@@ -2,8 +2,6 @@
 
 zephyr_library()
 
-zephyr_library_compile_definitions(_POSIX_C_SOURCE=200809L)
-
 zephyr_include_directories(.)
 
 zephyr_library_sources(
@@ -128,7 +126,5 @@ zephyr_library_sources_ifdef(CONFIG_LWM2M_UCIFI_BATTERY
 zephyr_library_sources_ifdef(CONFIG_LWM2M_SHELL
     lwm2m_shell.c
 )
-
-zephyr_linker_sources(SECTIONS iterables.ld)
 
 zephyr_library_link_libraries_ifdef(CONFIG_MBEDTLS mbedTLS)

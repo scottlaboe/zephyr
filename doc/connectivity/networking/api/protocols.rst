@@ -10,8 +10,7 @@ Protocols
    coap
    coap_client
    coap_server
-   http_client
-   http_server
+   http
    lwm2m
    mqtt
    mqtt_sn

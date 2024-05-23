@@ -98,7 +98,6 @@ static struct bt_bap_lc3_preset unicast_preset_48_2_1 =
 					 BT_AUDIO_CONTEXT_TYPE_MEDIA);
 
 static void cap_discovery_complete_cb(struct bt_conn *conn, int err,
-				      const struct bt_csip_set_coordinator_set_member *member,
 				      const struct bt_csip_set_coordinator_csis_inst *csis_inst)
 {
 	if (err != 0) {
@@ -120,7 +119,8 @@ static void cap_discovery_complete_cb(struct bt_conn *conn, int err,
 	k_sem_give(&sem_cas_discovery);
 }
 
-static void unicast_start_complete_cb(int err, struct bt_conn *conn)
+static void unicast_start_complete_cb(struct bt_bap_unicast_group *unicast_group,
+				      int err, struct bt_conn *conn)
 {
 	if (err != 0) {
 		printk("Failed to start (failing conn %p): %d", conn, err);
@@ -138,7 +138,8 @@ static void unicast_update_complete_cb(int err, struct bt_conn *conn)
 	}
 }
 
-static void unicast_stop_complete_cb(int err, struct bt_conn *conn)
+static void unicast_stop_complete_cb(struct bt_bap_unicast_group *unicast_group, int err,
+				     struct bt_conn *conn)
 {
 	if (err != 0) {
 		printk("Failed to stop (failing conn %p): %d", conn, err);
@@ -329,7 +330,7 @@ static int unicast_group_create(struct bt_bap_unicast_group **out_unicast_group)
 	return err;
 }
 
-static int unicast_audio_start(struct bt_conn *conn)
+static int unicast_audio_start(struct bt_conn *conn, struct bt_bap_unicast_group *unicast_group)
 {
 	int err = 0;
 	struct bt_cap_unicast_audio_start_stream_param stream_param;
@@ -344,7 +345,7 @@ static int unicast_audio_start(struct bt_conn *conn)
 	stream_param.ep = unicast_sink_eps[0];
 	stream_param.codec_cfg = &unicast_preset_48_2_1.codec_cfg;
 
-	err = bt_cap_initiator_unicast_audio_start(&param);
+	err = bt_cap_initiator_unicast_audio_start(&param, unicast_group);
 	if (err != 0) {
 		printk("Failed to start unicast audio: %d\n", err);
 		return err;
@@ -388,7 +389,7 @@ static void audio_timer_timeout(struct k_work *work)
 	net_buf_add_mem(buf, buf_data, len_to_send);
 	buf_to_send = buf;
 
-	ret = bt_bap_stream_send(stream, buf_to_send, 0);
+	ret = bt_bap_stream_send(stream, buf_to_send, 0, BT_ISO_TIMESTAMP_NONE);
 	if (ret < 0) {
 		printk("Failed to send audio data on streams: (%d)\n", ret);
 		net_buf_unref(buf_to_send);
@@ -456,7 +457,7 @@ int cap_initiator_setup(struct bt_conn *conn)
 		return err;
 	}
 
-	err = unicast_audio_start(conn);
+	err = unicast_audio_start(conn, unicast_group);
 	if (err != 0) {
 		return err;
 	}

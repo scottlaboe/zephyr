@@ -4,11 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * @file
- * @brief socket types definitionis
- */
-
 #ifndef ZEPHYR_INCLUDE_NET_SOCKET_TYPES_H_
 #define ZEPHYR_INCLUDE_NET_SOCKET_TYPES_H_
 
@@ -21,7 +16,6 @@
 
 #include <zephyr/types.h>
 
-/** @cond INTERNAL_HIDDEN */
 
 #ifdef CONFIG_NEWLIB_LIBC
 
@@ -57,8 +51,6 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-/** @endcond */
 
 /**
  * @}

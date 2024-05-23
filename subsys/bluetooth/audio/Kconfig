@@ -8,7 +8,8 @@
 #
 
 menuconfig BT_AUDIO
-	bool "Bluetooth Audio support"
+	bool "Bluetooth Audio support [EXPERIMENTAL]"
+	select EXPERIMENTAL
 	help
 	  This option enables Bluetooth Audio support. The specific
 	  features that are available may depend on other features
@@ -59,8 +60,6 @@ rsource "Kconfig.mpl"
 rsource "Kconfig.mctl"
 rsource "Kconfig.cap"
 rsource "Kconfig.tmap"
-rsource "Kconfig.gmap"
-rsource "Kconfig.pbp"
 
 module = BT_AUDIO
 module-str = "Bluetooth Audio"

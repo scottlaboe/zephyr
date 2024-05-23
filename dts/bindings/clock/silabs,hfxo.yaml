@@ -7,7 +7,3 @@ properties:
     type: int
     required: true
     description: Load capacitance configuration
-  precision:
-    type: int
-    required: true
-    description: Precision configuration

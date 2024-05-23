@@ -21,39 +21,24 @@ struct lvgl_pointer_input_config {
 	bool invert_y;
 };
 
-struct lvgl_pointer_input_data {
-	struct lvgl_common_input_data common_data;
-	uint32_t point_x;
-	uint32_t point_y;
-};
-
 static void lvgl_pointer_process_event(const struct device *dev, struct input_event *evt)
 {
 	const struct lvgl_pointer_input_config *cfg = dev->config;
-	struct lvgl_pointer_input_data *data = dev->data;
+	struct lvgl_common_input_data *data = dev->data;
 	lv_disp_t *disp = lv_disp_get_default();
 	struct lvgl_disp_data *disp_data = disp->driver->user_data;
 	struct display_capabilities *cap = &disp_data->cap;
-	lv_point_t *point = &data->common_data.pending_event.point;
+	lv_point_t *point = &data->pending_event.point;
 
 	switch (evt->code) {
 	case INPUT_ABS_X:
-		if (cfg->swap_xy) {
-			data->point_y = evt->value;
-		} else {
-			data->point_x = evt->value;
-		}
+		point->x = evt->value;
 		break;
 	case INPUT_ABS_Y:
-		if (cfg->swap_xy) {
-			data->point_x = evt->value;
-		} else {
-			data->point_y = evt->value;
-		}
+		point->y = evt->value;
 		break;
 	case INPUT_BTN_TOUCH:
-		data->common_data.pending_event.state =
-			evt->value ? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
+		data->pending_event.state = evt->value ? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
 		break;
 	}
 
@@ -61,37 +46,49 @@ static void lvgl_pointer_process_event(const struct device *dev, struct input_ev
 		return;
 	}
 
-	point->x = data->point_x;
-	point->y = data->point_y;
+	/* adjust coordinates */
+	if (cfg->swap_xy) {
+		lv_coord_t tmp;
+
+		tmp = point->x;
+		point->x = point->y;
+		point->y = tmp;
+	}
 
 	if (cfg->invert_x) {
 		if (cap->current_orientation == DISPLAY_ORIENTATION_NORMAL ||
 		    cap->current_orientation == DISPLAY_ORIENTATION_ROTATED_180) {
-			point->x = cap->x_resolution - data->point_x;
+			point->x = cap->x_resolution - point->x;
 		} else {
-			point->x = cap->y_resolution - data->point_x;
+			point->x = cap->y_resolution - point->x;
 		}
 	}
 
 	if (cfg->invert_y) {
 		if (cap->current_orientation == DISPLAY_ORIENTATION_NORMAL ||
 		    cap->current_orientation == DISPLAY_ORIENTATION_ROTATED_180) {
-			point->y = cap->y_resolution - data->point_y;
+			point->y = cap->y_resolution - point->y;
 		} else {
-			point->y = cap->x_resolution - data->point_y;
+			point->y = cap->x_resolution - point->y;
 		}
 	}
 
 	/* rotate touch point to match display rotation */
 	if (cap->current_orientation == DISPLAY_ORIENTATION_ROTATED_90) {
-		point->x = data->point_y;
-		point->y = cap->y_resolution - data->point_x;
+		lv_coord_t tmp;
+
+		tmp = point->x;
+		point->x = point->y;
+		point->y = cap->y_resolution - tmp;
 	} else if (cap->current_orientation == DISPLAY_ORIENTATION_ROTATED_180) {
-		point->x = cap->x_resolution - data->point_x;
-		point->y = cap->y_resolution - data->point_y;
+		point->x = cap->x_resolution - point->x;
+		point->y = cap->y_resolution - point->y;
 	} else if (cap->current_orientation == DISPLAY_ORIENTATION_ROTATED_270) {
-		point->x = cap->x_resolution - data->point_y;
-		point->y = data->point_x;
+		lv_coord_t tmp;
+
+		tmp = point->x;
+		point->x = cap->x_resolution - point->y;
+		point->y = tmp;
 	}
 
 	/* filter readings within display */
@@ -107,8 +104,7 @@ static void lvgl_pointer_process_event(const struct device *dev, struct input_ev
 		point->y = cap->y_resolution - 1;
 	}
 
-	if (k_msgq_put(cfg->common_config.event_msgq, &data->common_data.pending_event,
-		       K_NO_WAIT) != 0) {
+	if (k_msgq_put(cfg->common_config.event_msgq, &data->pending_event, K_NO_WAIT) != 0) {
 		LOG_WRN("Could not put input data into queue");
 	}
 }
@@ -127,8 +123,8 @@ int lvgl_pointer_input_init(const struct device *dev)
 		.invert_x = DT_INST_PROP(inst, invert_x),                                          \
 		.invert_y = DT_INST_PROP(inst, invert_y),                                          \
 	};                                                                                         \
-	static struct lvgl_pointer_input_data lvgl_pointer_input_data_##inst;                      \
-	DEVICE_DT_INST_DEFINE(inst, NULL, NULL, &lvgl_pointer_input_data_##inst,                   \
+	static struct lvgl_common_input_data lvgl_common_input_data_##inst;                        \
+	DEVICE_DT_INST_DEFINE(inst, NULL, NULL, &lvgl_common_input_data_##inst,                    \
 			      &lvgl_pointer_input_config_##inst, POST_KERNEL,                      \
 			      CONFIG_INPUT_INIT_PRIORITY, NULL);
 

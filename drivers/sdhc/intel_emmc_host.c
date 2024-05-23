@@ -1087,7 +1087,7 @@ static int emmc_set_io(const struct device *dev, struct sdhc_io *ios)
 		host_io->timing = ios->timing;
 	}
 
-	return 0;
+	return ret;
 }
 
 static int emmc_get_card_present(const struct device *dev)

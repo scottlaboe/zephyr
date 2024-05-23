@@ -12,12 +12,13 @@
 	cpus {
 		#address-cells = <0x01>;
 		#size-cells = <0x00>;
+		timebase-frequency = <10000000>;
 
 		cpu@0 {
 			device_type = "cpu";
 			reg = <0x00>;
 			status = "okay";
-			compatible = "lowrisc,ibex", "riscv";
+			compatible = "riscv";
 			riscv,isa = "rv32imcb_zicsr_zifencei";
 
 			hlic: interrupt-controller {
@@ -76,7 +77,7 @@
 			interrupts-extended = <&hlic 11>;
 			reg = <0x48000000 0x04000000>;
 			riscv,max-priority = <7>;
-			riscv,ndev = <182>;
+			riscv,ndev = <184>;
 			status = "okay";
 		};
 

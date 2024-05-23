@@ -2,9 +2,7 @@ sample:
   description: Sample for show-casing the different use-cases of NXP S32 NETC driver
   name: NXP S32 NETC sample
 common:
-  platform_allow:
-    - s32z2xxdc2/s32z270/rtu0
-    - s32z2xxdc2@D/s32z270/rtu0
+  platform_allow: s32z270dc2_rtu0_r52
   depends_on: netif
   tags: net
 tests:

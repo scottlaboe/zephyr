@@ -10,8 +10,7 @@
 #include <zephyr/drivers/flash.h>
 #include <zephyr/storage/flash_map.h>
 
-#include <esp_flash.h>
-#include <spi_flash_mmap.h>
+#include <esp_spi_flash.h>
 #include <soc.h>
 
 #include <zephyr/logging/log.h>
@@ -46,7 +45,7 @@ int main(void)
 
 	/* read flash content without decrypting content */
 	memset(buffer, 0, sizeof(buffer));
-	esp_flash_read(NULL, &buffer, address, sizeof(buffer));
+	spi_flash_read(address, &buffer, sizeof(buffer));
 	LOG_HEXDUMP_INF(buffer, sizeof(buffer), "FLASH RAW DATA (Encrypted)");
 
 	/* read flash content and decrypt */

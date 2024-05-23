@@ -22,7 +22,7 @@ CREATE_FLAG(data_received);
 #define DATA_BYTE_VAL  0xBB
 
 /* L2CAP channel buffer pool */
-NET_BUF_POOL_DEFINE(buf_pool, 1, BT_L2CAP_SDU_BUF_SIZE(16), CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
+NET_BUF_POOL_DEFINE(buf_pool, 1, BT_L2CAP_SDU_BUF_SIZE(16), 8, NULL);
 
 static void chan_connected_cb(struct bt_l2cap_chan *l2cap_chan)
 {
@@ -187,7 +187,7 @@ static void test_peripheral_main(void)
 
 	register_l2cap_server();
 
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), NULL, 0);
+	err = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (err != 0) {
 		FAIL("Advertising failed to start (err %d)\n", err);
 		return;

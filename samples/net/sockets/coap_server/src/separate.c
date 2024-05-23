@@ -43,7 +43,7 @@ static int separate_get(struct coap_resource *resource,
 		return r;
 	}
 
-	r = coap_resource_send(resource, &response, addr, addr_len, NULL);
+	r = coap_resource_send(resource, &response, addr, addr_len);
 	if (r < 0) {
 		return r;
 	}
@@ -57,7 +57,7 @@ static int separate_get(struct coap_resource *resource,
 	/* Re-use the buffer */
 	r = coap_packet_init(&response, data, sizeof(data),
 			     COAP_VERSION_1, type, tkl, token,
-			     COAP_RESPONSE_CODE_CONTENT, coap_next_id());
+			     COAP_RESPONSE_CODE_CONTENT, id);
 	if (r < 0) {
 		return r;
 	}
@@ -86,7 +86,7 @@ static int separate_get(struct coap_resource *resource,
 		return r;
 	}
 
-	r = coap_resource_send(resource, &response, addr, addr_len, NULL);
+	r = coap_resource_send(resource, &response, addr, addr_len);
 
 	return r;
 }

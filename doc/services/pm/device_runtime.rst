@@ -224,14 +224,5 @@ asynchronous API:
         ...
 
         /* "put" device (decreases usage count, schedule suspend if no more users) */
-        return pm_device_runtime_put_async(dev, K_NO_WAIT);
+        return pm_device_runtime_put_async(dev);
     }
-
-Examples
-********
-
-Some helpful examples showing device runtime power management features:
-
-* :zephyr_file:`tests/subsys/pm/device_runtime_api/`
-* :zephyr_file:`tests/subsys/pm/device_power_domains/`
-* :zephyr_file:`tests/subsys/pm/power_domain/`

@@ -25,7 +25,6 @@ extern "C" {
 enum modem_pipe_event {
 	MODEM_PIPE_EVENT_OPENED = 0,
 	MODEM_PIPE_EVENT_RECEIVE_READY,
-	MODEM_PIPE_EVENT_TRANSMIT_IDLE,
 	MODEM_PIPE_EVENT_CLOSED,
 };
 
@@ -74,8 +73,7 @@ struct modem_pipe {
 	enum modem_pipe_state state;
 	struct k_mutex lock;
 	struct k_condvar condvar;
-	uint8_t receive_ready_pending : 1;
-	uint8_t transmit_idle_pending : 1;
+	bool receive_ready_pending;
 };
 
 /**
@@ -98,10 +96,6 @@ void modem_pipe_init(struct modem_pipe *pipe, void *data, struct modem_pipe_api 
  *
  * @retval 0 if pipe was successfully opened or was already open
  * @retval -errno code otherwise
- *
- * @warning Be cautious when using this synchronous version of the call.
- * It may block the calling thread, which in the case of the system workqueue
- * can result in a deadlock until this call times out waiting for the pipe to be open.
  */
 int modem_pipe_open(struct modem_pipe *pipe);
 
@@ -134,27 +128,25 @@ void modem_pipe_attach(struct modem_pipe *pipe, modem_pipe_api_callback callback
  * @brief Transmit data through pipe
  *
  * @param pipe Pipe to transmit through
- * @param buf Data to transmit
- * @param size Number of bytes to transmit
+ * @param buf Destination for reveived data
+ * @param size Capacity of destination for recevied data
  *
- * @retval Number of bytes placed in pipe
- * @retval -EPERM if pipe is closed
- * @retval -errno code on error
+ * @return Number of bytes placed in pipe
  *
  * @warning This call must be non-blocking
  */
 int modem_pipe_transmit(struct modem_pipe *pipe, const uint8_t *buf, size_t size);
 
 /**
- * @brief Receive data through pipe
+ * @brief Reveive data through pipe
  *
  * @param pipe Pipe to receive from
- * @param buf Destination for received data; must not be already in use in a modem module.
- * @param size Capacity of destination for received data
+ * @param buf Destination for reveived data
+ * @param size Capacity of destination for recevied data
  *
- * @retval Number of bytes received from pipe
- * @retval -EPERM if pipe is closed
- * @retval -errno code on error
+ * @return Number of bytes received from pipe if any
+ * @return -EPERM if pipe is closed
+ * @return -errno code on error
  *
  * @warning This call must be non-blocking
  */
@@ -174,10 +166,6 @@ void modem_pipe_release(struct modem_pipe *pipe);
  *
  * @retval 0 if pipe open was called closed or pipe was already closed
  * @retval -errno code otherwise
- *
- * @warning Be cautious when using this synchronous version of the call.
- * It may block the calling thread, which in the case of the system workqueue
- * can result in a deadlock until this call times out waiting for the pipe to be closed.
  */
 int modem_pipe_close(struct modem_pipe *pipe);
 
@@ -224,15 +212,6 @@ void modem_pipe_notify_closed(struct modem_pipe *pipe);
  * @note Invoked from instance which initialized the pipe instance
  */
 void modem_pipe_notify_receive_ready(struct modem_pipe *pipe);
-
-/**
- * @brief Notify user of pipe that pipe has no more data to transmit
- *
- * @param pipe Pipe instance
- *
- * @note Invoked from instance which initialized the pipe instance
- */
-void modem_pipe_notify_transmit_idle(struct modem_pipe *pipe);
 
 /**
  * @endcond

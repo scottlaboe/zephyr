@@ -21,7 +21,9 @@ void spin_for_ms(int ms)
 		/* In the posix arch, a busy loop takes no time, so
 		 * let's make it take some
 		 */
-		Z_SPIN_DELAY(50);
+		if (IS_ENABLED(CONFIG_ARCH_POSIX)) {
+			k_busy_wait(50);
+		}
 	}
 }
 

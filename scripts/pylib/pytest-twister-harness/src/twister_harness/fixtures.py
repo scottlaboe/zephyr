@@ -6,7 +6,6 @@ import logging
 from typing import Generator, Type
 
 import pytest
-import time
 
 from twister_harness.device.device_adapter import DeviceAdapter
 from twister_harness.device.factory import DeviceFactory
@@ -59,13 +58,7 @@ def shell(dut: DeviceAdapter) -> Shell:
     """Return ready to use shell interface"""
     shell = Shell(dut, timeout=20.0)
     logger.info('Wait for prompt')
-    if not shell.wait_for_prompt():
-        pytest.fail('Prompt not found')
-    if dut.device_config.type == 'hardware':
-        # after booting up the device, there might appear additional logs
-        # after first prompt, so we need to wait and clear the buffer
-        time.sleep(0.5)
-        dut.clear_buffer()
+    assert shell.wait_for_prompt()
     return shell
 
 

@@ -218,7 +218,8 @@ int arch_icache_flush_and_invd_range(void *addr, size_t size)
 
 static int init_dcache(void)
 {
-	sys_cache_data_enable();
+
+	arch_dcache_enable();
 
 #if defined(CONFIG_DCACHE_LINE_SIZE_DETECT)
 	init_dcache_line_size();

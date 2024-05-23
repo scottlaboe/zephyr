@@ -821,8 +821,7 @@ static int usbfsotg_ep_clear_halt(const struct device *dev,
 	if (USB_EP_GET_IDX(cfg->addr) == 0U) {
 		usbfsotg_resume_tx(dev);
 	} else {
-		/* trigger queued transfers */
-		usbfsotg_event_submit(dev, cfg->addr, USBFSOTG_EVT_XFER);
+		/* TODO: trigger queued transfers? */
 	}
 
 	return 0;

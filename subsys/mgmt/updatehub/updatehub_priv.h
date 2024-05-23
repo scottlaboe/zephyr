@@ -97,20 +97,15 @@ struct resp_probe_objects_array {
 	struct resp_probe_objects objects;
 };
 
-struct resp_probe_objects_array_array {
-	struct resp_probe_objects_array objects[4];
-	size_t objects_len;
-};
-
 struct resp_probe_any_boards {
-	struct resp_probe_objects_array_array objects[2];
+	struct resp_probe_objects_array objects[2];
 	size_t objects_len;
 	const char *product;
 	const char *supported_hardware;
 };
 
 struct resp_probe_some_boards {
-	struct resp_probe_objects_array_array objects[2];
+	struct resp_probe_objects_array objects[2];
 	size_t objects_len;
 	const char *product;
 	const char *supported_hardware[CONFIG_UPDATEHUB_SUPPORTED_HARDWARE_MAX];
@@ -153,13 +148,6 @@ static const struct json_obj_descr recv_probe_objects_descr_array[] = {
 			      objects, recv_probe_objects_descr),
 };
 
-static const struct json_obj_descr recv_probe_objects_descr_array_array[] = {
-	JSON_OBJ_DESCR_ARRAY_ARRAY(struct resp_probe_objects_array_array,
-				   objects, 4, objects_len,
-				   recv_probe_objects_descr_array,
-				   ARRAY_SIZE(recv_probe_objects_descr_array)),
-};
-
 static const struct json_obj_descr recv_probe_sh_string_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct resp_probe_any_boards,
 			    product, JSON_TOK_STRING),
@@ -168,8 +156,8 @@ static const struct json_obj_descr recv_probe_sh_string_descr[] = {
 				  JSON_TOK_STRING),
 	JSON_OBJ_DESCR_ARRAY_ARRAY(struct resp_probe_any_boards,
 				   objects, 2, objects_len,
-				   recv_probe_objects_descr_array_array,
-				   ARRAY_SIZE(recv_probe_objects_descr_array_array)),
+				   recv_probe_objects_descr_array,
+				   ARRAY_SIZE(recv_probe_objects_descr_array)),
 };
 
 static const struct json_obj_descr recv_probe_sh_array_descr[] = {
@@ -181,8 +169,8 @@ static const struct json_obj_descr recv_probe_sh_array_descr[] = {
 				   supported_hardware_len, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_ARRAY_ARRAY(struct resp_probe_some_boards,
 				   objects, 2, objects_len,
-				   recv_probe_objects_descr_array_array,
-				   ARRAY_SIZE(recv_probe_objects_descr_array_array)),
+				   recv_probe_objects_descr_array,
+				   ARRAY_SIZE(recv_probe_objects_descr_array)),
 };
 
 static const struct json_obj_descr device_identity_descr[] = {

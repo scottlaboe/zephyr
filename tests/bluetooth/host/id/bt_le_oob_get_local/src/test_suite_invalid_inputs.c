@@ -113,8 +113,7 @@ ZTEST(bt_le_oob_get_local_invalid_inputs, test_updating_rpa_fails_while_establis
 
 	err = bt_le_oob_get_local(BT_ID_DEFAULT, &oob);
 
-	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL,
-						   BT_CONN_SCAN_BEFORE_INITIATING);
+	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL, BT_CONN_CONNECTING_SCAN);
 
 	zassert_true(err == -EINVAL, "Unexpected error code '%d' was returned", err);
 }
@@ -157,8 +156,7 @@ ZTEST(bt_le_oob_get_local_invalid_inputs, test_conn_state_checked_with_null_adv)
 	err = bt_le_oob_get_local(BT_ID_DEFAULT, &oob);
 
 	expect_single_call_bt_le_adv_lookup_legacy();
-	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL,
-						   BT_CONN_SCAN_BEFORE_INITIATING);
+	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL, BT_CONN_CONNECTING_SCAN);
 
 	zassert_true(err == -EINVAL, "Unexpected error code '%d' was returned", err);
 }
@@ -207,8 +205,7 @@ ZTEST(bt_le_oob_get_local_invalid_inputs, test_conn_state_checked_non_matched_id
 	err = bt_le_oob_get_local(BT_ID_DEFAULT, &oob);
 
 	expect_single_call_bt_le_adv_lookup_legacy();
-	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL,
-						   BT_CONN_SCAN_BEFORE_INITIATING);
+	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL, BT_CONN_CONNECTING_SCAN);
 
 	zassert_true(err == -EINVAL, "Unexpected error code '%d' was returned", err);
 }
@@ -260,8 +257,7 @@ ZTEST(bt_le_oob_get_local_invalid_inputs, test_conn_state_checked_adv_enable_not
 	err = bt_le_oob_get_local(BT_ID_DEFAULT, &oob);
 
 	expect_single_call_bt_le_adv_lookup_legacy();
-	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL,
-						   BT_CONN_SCAN_BEFORE_INITIATING);
+	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL, BT_CONN_CONNECTING_SCAN);
 
 	zassert_true(err == -EINVAL, "Unexpected error code '%d' was returned", err);
 }
@@ -313,8 +309,7 @@ ZTEST(bt_le_oob_get_local_invalid_inputs, test_conn_state_checked_adv_use_identi
 	err = bt_le_oob_get_local(BT_ID_DEFAULT, &oob);
 
 	expect_single_call_bt_le_adv_lookup_legacy();
-	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL,
-						   BT_CONN_SCAN_BEFORE_INITIATING);
+	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL, BT_CONN_CONNECTING_SCAN);
 
 	zassert_true(err == -EINVAL, "Unexpected error code '%d' was returned", err);
 }
@@ -366,8 +361,7 @@ ZTEST(bt_le_oob_get_local_invalid_inputs, test_conn_state_checked_public_dev_add
 	err = bt_le_oob_get_local(BT_ID_DEFAULT, &oob);
 
 	expect_single_call_bt_le_adv_lookup_legacy();
-	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL,
-						   BT_CONN_SCAN_BEFORE_INITIATING);
+	expect_single_call_bt_conn_lookup_state_le(BT_ID_DEFAULT, NULL, BT_CONN_CONNECTING_SCAN);
 
 	zassert_true(err == -EINVAL, "Unexpected error code '%d' was returned", err);
 }

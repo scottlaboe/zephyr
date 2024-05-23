@@ -68,9 +68,6 @@ class PackageConfig:
         # SPDX ID, including "SPDXRef-"
         self.spdxID = ""
 
-        # primary package purpose (ex. "LIBRARY", "APPLICATION", etc.)
-        self.primaryPurpose = ""
-
         # the Package's declared license
         self.declaredLicense = "NOASSERTION"
 
@@ -98,7 +95,7 @@ class Package:
         # Document that owns this Package
         self.doc = doc
 
-        # verification code, calculated per section 7.9 of SPDX spec v2.3
+        # verification code, calculated per section 3.9 of SPDX spec v2.2
         self.verificationCode = ""
 
         # concluded license for this Package, if
@@ -164,7 +161,7 @@ class RelationshipData:
         self.otherPackageID = ""
 
         # text string with Relationship type
-        # from table 68 in section 11.1 of SPDX spec v2.3
+        # from table in section 7.1 of SPDX spec v2.2
         self.rlnType = ""
 
 # Relationship contains the post-analysis, processed data about a relationship
@@ -183,7 +180,7 @@ class Relationship:
         self.refB = ""
 
         # text string with Relationship type
-        # from table 68 in section 11.1 of SPDX spec v2.3
+        # from table in section 7.1 of SPDX spec v2.2
         self.rlnType = ""
 
 # File contains the data needed to create a File element in the context of a

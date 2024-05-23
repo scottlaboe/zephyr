@@ -8,4 +8,3 @@ Controller Area Network (CAN)
 
    controller.rst
    transceiver.rst
-   shell.rst

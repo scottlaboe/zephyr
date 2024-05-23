@@ -45,6 +45,8 @@ class Shell:
                 continue
             if self.prompt in line:
                 logger.debug('Got prompt')
+                time.sleep(0.05)
+                self._device.clear_buffer()
                 return True
         return False
 
@@ -53,12 +55,12 @@ class Shell:
         Send shell command to a device and return response. Passed command
         is extended by double enter sings - first one to execute this command
         on a device, second one to receive next prompt what is a signal that
-        execution was finished. Method returns printout of the executed command.
+        execution was finished.
         """
         timeout = timeout or self.base_timeout
         command_ext = f'{command}\n\n'
         regex_prompt = re.escape(self.prompt)
-        regex_command = f'.*{re.escape(command)}'
+        regex_command = f'.*{command}'
         self._device.clear_buffer()
         self._device.write(command_ext.encode())
         lines: list[str] = []

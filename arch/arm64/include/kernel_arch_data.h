@@ -24,7 +24,7 @@
 #include <zephyr/linker/sections.h>
 #include <zephyr/arch/cpu.h>
 
-#include <exception.h>
+#include <exc.h>
 
 #ifndef _ASMLANGUAGE
 #include <zephyr/kernel.h>

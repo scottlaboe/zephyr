@@ -13,4 +13,3 @@ The following contains various topics regarding memory management.
    slabs.rst
    sys_mem_blocks.rst
    demand_paging.rst
-   virtual_memory.rst

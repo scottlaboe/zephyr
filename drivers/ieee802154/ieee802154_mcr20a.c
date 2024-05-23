@@ -515,8 +515,11 @@ static inline int16_t mcr20a_get_rssi(uint8_t lqi)
 static inline uint8_t *get_mac(const struct device *dev)
 {
 	struct mcr20a_context *mcr20a = dev->data;
+	uint32_t *ptr = (uint32_t *)(mcr20a->mac_addr);
 
-	sys_rand_get(mcr20a->mac_addr, sizeof(mcr20a->mac_addr));
+	UNALIGNED_PUT(sys_rand32_get(), ptr);
+	ptr = (uint32_t *)(mcr20a->mac_addr + 4);
+	UNALIGNED_PUT(sys_rand32_get(), ptr);
 
 	mcr20a->mac_addr[0] = (mcr20a->mac_addr[0] & ~0x01) | 0x02;
 
@@ -1449,7 +1452,7 @@ static const struct mcr20a_config mcr20a_config = {
 
 static struct mcr20a_context mcr20a_context_data;
 
-static const struct ieee802154_radio_api mcr20a_radio_api = {
+static struct ieee802154_radio_api mcr20a_radio_api = {
 	.iface_api.init	= mcr20a_iface_init,
 
 	.get_capabilities	= mcr20a_get_capabilities,

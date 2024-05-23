@@ -17,12 +17,14 @@ LOG_MODULE_REGISTER(voltage, CONFIG_SENSOR_LOG_LEVEL);
 
 struct voltage_config {
 	struct voltage_divider_dt_spec voltage;
+#ifdef CONFIG_PM_DEVICE
 	struct gpio_dt_spec gpio_power;
+#endif
 };
 
 struct voltage_data {
 	struct adc_sequence sequence;
-	uint16_t raw;
+	int16_t raw;
 };
 
 static int fetch(const struct device *dev, enum sensor_channel chan)
@@ -47,7 +49,7 @@ static int get(const struct device *dev, enum sensor_channel chan, struct sensor
 {
 	const struct voltage_config *config = dev->config;
 	struct voltage_data *data = dev->data;
-	int32_t raw_val;
+	int32_t raw_val = data->raw;
 	int32_t v_mv;
 	int ret;
 
@@ -55,15 +57,6 @@ static int get(const struct device *dev, enum sensor_channel chan, struct sensor
 
 	if (chan != SENSOR_CHAN_VOLTAGE) {
 		return -ENOTSUP;
-	}
-
-	if (config->voltage.port.channel_cfg.differential) {
-		raw_val = (int16_t)data->raw;
-	} else if (config->voltage.port.resolution < 16) {
-		/* Can be removed when issue #71119 is resolved */
-		raw_val = (int16_t)data->raw;
-	} else {
-		raw_val = data->raw;
 	}
 
 	ret = adc_raw_to_millivolts_dt(&config->voltage.port, &raw_val);
@@ -97,8 +90,8 @@ static int pm_action(const struct device *dev, enum pm_device_action action)
 	int ret;
 
 	if (config->gpio_power.port == NULL) {
-		/* No work to do */
-		return 0;
+		LOG_ERR("PM not supported");
+		return -ENOTSUP;
 	}
 
 	switch (action) {
@@ -133,6 +126,7 @@ static int voltage_init(const struct device *dev)
 		return -ENODEV;
 	}
 
+#ifdef CONFIG_PM_DEVICE
 	if (config->gpio_power.port != NULL) {
 		if (!gpio_is_ready_dt(&config->gpio_power)) {
 			LOG_ERR("Power GPIO is not ready");
@@ -144,6 +138,7 @@ static int voltage_init(const struct device *dev)
 			LOG_ERR("failed to initialize GPIO for reset");
 		}
 	}
+#endif
 
 	ret = adc_channel_setup_dt(&config->voltage.port);
 	if (ret != 0) {
@@ -163,12 +158,18 @@ static int voltage_init(const struct device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_DEVICE
+#define POWER_GPIOS(inst) .gpio_power = GPIO_DT_SPEC_INST_GET_OR(inst, power_gpios, {0}),
+#else
+#define POWER_GPIOS(inst)
+#endif
+
 #define VOLTAGE_INIT(inst)                                                                         \
 	static struct voltage_data voltage_##inst##_data;                                          \
                                                                                                    \
 	static const struct voltage_config voltage_##inst##_config = {                             \
 		.voltage = VOLTAGE_DIVIDER_DT_SPEC_GET(DT_DRV_INST(inst)),                         \
-		.gpio_power = GPIO_DT_SPEC_INST_GET_OR(inst, power_gpios, {0}),                    \
+		POWER_GPIOS(inst)                                                                  \
 	};                                                                                         \
                                                                                                    \
 	PM_DEVICE_DT_INST_DEFINE(inst, pm_action);                                                 \

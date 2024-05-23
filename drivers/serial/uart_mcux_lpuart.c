@@ -1,5 +1,5 @@
 /*
- * Copyright 2017,2021,2023-2024 NXP
+ * Copyright (c) 2017,2021 NXP
  * Copyright (c) 2020 Softube
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -21,21 +21,8 @@
 #include <zephyr/logging/log.h>
 
 #include <fsl_lpuart.h>
-#if CONFIG_NXP_LP_FLEXCOMM
-#include <zephyr/drivers/mfd/nxp_lp_flexcomm.h>
-#endif
 
 LOG_MODULE_REGISTER(uart_mcux_lpuart, LOG_LEVEL_ERR);
-
-#define PINCTRL_STATE_FLOWCONTROL PINCTRL_STATE_PRIV_START
-
-#if defined(CONFIG_UART_ASYNC_API) && defined(CONFIG_UART_INTERRUPT_DRIVEN)
-/* there are already going to be build errors, but at least this message will
- * be the first error from this driver making the reason clear
- */
-BUILD_ASSERT(IS_ENABLED(CONFIG_UART_EXCLUSIVE_API_CALLBACKS), ""
-		"LPUART must use exclusive api callbacks");
-#endif
 
 #ifdef CONFIG_UART_ASYNC_API
 struct lpuart_dma_config {
@@ -47,9 +34,6 @@ struct lpuart_dma_config {
 
 struct mcux_lpuart_config {
 	LPUART_Type *base;
-#ifdef CONFIG_NXP_LP_FLEXCOMM
-	const struct device *parent_dev;
-#endif
 	const struct device *clock_dev;
 	const struct pinctrl_dev_config *pincfg;
 	clock_control_subsys_t clock_subsys;
@@ -58,9 +42,6 @@ struct mcux_lpuart_config {
 	uint8_t parity;
 	bool rs485_de_active_low;
 	bool loopback_en;
-	bool single_wire;
-	bool tx_invert;
-	bool rx_invert;
 #ifdef CONFIG_UART_MCUX_LPUART_ISR_SUPPORT
 	void (*irq_config_func)(const struct device *dev);
 #endif
@@ -100,14 +81,6 @@ struct mcux_lpuart_async_data {
 };
 #endif
 
-#if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS)
-enum mcux_lpuart_api {
-	LPUART_NONE,
-	LPUART_IRQ_DRIVEN,
-	LPUART_ASYNC
-};
-#endif
-
 struct mcux_lpuart_data {
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	uart_irq_callback_user_data_t callback;
@@ -122,9 +95,6 @@ struct mcux_lpuart_data {
 	struct mcux_lpuart_async_data async;
 #endif
 	struct uart_config uart_config;
-#if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS)
-	enum mcux_lpuart_api api_type;
-#endif
 };
 
 #ifdef CONFIG_PM
@@ -172,7 +142,7 @@ static void mcux_lpuart_poll_out(const struct device *dev, unsigned char c)
 #endif
 
 	while (!(LPUART_GetStatusFlags(config->base)
-		& LPUART_STAT_TDRE_MASK)) {
+		& kLPUART_TxDataRegEmptyFlag)) {
 	}
 	/* Lock interrupts while we send data */
 	key = irq_lock();
@@ -237,7 +207,7 @@ static int mcux_lpuart_fifo_fill(const struct device *dev,
 
 	while ((len - num_tx > 0) &&
 	       (LPUART_GetStatusFlags(config->base)
-		& LPUART_STAT_TDRE_MASK)) {
+		& kLPUART_TxDataRegEmptyFlag)) {
 
 		LPUART_WriteByte(config->base, tx_data[num_tx++]);
 	}
@@ -323,7 +293,7 @@ static int mcux_lpuart_irq_tx_ready(const struct device *dev)
 	uint32_t flags = LPUART_GetStatusFlags(config->base);
 
 	return (LPUART_GetEnabledInterrupts(config->base) & mask)
-		&& (flags & LPUART_STAT_TDRE_MASK);
+		&& (flags & kLPUART_TxDataRegEmptyFlag);
 }
 
 static void mcux_lpuart_irq_rx_enable(const struct device *dev)
@@ -332,6 +302,7 @@ static void mcux_lpuart_irq_rx_enable(const struct device *dev)
 	uint32_t mask = kLPUART_RxDataRegFullInterruptEnable;
 
 	LPUART_EnableInterrupts(config->base, mask);
+	LPUART_EnableRx(config->base, true);
 }
 
 static void mcux_lpuart_irq_rx_disable(const struct device *dev)
@@ -339,6 +310,7 @@ static void mcux_lpuart_irq_rx_disable(const struct device *dev)
 	const struct mcux_lpuart_config *config = dev->config;
 	uint32_t mask = kLPUART_RxDataRegFullInterruptEnable;
 
+	LPUART_EnableRx(config->base, false);
 	LPUART_DisableInterrupts(config->base, mask);
 }
 
@@ -396,19 +368,12 @@ static void mcux_lpuart_irq_callback_set(const struct device *dev,
 {
 	struct mcux_lpuart_data *data = dev->data;
 
-#if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS)
-	if (data->api_type == LPUART_ASYNC) {
-		LOG_ERR("UART irq and async api are exclusive");
-	}
-#endif
-
 	data->callback = cb;
 	data->cb_data = cb_data;
 
 #if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS)
 	data->async.user_callback = NULL;
 	data->async.user_data = NULL;
-	data->api_type = LPUART_IRQ_DRIVEN;
 #endif
 }
 
@@ -693,19 +658,10 @@ static void dma_callback(const struct device *dma_dev, void *callback_arg, uint3
 	}
 }
 
-static int mcux_lpuart_configure_async(const struct device *dev);
-
 static int mcux_lpuart_callback_set(const struct device *dev, uart_callback_t callback,
 				    void *user_data)
 {
 	struct mcux_lpuart_data *data = dev->data;
-
-#if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS)
-	if (data->api_type == LPUART_IRQ_DRIVEN) {
-		LOG_ERR("UART irq and async api are exclusive");
-		return -ENOTSUP;
-	}
-#endif
 
 	data->async.user_callback = callback;
 	data->async.user_data = user_data;
@@ -713,10 +669,9 @@ static int mcux_lpuart_callback_set(const struct device *dev, uart_callback_t ca
 #if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS)
 	data->callback = NULL;
 	data->cb_data = NULL;
-	data->api_type = LPUART_ASYNC;
 #endif
 
-	return mcux_lpuart_configure_async(dev);
+	return 0;
 }
 
 static int mcux_lpuart_tx(const struct device *dev, const uint8_t *buf, size_t len,
@@ -896,34 +851,6 @@ static void mcux_lpuart_async_tx_timeout(struct k_work *work)
 #endif /* CONFIG_UART_ASYNC_API */
 
 #if CONFIG_UART_MCUX_LPUART_ISR_SUPPORT
-
-#ifdef CONFIG_UART_INTERRUPT_DRIVEN
-static inline void mcux_lpuart_irq_driven_isr(const struct device *dev,
-					      struct mcux_lpuart_data *data,
-					      const struct mcux_lpuart_config *config,
-					      const uint32_t status) {
-	if (data->callback) {
-		data->callback(dev, data->cb_data);
-	}
-
-	if (status & kLPUART_RxOverrunFlag) {
-		LPUART_ClearStatusFlags(config->base, kLPUART_RxOverrunFlag);
-	}
-}
-#endif
-
-#ifdef CONFIG_UART_ASYNC_API
-static inline void mcux_lpuart_async_isr(struct mcux_lpuart_data *data,
-					      const struct mcux_lpuart_config *config,
-					      const uint32_t status) {
-	if (status & kLPUART_IdleLineFlag) {
-		async_timer_start(&data->async.rx_dma_params.timeout_work,
-				  data->async.rx_dma_params.timeout_us);
-		LPUART_ClearStatusFlags(config->base, kLPUART_IdleLineFlag);
-	}
-}
-#endif
-
 static void mcux_lpuart_isr(const struct device *dev)
 {
 	struct mcux_lpuart_data *data = dev->data;
@@ -943,33 +870,54 @@ static void mcux_lpuart_isr(const struct device *dev)
 	}
 #endif /* CONFIG_PM */
 
-#if defined(CONFIG_UART_ASYNC_API) && defined(CONFIG_UART_INTERRUPT_DRIVEN)
-	if (data->api_type == LPUART_IRQ_DRIVEN) {
-		mcux_lpuart_irq_driven_isr(dev, data, config, status);
-	} else if (data->api_type == LPUART_ASYNC) {
-		mcux_lpuart_async_isr(data, config, status);
+#if CONFIG_UART_INTERRUPT_DRIVEN
+	if (data->callback) {
+		data->callback(dev, data->cb_data);
 	}
-#elif defined(CONFIG_UART_INTERRUPT_DRIVEN)
-	mcux_lpuart_irq_driven_isr(dev, data, config, status);
-#elif defined(CONFIG_UART_ASYNC_API)
-	mcux_lpuart_async_isr(data, config, status);
-#endif /* API */
+
+	if (status & kLPUART_RxOverrunFlag) {
+		LPUART_ClearStatusFlags(config->base, kLPUART_RxOverrunFlag);
+	}
+#endif
+
+#if CONFIG_UART_ASYNC_API
+	if (status & kLPUART_IdleLineFlag) {
+		async_timer_start(&data->async.rx_dma_params.timeout_work,
+				  data->async.rx_dma_params.timeout_us);
+		LPUART_ClearStatusFlags(config->base, kLPUART_IdleLineFlag);
+	}
+#endif /* CONFIG_UART_ASYNC_API */
 }
 #endif /* CONFIG_UART_MCUX_LPUART_ISR_SUPPORT */
 
-static int mcux_lpuart_configure_basic(const struct device *dev, const struct uart_config *cfg,
-					lpuart_config_t *uart_config)
+static int mcux_lpuart_configure_init(const struct device *dev, const struct uart_config *cfg)
 {
+	const struct mcux_lpuart_config *config = dev->config;
+	struct mcux_lpuart_data *data = dev->data;
+	uint32_t clock_freq;
+
+	if (!device_is_ready(config->clock_dev)) {
+		return -ENODEV;
+	}
+
+	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
+				   &clock_freq)) {
+		return -EINVAL;
+	}
+
+	lpuart_config_t uart_config;
+	LPUART_GetDefaultConfig(&uart_config);
+
 	/* Translate UART API enum to LPUART enum from HAL */
 	switch (cfg->parity) {
 	case UART_CFG_PARITY_NONE:
-		uart_config->parityMode = kLPUART_ParityDisabled;
+		uart_config.parityMode = kLPUART_ParityDisabled;
 		break;
 	case UART_CFG_PARITY_ODD:
-		uart_config->parityMode = kLPUART_ParityOdd;
+		uart_config.parityMode = kLPUART_ParityOdd;
 		break;
 	case UART_CFG_PARITY_EVEN:
-		uart_config->parityMode = kLPUART_ParityEven;
+		uart_config.parityMode = kLPUART_ParityEven;
 		break;
 	default:
 		return -ENOTSUP;
@@ -979,11 +927,11 @@ static int mcux_lpuart_configure_basic(const struct device *dev, const struct ua
 #if defined(FSL_FEATURE_LPUART_HAS_7BIT_DATA_SUPPORT) && \
 	FSL_FEATURE_LPUART_HAS_7BIT_DATA_SUPPORT
 	case UART_CFG_DATA_BITS_7:
-		uart_config->dataBitsCount  = kLPUART_SevenDataBits;
+		uart_config.dataBitsCount  = kLPUART_SevenDataBits;
 		break;
 #endif
 	case UART_CFG_DATA_BITS_8:
-		uart_config->dataBitsCount  = kLPUART_EightDataBits;
+		uart_config.dataBitsCount  = kLPUART_EightDataBits;
 		break;
 	default:
 		return -ENOTSUP;
@@ -993,10 +941,10 @@ static int mcux_lpuart_configure_basic(const struct device *dev, const struct ua
 	FSL_FEATURE_LPUART_HAS_STOP_BIT_CONFIG_SUPPORT
 	switch (cfg->stop_bits) {
 	case UART_CFG_STOP_BITS_1:
-		uart_config->stopBitCount = kLPUART_OneStopBit;
+		uart_config.stopBitCount = kLPUART_OneStopBit;
 		break;
 	case UART_CFG_STOP_BITS_2:
-		uart_config->stopBitCount = kLPUART_TwoStopBit;
+		uart_config.stopBitCount = kLPUART_TwoStopBit;
 		break;
 	default:
 		return -ENOTSUP;
@@ -1008,41 +956,25 @@ static int mcux_lpuart_configure_basic(const struct device *dev, const struct ua
 	switch (cfg->flow_ctrl) {
 	case UART_CFG_FLOW_CTRL_NONE:
 	case UART_CFG_FLOW_CTRL_RS485:
-		uart_config->enableTxCTS = false;
-		uart_config->enableRxRTS = false;
+		uart_config.enableTxCTS = false;
+		uart_config.enableRxRTS = false;
 		break;
 	case UART_CFG_FLOW_CTRL_RTS_CTS:
-		uart_config->enableTxCTS = true;
-		uart_config->enableRxRTS = true;
+		uart_config.enableTxCTS = true;
+		uart_config.enableRxRTS = true;
 		break;
 	default:
 		return -ENOTSUP;
 	}
 #endif
 
-	uart_config->baudRate_Bps = cfg->baudrate;
-	uart_config->enableRx = true;
+	uart_config.baudRate_Bps = cfg->baudrate;
+	uart_config.enableRx = true;
 	/* Tx will be enabled manually after set tx-rts */
-	uart_config->enableTx = false;
+	uart_config.enableTx = false;
 
-	return 0;
-}
 
 #ifdef CONFIG_UART_ASYNC_API
-static int mcux_lpuart_configure_async(const struct device *dev)
-{
-	const struct mcux_lpuart_config *config = dev->config;
-	struct mcux_lpuart_data *data = dev->data;
-	lpuart_config_t uart_config;
-	int ret;
-
-	LPUART_GetDefaultConfig(&uart_config);
-
-	ret = mcux_lpuart_configure_basic(dev, &data->uart_config, &uart_config);
-	if (ret) {
-		return ret;
-	}
-
 	uart_config.rxIdleType = kLPUART_IdleTypeStopBit;
 	uart_config.rxIdleConfig = kLPUART_IdleCharacter1;
 	data->async.next_rx_buffer = NULL;
@@ -1057,38 +989,8 @@ static int mcux_lpuart_configure_async(const struct device *dev)
 	 * to receive into with rx_enable
 	 */
 	uart_config.enableRx = false;
-	/* Clearing the fifo of any junk received before the async rx enable was called */
-	while (LPUART_GetRxFifoCount(config->base) > 0) {
-		LPUART_ReadByte(config->base);
-	}
 
-	return 0;
-}
-#endif
-
-static int mcux_lpuart_configure_init(const struct device *dev, const struct uart_config *cfg)
-{
-	const struct mcux_lpuart_config *config = dev->config;
-	struct mcux_lpuart_data *data = dev->data;
-	lpuart_config_t uart_config;
-	uint32_t clock_freq;
-	int ret;
-
-	if (!device_is_ready(config->clock_dev)) {
-		return -ENODEV;
-	}
-
-	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
-				   &clock_freq)) {
-		return -EINVAL;
-	}
-
-	LPUART_GetDefaultConfig(&uart_config);
-
-	ret = mcux_lpuart_configure_basic(dev, cfg, &uart_config);
-	if (ret) {
-		return ret;
-	}
+#endif /* CONFIG_UART_ASYNC_API */
 
 	LPUART_Init(config->base, &uart_config, clock_freq);
 
@@ -1107,29 +1009,7 @@ static int mcux_lpuart_configure_init(const struct device *dev, const struct uar
 		/* Set the LPUART into loopback mode */
 		config->base->CTRL |= LPUART_CTRL_LOOPS_MASK;
 		config->base->CTRL &= ~LPUART_CTRL_RSRC_MASK;
-	} else if (config->single_wire) {
-		/* Enable the single wire / half-duplex mode, only possible when
-		 * loopback is disabled. We need a critical section to prevent
-		 * the UART firing an interrupt during mode switch
-		 */
-		unsigned int key = irq_lock();
-
-		config->base->CTRL |= (LPUART_CTRL_LOOPS_MASK | LPUART_CTRL_RSRC_MASK);
-		irq_unlock(key);
-	} else {
-#ifdef LPUART_CTRL_TXINV
-		/* Only invert TX in full-duplex mode */
-		if (config->tx_invert) {
-			config->base->CTRL |= LPUART_CTRL_TXINV(1);
-		}
-#endif
 	}
-
-#ifdef LPUART_STAT_RXINV
-	if (config->rx_invert) {
-		config->base->STAT |= LPUART_STAT_RXINV(1);
-	}
-#endif
 
 	/* update internal uart_config */
 	data->uart_config = *cfg;
@@ -1149,9 +1029,6 @@ static int mcux_lpuart_configure(const struct device *dev,
 				 const struct uart_config *cfg)
 {
 	const struct mcux_lpuart_config *config = dev->config;
-
-	/* Make sure that RSRC is de-asserted otherwise deinit will hang. */
-	config->base->CTRL &= ~LPUART_CTRL_RSRC_MASK;
 
 	/* disable LPUART */
 	LPUART_Deinit(config->base);
@@ -1183,34 +1060,13 @@ static int mcux_lpuart_init(const struct device *dev)
 
 	/* set initial configuration */
 	mcux_lpuart_configure_init(dev, uart_api_config);
-	if (config->flow_ctrl) {
-		const struct pinctrl_state *state;
-
-		err = pinctrl_lookup_state(config->pincfg, PINCTRL_STATE_FLOWCONTROL, &state);
-		if (err < 0) {
-			err = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
-		}
-	} else {
-		err = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
-	}
+	err = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
 	if (err < 0) {
 		return err;
 	}
 
 #ifdef CONFIG_UART_MCUX_LPUART_ISR_SUPPORT
-#if CONFIG_NXP_LP_FLEXCOMM
-	/* When using LP Flexcomm driver, register the interrupt handler
-	 * so we receive notification from the LP Flexcomm interrupt handler.
-	 */
-	nxp_lp_flexcomm_setirqhandler(config->parent_dev, dev,
-				      LP_FLEXCOMM_PERIPH_LPUART, mcux_lpuart_isr);
-#else
-	/* Interrupt is managed by this driver */
 	config->irq_config_func(dev);
-#endif
-#ifdef CONFIG_UART_EXCLUSIVE_API_CALLBACKS
-	data->api_type = LPUART_NONE;
-#endif
 #endif
 
 #ifdef CONFIG_PM
@@ -1260,7 +1116,7 @@ static const struct uart_driver_api mcux_lpuart_driver_api = {
 #ifdef CONFIG_UART_MCUX_LPUART_ISR_SUPPORT
 #define MCUX_LPUART_IRQ_INSTALL(n, i)					\
 	do {								\
-		IRQ_CONNECT(DT_INST_IRQN_BY_IDX(n, i),			\
+		IRQ_CONNECT(DT_INST_IRQ_BY_IDX(n, i, irq),		\
 			    DT_INST_IRQ_BY_IDX(n, i, priority),		\
 			    mcux_lpuart_isr, DEVICE_DT_INST_GET(n), 0);	\
 									\
@@ -1270,8 +1126,7 @@ static const struct uart_driver_api mcux_lpuart_driver_api = {
 #define MCUX_LPUART_IRQ_DEFINE(n)						\
 	static void mcux_lpuart_config_func_##n(const struct device *dev)	\
 	{									\
-		IF_ENABLED(DT_INST_IRQ_HAS_IDX(n, 0),			\
-			   (MCUX_LPUART_IRQ_INSTALL(n, 0);))		\
+		MCUX_LPUART_IRQ_INSTALL(n, 0);				\
 									\
 		IF_ENABLED(DT_INST_IRQ_HAS_IDX(n, 1),			\
 			   (MCUX_LPUART_IRQ_INSTALL(n, 1);))		\
@@ -1294,7 +1149,7 @@ static const struct uart_driver_api mcux_lpuart_driver_api = {
 			.source_data_size = 1,						       \
 			.dest_data_size = 1,						       \
 			.complete_callback_en = 1,					       \
-			.error_callback_dis = 0,					       \
+			.error_callback_en = 1,						       \
 			.block_count = 1,						       \
 			.head_block =							       \
 				&mcux_lpuart_##id##_data.async.tx_dma_params.active_dma_block, \
@@ -1317,7 +1172,7 @@ static const struct uart_driver_api mcux_lpuart_driver_api = {
 			.source_data_size = 1,						       \
 			.dest_data_size = 1,						       \
 			.complete_callback_en = 1,					       \
-			.error_callback_dis = 0,					       \
+			.error_callback_en = 1,						       \
 			.block_count = 1,						       \
 			.head_block =							       \
 				&mcux_lpuart_##id##_data.async.rx_dma_params.active_dma_block, \
@@ -1339,17 +1194,10 @@ static const struct uart_driver_api mcux_lpuart_driver_api = {
 		: DT_INST_PROP(n, nxp_rs485_mode)\
 				? UART_CFG_FLOW_CTRL_RS485   \
 				: UART_CFG_FLOW_CTRL_NONE
-#ifdef CONFIG_NXP_LP_FLEXCOMM
-#define PARENT_DEV(n) \
-	.parent_dev = DEVICE_DT_GET(DT_INST_PARENT(n)),
-#else
-#define PARENT_DEV(n)
-#endif /* CONFIG_NXP_LP_FLEXCOMM */
 
 #define LPUART_MCUX_DECLARE_CFG(n)                                      \
 static const struct mcux_lpuart_config mcux_lpuart_##n##_config = {     \
 	.base = (LPUART_Type *) DT_INST_REG_ADDR(n),                          \
-	PARENT_DEV(n)		\
 	.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                   \
 	.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),	\
 	.baud_rate = DT_INST_PROP(n, current_speed),                          \
@@ -1357,9 +1205,6 @@ static const struct mcux_lpuart_config mcux_lpuart_##n##_config = {     \
 	.parity = DT_INST_ENUM_IDX_OR(n, parity, UART_CFG_PARITY_NONE),       \
 	.rs485_de_active_low = DT_INST_PROP(n, nxp_rs485_de_active_low),      \
 	.loopback_en = DT_INST_PROP(n, nxp_loopback),                         \
-	.single_wire = DT_INST_PROP(n, single_wire),	                      \
-	.rx_invert = DT_INST_PROP(n, rx_invert),	                      \
-	.tx_invert = DT_INST_PROP(n, tx_invert),	                      \
 	.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                          \
 	MCUX_LPUART_IRQ_INIT(n) \
 	RX_DMA_CONFIG(n)        \

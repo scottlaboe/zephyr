@@ -48,7 +48,7 @@ SECTION_FUNC(TEXT, __sparc_trap_reset)
 	call	z_bss_zero
 	 nop
 
-	call    z_prep_c
+	call    _PrepC
 	 nop
 
 /* We halt the system by generating a "trap in trap" condition. */

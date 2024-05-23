@@ -57,10 +57,9 @@ struct ivshmem {
 	bool ivshmem_v2;
 	uint32_t max_peers;
 	size_t rw_section_size;
+	size_t rw_section_offset;
 	size_t output_section_size;
-	uintptr_t state_table_shmem;
-	uintptr_t rw_section_shmem;
-	uintptr_t output_section_shmem[CONFIG_IVSHMEM_V2_MAX_PEERS];
+	size_t output_section_offset;
 #endif
 };
 

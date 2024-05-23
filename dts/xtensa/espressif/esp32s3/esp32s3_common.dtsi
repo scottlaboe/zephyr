@@ -13,11 +13,6 @@
 #include <dt-bindings/pinctrl/esp32s3-pinctrl.h>
 
 / {
-
-	aliases {
-		die-temp0 = &coretemp;
-	};
-
 	chosen {
 		zephyr,canbus = &twai;
 		zephyr,entropy = &trng0;
@@ -32,7 +27,6 @@
 			device_type = "cpu";
 			compatible = "cdns,tensilica-xtensa-lx7";
 			reg = <0>;
-			cpu-power-states = <&light_sleep &deep_sleep>;
 		};
 
 		cpu1: cpu@1 {
@@ -41,21 +35,6 @@
 			reg = <1>;
 		};
 
-		power-states {
-			light_sleep: light_sleep {
-				compatible = "zephyr,power-state";
-				power-state-name = "standby";
-				min-residency-us = <200>;
-				exit-latency-us = <133>;
-			};
-
-			deep_sleep: deep_sleep {
-				compatible = "zephyr,power-state";
-				power-state-name = "soft-off";
-				min-residency-us = <2000>;
-				exit-latency-us = <382>;
-			};
-		};
 	};
 
 	wifi: wifi {
@@ -214,14 +193,6 @@
 			};
 		};
 
-		touch: touch@6000885c {
-			compatible = "espressif,esp32-touch";
-			reg = <0x6000885c 0x88 0x60008908 0x18>;
-			interrupts = <RTC_CORE_INTR_SOURCE>;
-			interrupt-parent = <&intc>;
-			status = "disabled";
-		};
-
 		i2c0: i2c@60013000 {
 			compatible = "espressif,esp32-i2c";
 			#address-cells = <1>;
@@ -266,13 +237,6 @@
 			status = "disabled";
 		};
 
-		coretemp: coretemp@60008800 {
-			compatible = "espressif,esp32-temp";
-			friendly-name = "coretemp";
-			reg = <0x60008800 0x4>;
-			status = "disabled";
-		};
-
 		adc0: adc@60040000 {
 			compatible = "espressif,esp32-adc";
 			reg = <0x60040000 4>;
@@ -297,6 +261,7 @@
 			interrupts = <TWAI_INTR_SOURCE>;
 			interrupt-parent = <&intc>;
 			clocks = <&rtc ESP32_TWAI_MODULE>;
+			sample-point = <875>;
 			status = "disabled";
 		};
 

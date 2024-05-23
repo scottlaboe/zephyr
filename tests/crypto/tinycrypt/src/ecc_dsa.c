@@ -616,7 +616,14 @@ int default_CSPRNG(uint8_t *dest, unsigned int size)
 	/* This is not a CSPRNG, but it's the only thing available in the
 	 * system at this point in time.  */
 
-	sys_rand_get(dest, size);
+	while (size) {
+		uint32_t len = size >= sizeof(uint32_t) ? sizeof(uint32_t) : size;
+		uint32_t rv = sys_rand32_get();
+
+		memcpy(dest, &rv, len);
+		dest += len;
+		size -= len;
+	}
 
 	return 1;
 }

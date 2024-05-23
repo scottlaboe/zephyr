@@ -6,29 +6,50 @@ Nanopb sample
 Overview
 ********
 
-A simple protocol buffer sample using :ref:`nanopb_reference` for serializing structured data
+A simple protocol buffer sample using Nanopb for serializing structured data
 to platform independent raw buffers or streams.
 
-The structured data to encode/decode is presented as follows:
 
-.. code-block:: proto
+Requirements
+************
 
-   syntax = "proto3";
+Nanopb uses the protocol buffer compiler to generate source and header files,
+make sure the ``protoc`` executable is installed and available.
 
-   message SimpleMessage {
-       int32 lucky_number = 1;
-       bytes buffer = 2;
-       int32 unlucky_number = 3;
-   }
+.. tabs::
 
-Configuration
-*************
+   .. group-tab:: Ubuntu
 
-This sample uses two configuration options to modify the behavior.
+      Use ``apt`` to install dependency:
 
-* :kconfig:option:`CONFIG_SAMPLE_BUFFER_SIZE` sets the ``buffer`` field's size
-* :kconfig:option:`CONFIG_SAMPLE_UNLUCKY_NUMBER` either enables or disables the ``unlucky_number``
-  field.
+         .. code-block:: shell
+
+            sudo apt install protobuf-compiler
+
+   .. group-tab:: macOS
+
+      Use ``brew`` to install dependency:
+
+         .. code-block:: shell
+
+            brew install protobuf
+
+   .. group-tab:: Windows
+
+      Use ``choco`` to install dependency:
+
+         .. code-block:: shell
+
+            choco install protoc
+
+
+Additionally Nanopb is an optional module and needs to be added explicitly to the workspace:
+
+.. code-block:: shell
+
+   west config manifest.project-filter -- +nanopb
+   west update
+
 
 Building and Running
 ********************

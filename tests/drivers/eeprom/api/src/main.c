@@ -178,7 +178,7 @@ static void run_tests_on_eeprom(const struct device *dev)
 
 	printk("Running tests on device \"%s\"\n", eeprom->name);
 	k_object_access_grant(eeprom, k_current_get());
-	ztest_run_all(NULL, false, 1, 1);
+	ztest_run_all(NULL);
 }
 
 void test_main(void)

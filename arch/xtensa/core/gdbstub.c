@@ -9,7 +9,7 @@
 #include <zephyr/toolchain.h>
 #include <zephyr/debug/gdbstub.h>
 
-#include <xtensa_asm2_context.h>
+#include <xtensa-asm2-context.h>
 #include <xtensa/corebits.h>
 
 static bool not_first_break;
@@ -972,7 +972,8 @@ void arch_gdb_init(void)
 	 * after level-1 interrupts is for level-2 interrupt.
 	 * So need to do an offset by subtraction.
 	 */
-	xtensa_irq_enable(XCHAL_NUM_EXTINTERRUPTS + XCHAL_DEBUGLEVEL - 2);
+	z_xtensa_irq_enable(XCHAL_NUM_EXTINTERRUPTS +
+			    XCHAL_DEBUGLEVEL - 2);
 
 	/*
 	 * Break and go into the GDB stub.

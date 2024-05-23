@@ -11,14 +11,18 @@
 extern "C" {
 #endif
 
-#define ONCE_FLAG_INIT {0}
+#define ONCE_FLAG_INIT                                                                             \
+	{                                                                                          \
+		1, 0                                                                               \
+	}
 
 typedef int cnd_t;
 typedef int mtx_t;
 typedef int thrd_t;
 typedef int tss_t;
 typedef struct {
-	char flag;
+	int is_initialized;
+	int init_executed;
 } once_flag;
 
 #ifdef __cplusplus

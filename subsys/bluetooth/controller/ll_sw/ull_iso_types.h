@@ -57,24 +57,16 @@
 #define IS_CIS_HANDLE(_handle) 0
 #endif /* CONFIG_BT_CTLR_CONN_ISO */
 
-struct ll_iso_tx_test_mode {
-	uint64_t sdu_counter:53; /* 39 + 22 - 8 */
-	uint64_t enabled:1;
-	uint64_t payload_type:4; /* Support up to 16 payload types (BT 5.3: 3, VS: 13) */
-};
-
-struct ll_iso_rx_test_mode {
+struct ll_iso_test_mode_data {
 	uint32_t received_cnt;
 	uint32_t missed_cnt;
 	uint32_t failed_cnt;
-	uint32_t sdu_counter;
-	uint8_t  enabled:1;
-	uint8_t  payload_type:4; /* Support up to 16 payload types (BT 5.3: 3, VS: 13) */
-};
-
-struct ll_iso_test_mode_data {
-	struct ll_iso_rx_test_mode rx;
-	struct ll_iso_tx_test_mode tx;
+	uint32_t rx_sdu_counter;
+	uint64_t tx_sdu_counter:53; /* 39 + 22 - 8 */
+	uint64_t tx_enabled:1;
+	uint64_t tx_payload_type:4; /* Support up to 16 payload types (BT 5.3: 3, VS: 13) */
+	uint64_t rx_enabled:1;
+	uint64_t rx_payload_type:4;
 };
 
 struct ll_iso_link_quality {

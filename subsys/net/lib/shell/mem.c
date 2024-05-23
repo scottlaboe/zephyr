@@ -8,7 +8,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(net_shell);
 
-#include "net_shell_private.h"
+#include "common.h"
 
 struct ctx_info {
 	int pos;
@@ -107,8 +107,7 @@ static int cmd_net_mem(const struct shell *sh, size_t argc, char *argv[])
 #if defined(CONFIG_NET_BUF_FIXED_DATA_SIZE)
 	PR("Fragment length %d bytes\n", CONFIG_NET_BUF_DATA_SIZE);
 #else
-	PR("Fragment RX data pool size %d bytes\n", CONFIG_NET_PKT_BUF_RX_DATA_POOL_SIZE);
-	PR("Fragment TX data pool size %d bytes\n", CONFIG_NET_PKT_BUF_TX_DATA_POOL_SIZE);
+	PR("Fragment data pool size %d bytes\n", CONFIG_NET_BUF_DATA_POOL_SIZE);
 #endif /* CONFIG_NET_BUF_FIXED_DATA_SIZE */
 
 	PR("Network buffer pools:\n");

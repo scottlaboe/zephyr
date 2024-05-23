@@ -103,7 +103,7 @@ typedef int (*ec_host_cmd_backend_api_init)(const struct ec_host_cmd_backend *ba
  */
 typedef int (*ec_host_cmd_backend_api_send)(const struct ec_host_cmd_backend *backend);
 
-struct ec_host_cmd_backend_api {
+__subsystem struct ec_host_cmd_backend_api {
 	ec_host_cmd_backend_api_init init;
 	ec_host_cmd_backend_api_send send;
 };

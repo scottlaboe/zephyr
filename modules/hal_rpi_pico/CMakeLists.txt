@@ -82,6 +82,8 @@ if(CONFIG_HAS_RPI_PICO)
   zephyr_include_directories_ifdef(CONFIG_PICOSDK_USE_GPIO
           ${rp2_common_dir}/hardware_gpio/include)
 
+  zephyr_library_sources_ifdef(CONFIG_PICOSDK_USE_UART
+          ${rp2_common_dir}/hardware_uart/uart.c)
   zephyr_include_directories_ifdef(CONFIG_PICOSDK_USE_UART
           ${rp2_common_dir}/hardware_uart/include)
 
@@ -112,11 +114,6 @@ if(CONFIG_HAS_RPI_PICO)
           ${rp2_common_dir}/hardware_claim/claim.c)
   zephyr_include_directories_ifdef(CONFIG_PICOSDK_USE_CLAIM
           ${rp2_common_dir}/hardware_claim/include)
-
-  zephyr_library_sources_ifdef(CONFIG_PICOSDK_USE_RTC
-          ${rp2_common_dir}/hardware_rtc/rtc.c)
-  zephyr_include_directories_ifdef(CONFIG_PICOSDK_USE_RTC
-          ${rp2_common_dir}/hardware_rtc/include)
 
   # Some flash driver functions must be executed from the RAM.
   # Originally pico-sdk places them in the RW data section, so this

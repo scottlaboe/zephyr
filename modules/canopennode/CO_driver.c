@@ -96,11 +96,6 @@ static void canopen_rx_callback(const struct device *dev, struct can_frame *fram
 		}
 
 		if (((frame->id ^ buffer->ident) & buffer->mask) == 0U) {
-#ifdef CONFIG_CAN_ACCEPT_RTR
-			if (buffer->rtr && ((frame->flags & CAN_FRAME_RTR) == 0U)) {
-				continue;
-			}
-#endif /* CONFIG_CAN_ACCEPT_RTR */
 			rxMsg.ident = frame->id;
 			rxMsg.DLC = frame->dlc;
 			memcpy(rxMsg.data, frame->data, frame->dlc);
@@ -315,18 +310,7 @@ CO_ReturnError_t CO_CANrxBufferInit(CO_CANmodule_t *CANmodule, uint16_t index,
 	buffer->ident = ident;
 	buffer->mask = mask;
 
-#ifndef CONFIG_CAN_ACCEPT_RTR
-	if (rtr) {
-		LOG_ERR("request for RTR frames, but RTR frames are rejected");
-		CO_errorReport(CANmodule->em, CO_EM_GENERIC_SOFTWARE_ERROR,
-			       CO_EMC_SOFTWARE_INTERNAL, 0);
-		return CO_ERROR_ILLEGAL_ARGUMENT;
-	}
-#else /* !CONFIG_CAN_ACCEPT_RTR */
-	buffer->rtr = rtr;
-#endif /* CONFIG_CAN_ACCEPT_RTR */
-
-	filter.flags = 0U;
+	filter.flags = (rtr ? CAN_FILTER_RTR : CAN_FILTER_DATA);
 	filter.id = ident;
 	filter.mask = mask;
 

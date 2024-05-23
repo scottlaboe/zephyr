@@ -17,4 +17,4 @@ properties:
   gptfreq:
     type: int
     required: true
-    description: gpt frequencies
+    description: gpt frequences

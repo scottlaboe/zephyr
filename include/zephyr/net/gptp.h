@@ -130,7 +130,6 @@ struct gptp_port_identity {
 	uint16_t port_number;
 } __packed;
 
-/** gPTP message flags */
 struct gptp_flags {
 	union {
 		/** Byte access. */
@@ -141,7 +140,6 @@ struct gptp_flags {
 	};
 } __packed;
 
-/** gPTP message header */
 struct gptp_hdr {
 	/** Type of the message. */
 	uint8_t message_type:4;

@@ -23,6 +23,7 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/logging/log.h>
 
+#define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
 #define LOG_LEVEL      CONFIG_BT_HCI_DRIVER_LOG_LEVEL
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(psoc6_bless);
@@ -31,6 +32,11 @@ LOG_MODULE_REGISTER(psoc6_bless);
 #include "cycfg_ble.h"
 
 #define DT_DRV_COMPAT infineon_cat1_bless_hci
+
+#define PACKET_TYPE_HCI_COMMAND     0X1
+#define PACKET_TYPE_HCI_ACL_DATA    0x2
+#define PACKET_TYPE_HCI_SYNCHRONOUS 0X3
+#define PACKET_TYPE_HCI_EVENT       0X4
 
 #define BLE_LOCK_TMOUT_MS       (1000)
 #define BLE_THREAD_SEM_TMOUT_MS (1000)
@@ -106,7 +112,7 @@ static void psoc6_bless_events_handler(uint32_t eventCode, void *eventParam)
 	hci_rx = eventParam;
 
 	switch (hci_rx->packetType) {
-	case BT_HCI_H4_EVT:
+	case PACKET_TYPE_HCI_EVENT:
 		buf = bt_buf_get_evt(hci_rx->data[0], 0, K_NO_WAIT);
 		if (!buf) {
 			LOG_ERR("Failed to allocate the buffer for RX: EVENT ");
@@ -114,7 +120,7 @@ static void psoc6_bless_events_handler(uint32_t eventCode, void *eventParam)
 		}
 
 		break;
-	case BT_HCI_H4_ACL:
+	case PACKET_TYPE_HCI_ACL_DATA:
 		buf = bt_buf_get_rx(BT_BUF_ACL_IN, K_NO_WAIT);
 		if (!buf) {
 			LOG_ERR("Failed to allocate the buffer for RX: ACL ");
@@ -162,10 +168,10 @@ static int psoc6_bless_send(struct net_buf *buf)
 
 	switch (bt_buf_get_type(buf)) {
 	case BT_BUF_ACL_OUT:
-		hci_tx_pkt.packetType = BT_HCI_H4_ACL;
+		hci_tx_pkt.packetType = PACKET_TYPE_HCI_ACL_DATA;
 		break;
 	case BT_BUF_CMD:
-		hci_tx_pkt.packetType = BT_HCI_H4_CMD;
+		hci_tx_pkt.packetType = PACKET_TYPE_HCI_COMMAND;
 		break;
 	default:
 		net_buf_unref(buf);
@@ -190,9 +196,8 @@ static int psoc6_bless_send(struct net_buf *buf)
 	return 0;
 }
 
-static int psoc6_bless_setup(const struct bt_hci_setup_params *params)
+static int psoc6_bless_setup(void)
 {
-	ARG_UNUSED(params);
 	struct net_buf *buf;
 	int err;
 	uint8_t *addr = (uint8_t *)&SFLASH_BLE_DEVICE_ADDRESS[0];

@@ -1,7 +1,7 @@
 # Copyright (c) 2019 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-config WEBSOCKET_CLIENT
+menuconfig WEBSOCKET_CLIENT
 	bool "Websocket client support [EXPERIMENTAL]"
 	select NET_SOCKETS
 	select HTTP_PARSER
@@ -13,12 +13,6 @@ config WEBSOCKET_CLIENT
 	select EXPERIMENTAL
 	help
 	  Enable Websocket client library.
-
-config WEBSOCKET
-	bool
-	default y if WEBSOCKET_CLIENT
-	help
-	  Helper symbol for generic Websocket support.
 
 if WEBSOCKET_CLIENT
 

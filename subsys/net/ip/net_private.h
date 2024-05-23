@@ -43,9 +43,6 @@ union net_mgmt_events {
 	struct net_event_ipv6_route ipv6_route;
 #endif /* CONFIG_NET_IPV6_MLD */
 #endif /* CONFIG_NET_IPV6 */
-#if defined(CONFIG_NET_HOSTNAME_ENABLE)
-	struct net_event_l4_hostname hostname;
-#endif /* CONFIG_NET_HOSTNAME_ENABLE */
 	char default_event[DEFAULT_NET_EVENT_INFO_SIZE];
 };
 
@@ -69,21 +66,15 @@ extern int net_icmp_call_ipv6_handlers(struct net_pkt *pkt,
 				       struct net_ipv6_hdr *ipv6_hdr,
 				       struct net_icmp_hdr *icmp_hdr);
 
-extern struct net_if *net_ipip_get_virtual_interface(struct net_if *input_iface);
-
 #if defined(CONFIG_NET_NATIVE) || defined(CONFIG_NET_OFFLOAD)
 extern void net_context_init(void);
 extern const char *net_context_state(struct net_context *context);
 extern bool net_context_is_reuseaddr_set(struct net_context *context);
 extern bool net_context_is_reuseport_set(struct net_context *context);
 extern bool net_context_is_v6only_set(struct net_context *context);
-extern bool net_context_is_recv_pktinfo_set(struct net_context *context);
 extern void net_pkt_init(void);
 extern void net_tc_tx_init(void);
 extern void net_tc_rx_init(void);
-int net_context_get_local_addr(struct net_context *context,
-			       struct sockaddr *addr,
-			       socklen_t *addrlen);
 #else
 static inline void net_context_init(void) { }
 static inline void net_pkt_init(void) { }
@@ -104,33 +95,15 @@ static inline bool net_context_is_reuseport_set(struct net_context *context)
 	ARG_UNUSED(context);
 	return false;
 }
-static inline bool net_context_is_recv_pktinfo_set(struct net_context *context)
-{
-	ARG_UNUSED(context);
-	return false;
-}
-
-static inline int net_context_get_local_addr(struct net_context *context,
-					     struct sockaddr *addr,
-					     socklen_t *addrlen)
-{
-	ARG_UNUSED(context);
-	ARG_UNUSED(addr);
-	ARG_UNUSED(addrlen);
-
-	return -ENOTSUP;
-}
 #endif
 
 #if defined(CONFIG_NET_NATIVE)
-enum net_verdict net_ipv4_input(struct net_pkt *pkt, bool is_loopback);
+enum net_verdict net_ipv4_input(struct net_pkt *pkt);
 enum net_verdict net_ipv6_input(struct net_pkt *pkt, bool is_loopback);
 #else
-static inline enum net_verdict net_ipv4_input(struct net_pkt *pkt,
-					      bool is_loopback)
+static inline enum net_verdict net_ipv4_input(struct net_pkt *pkt)
 {
 	ARG_UNUSED(pkt);
-	ARG_UNUSED(is_loopback);
 
 	return NET_CONTINUE;
 }
@@ -188,12 +161,6 @@ struct sock_obj {
 };
 #endif /* CONFIG_NET_SOCKETS_OBJ_CORE */
 
-#if defined(CONFIG_NET_IPV6_PE)
-/* This is needed by ipv6_pe.c when privacy extension support is enabled */
-void net_if_ipv6_start_dad(struct net_if *iface,
-			   struct net_if_addr *ifaddr);
-#endif
-
 #if defined(CONFIG_NET_GPTP)
 /**
  * @brief Initialize Precision Time Protocol Layer.
@@ -223,7 +190,6 @@ int net_ipv6_send_fragmented_pkt(struct net_if *iface, struct net_pkt *pkt,
 				 uint16_t pkt_len);
 #endif
 
-extern const char *net_verdict2str(enum net_verdict verdict);
 extern const char *net_proto2str(int family, int proto);
 extern char *net_byte_to_hex(char *ptr, uint8_t byte, char base, bool pad);
 extern char *net_sprint_ll_addr_buf(const uint8_t *ll, uint8_t ll_len,

@@ -31,10 +31,6 @@ DECLARE_FAKE_VALUE_FUNC(int, regulator_fake_set_mode, const struct device *,
 			regulator_mode_t);
 DECLARE_FAKE_VALUE_FUNC(int, regulator_fake_get_mode, const struct device *,
 			regulator_mode_t *);
-DECLARE_FAKE_VALUE_FUNC(int, regulator_fake_set_active_discharge, const struct device *,
-			bool);
-DECLARE_FAKE_VALUE_FUNC(int, regulator_fake_get_active_discharge, const struct device *,
-			bool *);
 DECLARE_FAKE_VALUE_FUNC(int, regulator_fake_get_error_flags,
 			const struct device *, regulator_error_flags_t *);
 

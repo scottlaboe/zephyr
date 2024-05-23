@@ -414,11 +414,6 @@ config GDBSTUB_SERIAL_BACKEND
 	help
 	  Use serial as backend for GDB
 
-config GDBSTUB_CUSTOM_BACKEND
-	bool "Use a custom backend"
-	help
-	  Use a custom backend for GDB
-
 endchoice
 
 config GDBSTUB_BUF_SZ
@@ -429,12 +424,6 @@ config GDBSTUB_BUF_SZ
 	  for GDB backend. This needs to be big enough to hold one
 	  full GDB packet at a time.
 
-config GDBSTUB_TRACE
-	bool "GDB backend extra logging"
-	help
-	  Enable extra debug logging for the GDB backend, including
-	  breakpoint interrupts and remote commands it receives.
-
 endif
 
 config SEGGER_DEBUGMON
@@ -444,9 +433,3 @@ config SEGGER_DEBUGMON
 	  This option will enable Segger's implementation of
 	  the debug monitor interrupt, overriding the
 	  default z_arm_debug_monitor symbol.
-
-config MIPI_STP_DECODER
-	bool "MIPI STPv2 decoder"
-	depends on !BIG_ENDIAN
-	help
-	  Module decodes a stream of STPv2 data.

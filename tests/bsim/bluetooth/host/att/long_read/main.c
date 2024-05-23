@@ -144,7 +144,7 @@ static void test_long_read(enum bt_att_chan_opt bearer, uint16_t chrc_value_hand
 		NET_BUF_SIMPLE_DEFINE(attr_value_buf, BT_ATT_MAX_ATTRIBUTE_LEN);
 
 		/* Perform the whole long read operation. */
-		EXPECT_ZERO(bt_testlib_gatt_long_read(&attr_value_buf, NULL, NULL, conn, bearer,
+		EXPECT_ZERO(bt_testlib_gatt_long_read(&attr_value_buf, NULL, conn, bearer,
 						      chrc_value_handle, 0));
 
 		/* Parse the read attribute value to verify the
@@ -194,7 +194,9 @@ void the_test(void)
 
 	if (peripheral) {
 		EXPECT_ZERO(bt_set_name("peripheral"));
-		EXPECT_ZERO(bt_testlib_adv_conn(&conn, BT_ID_DEFAULT, bt_get_name()));
+		EXPECT_ZERO(bt_testlib_adv_conn(
+			&conn, BT_ID_DEFAULT,
+			(BT_LE_ADV_OPT_USE_NAME | BT_LE_ADV_OPT_FORCE_NAME_IN_AD)));
 	}
 
 	if (central) {

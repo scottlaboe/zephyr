@@ -36,12 +36,3 @@ foreach(file_name include/stddef.h)
 
   list(APPEND NOSTDINC ${_OUTPUT})
 endforeach()
-
-list(APPEND LLEXT_EDK_REMOVE_FLAGS
-    --sysroot=.*
-    -fmacro-prefix-map=.*
-    )
-
-list(APPEND LLEXT_EDK_APPEND_FLAGS
-    -nodefaultlibs
-    )

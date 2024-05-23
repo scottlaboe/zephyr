@@ -11,7 +11,6 @@ Overview
 ********
 
 The CoAP client library allows application to send CoAP requests and parse CoAP responses.
-The library can be enabled with :kconfig:option:`CONFIG_COAP_CLIENT` Kconfig option.
 The application is notified about the response via a callback that is provided to the API
 in the request. The CoAP client handles the communication over sockets.
 As the CoAP client doesn't create socket it is using, the application is responsible for creating

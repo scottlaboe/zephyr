@@ -10,8 +10,6 @@
 #include <zephyr/drivers/i2c.h>
 #include "i2c_bitbang.h"
 
-#include <soc.h>
-
 #define SCL_BIT_POS                0
 #define SDA_DIR_BIT_POS            1
 #define SDA_BIT_W_POS              2
@@ -110,8 +108,8 @@ static int i2c_litex_transfer(const struct device *dev,  struct i2c_msg *msgs,
 }
 
 static const struct i2c_driver_api i2c_litex_driver_api = {
-	.configure = i2c_litex_configure,
-	.transfer = i2c_litex_transfer,
+	.configure         = i2c_litex_configure,
+	.transfer          = i2c_litex_transfer,
 };
 
 /* Device Instantiation */

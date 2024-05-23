@@ -9,7 +9,6 @@
 
 #include <xtensa/config/core-isa.h>
 #include <zephyr/toolchain.h>
-#include <zephyr/sys/util.h>
 
 #ifdef CONFIG_KERNEL_COHERENCE
 #define ARCH_STACK_PTR_ALIGN XCHAL_DCACHE_LINESIZE
@@ -18,18 +17,12 @@
 #endif
 
 
-#ifdef CONFIG_USERSPACE
-#ifdef CONFIG_XTENSA_MMU
-#define XTENSA_STACK_BASE_ALIGN		CONFIG_MMU_PAGE_SIZE
-#define XTENSA_STACK_SIZE_ALIGN		CONFIG_MMU_PAGE_SIZE
-#endif
-#ifdef CONFIG_XTENSA_MPU
-#define XTENSA_STACK_BASE_ALIGN		XCHAL_MPU_ALIGN
-#define XTENSA_STACK_SIZE_ALIGN		XCHAL_MPU_ALIGN
-#endif
+#if CONFIG_USERSPACE
+#define Z_XTENSA_STACK_BASE_ALIGN		CONFIG_MMU_PAGE_SIZE
+#define Z_XTENSA_STACK_SIZE_ALIGN		CONFIG_MMU_PAGE_SIZE
 #else
-#define XTENSA_STACK_BASE_ALIGN		ARCH_STACK_PTR_ALIGN
-#define XTENSA_STACK_SIZE_ALIGN		ARCH_STACK_PTR_ALIGN
+#define Z_XTENSA_STACK_BASE_ALIGN		ARCH_STACK_PTR_ALIGN
+#define Z_XTENSA_STACK_SIZE_ALIGN		ARCH_STACK_PTR_ALIGN
 #endif
 
 /*
@@ -52,20 +45,18 @@
 #ifndef _ASMLANGUAGE
 
 /* thread stack */
-struct xtensa_thread_stack_header {
-#if defined(CONFIG_XTENSA_MMU) || defined(CONFIG_XTENSA_MPU)
-	char privilege_stack[CONFIG_PRIVILEGED_STACK_SIZE];
-#endif /* CONFIG_XTENSA_MPU */
-} __packed __aligned(XTENSA_STACK_BASE_ALIGN);
+#ifdef CONFIG_XTENSA_MMU
+struct z_xtensa_thread_stack_header {
+	char privilege_stack[CONFIG_MMU_PAGE_SIZE];
+} __packed __aligned(Z_XTENSA_STACK_BASE_ALIGN);
 
-#if defined(CONFIG_XTENSA_MMU) || defined(CONFIG_XTENSA_MPU)
 #define ARCH_THREAD_STACK_RESERVED		\
-	sizeof(struct xtensa_thread_stack_header)
-#endif /* CONFIG_XTENSA_MMU || CONFIG_XTENSA_MPU */
+	sizeof(struct z_xtensa_thread_stack_header)
+#endif /* CONFIG_XTENSA_MMU */
 
-#define ARCH_THREAD_STACK_OBJ_ALIGN(size)	XTENSA_STACK_BASE_ALIGN
+#define ARCH_THREAD_STACK_OBJ_ALIGN(size)	Z_XTENSA_STACK_BASE_ALIGN
 #define ARCH_THREAD_STACK_SIZE_ADJUST(size)	\
-	ROUND_UP((size), XTENSA_STACK_SIZE_ALIGN)
+	ROUND_UP((size), Z_XTENSA_STACK_SIZE_ALIGN)
 
 /* kernel stack */
 #define ARCH_KERNEL_STACK_RESERVED		0

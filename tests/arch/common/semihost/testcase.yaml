@@ -3,6 +3,7 @@ tests:
     arch_allow:
       - arm
       - arm64
-      - riscv
+      - riscv32
+      - riscv64
     platform_type:
       - qemu

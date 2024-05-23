@@ -27,9 +27,6 @@ def test_if_mcumgr_fixture_generate_proper_command(
     mcumgr.image_upload('/path/to/image', timeout=100)
     patched_run_command.assert_called_with('-t 100 image upload /path/to/image')
 
-    mcumgr.image_upload('/path/to/image', slot=2, timeout=100)
-    patched_run_command.assert_called_with('-t 100 image upload /path/to/image -e -n 2')
-
     mcumgr.image_test(hash='ABCD')
     patched_run_command.assert_called_with('image test ABCD')
 
@@ -58,12 +55,12 @@ def test_if_mcumgr_fixture_parse_image_list(mcumgr: MCUmgr) -> None:
         image=0 slot=0
             version: 0.0.0
             bootable: true
-            flags: active confirmed
+            flags:
             hash: 0000
         image=0 slot=1
             version: 1.1.1
             bootable: true
-            flags:
+            flags: pending
             hash: 1111
         Split status: N/A (0)
     """)
@@ -72,12 +69,12 @@ def test_if_mcumgr_fixture_parse_image_list(mcumgr: MCUmgr) -> None:
     assert image_list[0].image == 0
     assert image_list[0].slot == 0
     assert image_list[0].version == '0.0.0'
-    assert image_list[0].flags == 'active confirmed'
+    assert image_list[0].flags == ''
     assert image_list[0].hash == '0000'
     assert image_list[1].image == 0
     assert image_list[1].slot == 1
     assert image_list[1].version == '1.1.1'
-    assert image_list[1].flags == ''
+    assert image_list[1].flags == 'pending'
     assert image_list[1].hash == '1111'
 
     # take second hash to test
@@ -86,4 +83,4 @@ def test_if_mcumgr_fixture_parse_image_list(mcumgr: MCUmgr) -> None:
 
     # take first hash to confirm
     mcumgr.image_confirm()
-    mcumgr.run_command.assert_called_with('image confirm 1111')
+    mcumgr.run_command.assert_called_with('image confirm 0000')

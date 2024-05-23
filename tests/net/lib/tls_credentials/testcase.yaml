@@ -10,5 +10,5 @@ tests:
     tags:
       - net
       - tls
-      - tfm
-      - trusted-firmware-m
+      - trusted
+    depends_on: netif

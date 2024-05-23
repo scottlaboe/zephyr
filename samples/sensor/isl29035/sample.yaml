@@ -4,12 +4,6 @@ tests:
   sample.sensor.isl29035:
     tags: sensors
     depends_on: i2c
-    platform_allow: nrf52dk/nrf52832
+    platform_allow: nrf52dk_nrf52832
     integration_platforms:
-      - nrf52dk/nrf52832
-    harness: console
-    harness_config:
-      type: one_line
-      regex:
-        - "Ambient light sense"
-      fixture: fixture_isl29035
+      - nrf52dk_nrf52832

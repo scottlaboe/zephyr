@@ -17,11 +17,6 @@ zephyr_library_sources_ifdef(
 )
 
 zephyr_library_sources_ifdef(
-  CONFIG_I3C_SHELL
-  i3c_shell.c
-)
-
-zephyr_library_sources_ifdef(
   CONFIG_I3C_IBI_WORKQUEUE
   i3c_ibi_workq.c
 )
@@ -34,11 +29,6 @@ zephyr_library_sources_ifdef(
 zephyr_library_sources_ifdef(
   CONFIG_I3C_CADENCE
   i3c_cdns.c
-)
-
-zephyr_library_sources_ifdef(
-  CONFIG_I3C_NPCX
-  i3c_npcx.c
 )
 
 zephyr_library_sources_ifdef(

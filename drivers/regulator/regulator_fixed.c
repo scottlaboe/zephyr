@@ -84,8 +84,12 @@ static const struct regulator_driver_api regulator_fixed_api = {
 static int regulator_fixed_init(const struct device *dev)
 {
 	const struct regulator_fixed_config *cfg = dev->config;
+	bool init_enabled;
+	int ret;
 
 	regulator_common_data_init(dev);
+
+	init_enabled = regulator_common_is_init_enabled(dev);
 
 	if (cfg->enable.port != NULL) {
 		if (!gpio_is_ready_dt(&cfg->enable)) {
@@ -93,14 +97,20 @@ static int regulator_fixed_init(const struct device *dev)
 			return -ENODEV;
 		}
 
-		int ret = gpio_pin_configure_dt(&cfg->enable, GPIO_OUTPUT);
-
-		if (ret < 0) {
-			return ret;
+		if (init_enabled) {
+			ret = gpio_pin_configure_dt(&cfg->enable, GPIO_OUTPUT_ACTIVE);
+			if (ret < 0) {
+				return ret;
+			}
+		} else {
+			ret = gpio_pin_configure_dt(&cfg->enable, GPIO_OUTPUT_INACTIVE);
+			if (ret < 0) {
+				return ret;
+			}
 		}
 	}
 
-	return regulator_common_init(dev, false);
+	return regulator_common_init(dev, init_enabled);
 }
 
 #define REGULATOR_FIXED_DEFINE(inst)                                              \

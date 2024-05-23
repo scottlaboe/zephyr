@@ -6,52 +6,56 @@
 #include <zephyr/kernel.h>
 #include <zephyr/acpi/acpi.h>
 
-static const char *get_dmar_scope_type(int type)
+static const uint32_t dmar_scope[] = {ACPI_DMAR_SCOPE_TYPE_ENDPOINT, ACPI_DMAR_SCOPE_TYPE_BRIDGE,
+				      ACPI_DMAR_SCOPE_TYPE_IOAPIC, ACPI_DMAR_SCOPE_TYPE_HPET,
+				      ACPI_DMAR_SCOPE_TYPE_NAMESPACE};
+
+static void vtd_dev_scope_info(int type, struct acpi_dmar_device_scope *dev_scope,
+			       union acpi_dmar_id *dmar_id, int num_inst)
 {
+	int i = 0;
+
+	printk("\t\t\t. Type: ");
+
 	switch (type) {
 	case ACPI_DMAR_SCOPE_TYPE_ENDPOINT:
-		return "PCI Endpoint";
+		printk("PCI Endpoint");
+		break;
 	case ACPI_DMAR_SCOPE_TYPE_BRIDGE:
-		return "PCI Sub-hierarchy";
+		printk("PCI Sub-hierarchy");
+		break;
 	case ACPI_DMAR_SCOPE_TYPE_IOAPIC:
-		return "IOAPIC";
+
+		break;
 	case ACPI_DMAR_SCOPE_TYPE_HPET:
-		return "MSI Capable HPET";
+		printk("MSI Capable HPET");
+		break;
 	case ACPI_DMAR_SCOPE_TYPE_NAMESPACE:
-		return "ACPI name-space enumerated";
+		printk("ACPI name-space enumerated");
+		break;
 	default:
-		return "unknown";
+		printk("unknown\n");
+		return;
 	}
+
+	printk("\n");
+
+	printk("\t\t\t. Enumeration ID %u\n", dev_scope->EnumerationId);
+	printk("\t\t\t. PCI Bus %u\n", dev_scope->Bus);
+
+	for (; num_inst > 0; num_inst--, i++) {
+		printk("Info: Bus: %d, dev:%d, fun:%d\n", dmar_id[i].bits.bus,
+			dmar_id[i].bits.device, dmar_id[i].bits.function);
+	}
+
+	printk("\n");
 }
 
-static void dmar_devsope_handler(ACPI_DMAR_DEVICE_SCOPE *devscope, void *arg)
+static void vtd_drhd_info(struct acpi_dmar_hardware_unit *drhd)
 {
-	ARG_UNUSED(arg);
-
-	printk("\t\t\t. Scope type %s\n", get_dmar_scope_type(devscope->EntryType));
-	printk("\t\t\t. Enumeration ID %u\n", devscope->EnumerationId);
-
-	if (devscope->EntryType < ACPI_DMAR_SCOPE_TYPE_RESERVED) {
-		ACPI_DMAR_PCI_PATH *devpath;
-		int num_path = (devscope->Length - 6u) / 2u;
-		int i = 0;
-
-		devpath = ACPI_ADD_PTR(ACPI_DMAR_PCI_PATH, devscope,
-				       sizeof(ACPI_DMAR_DEVICE_SCOPE));
-
-		while (num_path--) {
-			printk("\t\t\t. PCI Path %02x:%02x.%02x\n", devscope->Bus,
-			       devpath[i].Device, devpath[i].Function);
-		}
-	}
-}
-
-static void vtd_drhd_info(ACPI_DMAR_HEADER *subtable)
-{
-	struct acpi_dmar_hardware_unit *drhd = (void *)subtable;
-	static int unit;
-
-	printk("\t\t[ Hardware Unit Definition %d ]\n", unit++);
+	struct acpi_dmar_device_scope dev_scope;
+	union acpi_dmar_id dmar_id[4];
+	int num_inst, i;
 
 	if (drhd->Flags & ACPI_DRHD_FLAG_INCLUDE_PCI_ALL) {
 		printk("\t\t- Includes all PCI devices");
@@ -65,24 +69,24 @@ static void vtd_drhd_info(ACPI_DMAR_HEADER *subtable)
 	printk("\t\t- Base Address 0x%llx\n", drhd->Address);
 
 	printk("\t\t- Device Scopes:\n");
+	for (i = 0; i < 5; i++) {
+		if (acpi_drhd_get(dmar_scope[i], &dev_scope, dmar_id, &num_inst, 4u)) {
+			printk(" No DRHD entry found for scope type:%d\n", dmar_scope[i]);
+			continue;
+		}
 
-	acpi_dmar_foreach_devscope(drhd, dmar_devsope_handler, NULL);
-}
+		printk("Found DRHD entry: %d\n", i);
 
-static void dmar_subtable_handler(ACPI_DMAR_HEADER *subtable, void *arg)
-{
-	ARG_UNUSED(arg);
-
-	if (subtable->Type != ACPI_DMAR_TYPE_HARDWARE_UNIT) {
-		return;
+		vtd_dev_scope_info(dmar_scope[i], &dev_scope, dmar_id, num_inst);
 	}
 
-	vtd_drhd_info(subtable);
+	printk("\n");
 }
 
 static void vtd_info(void)
 {
 	struct acpi_table_dmar *dmar;
+	struct acpi_dmar_hardware_unit *drhd;
 
 	dmar = acpi_table_get("DMAR", 0);
 	if (dmar == NULL) {
@@ -100,8 +104,15 @@ static void vtd_info(void)
 	}
 
 	if (dmar->Flags & ACPI_DMAR_FLAG_INTR_REMAP) {
+
 		printk("\t-> Interrupt remapping supported\n");
-		acpi_dmar_foreach_subtable(dmar, dmar_subtable_handler, NULL);
+
+		if (acpi_dmar_entry_get(ACPI_DMAR_TYPE_HARDWARE_UNIT,
+					(struct acpi_subtable_header **)&drhd)) {
+			printk("error in retrieve DHRD!!\n");
+			return;
+		}
+		vtd_drhd_info(drhd);
 	} else {
 		printk("\t-> Interrupt remapping not supported\n");
 	}
@@ -123,7 +134,7 @@ void acpi(void)
 		for (int i = 0; i < nr_cpus; ++i) {
 			struct acpi_madt_local_apic *cpu = acpi_local_apic_get(i);
 
-			printk("\tCPU #%d: APIC ID 0x%02x\n", i, cpu->Id);
+			printk("\tCPU #%d: APIC ID 0x%02x\n", i, cpu[i].Id);
 		}
 	}
 

@@ -14,6 +14,6 @@ supported by the Zephyr RTOS.
 .. toctree::
    :maxdepth: 1
 
-   posix/index.rst
+   posix.rst
    cmsis_rtos_v1.rst
    cmsis_rtos_v2.rst

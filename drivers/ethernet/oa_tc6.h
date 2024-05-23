@@ -21,7 +21,6 @@
 #define OA_RESET_SWRESET              BIT(0)
 #define OA_CONFIG0                    MMS_REG(0x0, 0x004)
 #define OA_CONFIG0_SYNC               BIT(15)
-#define OA_CONFIG0_RFA_ZARFE          BIT(12)
 #define OA_CONFIG0_PROTE              BIT(5)
 #define OA_STATUS0                    MMS_REG(0x0, 0x008)
 #define OA_STATUS0_RESETC             BIT(6)
@@ -77,8 +76,6 @@
 #define OA_TC6_HDR_SIZE		      4
 #define OA_TC6_FTR_SIZE		      4
 #define OA_TC6_BUF_ALLOC_TIMEOUT      K_MSEC(10)
-#define OA_TC6_FTR_RCA_MAX	      GENMASK(4, 0)
-#define OA_TC6_FTR_TXC_MAX	      GENMASK(4, 0)
 
 /**
  * @brief OA TC6 data.
@@ -226,27 +223,11 @@ int oa_tc6_chunk_spi_transfer(struct oa_tc6 *tc6, uint8_t *buf_rx, uint8_t *buf_
 int oa_tc6_read_status(struct oa_tc6 *tc6, uint32_t *ftr);
 
 /**
- * @brief Read, modify and write control register from OA TC6 device
- *
- * @param tc6 OA TC6 specific data
- *
- * @param reg register to modify
- *
- * @param mask bit mask for modified register
- *
- * @param value to be stored in the register
- *
- * @return 0 if successful, <0 otherwise.
- */
-int oa_tc6_reg_rmw(struct oa_tc6 *tc6, const uint32_t reg,
-		   uint32_t mask, uint32_t val);
-
-/**
- * @brief Check the status of OA TC6 device
+ * @brief Read from OA TC6 device and update buffer information
  *
  * @param tc6 OA TC6 specific data
  *
  * @return 0 if successful, <0 otherwise.
  */
-int oa_tc6_check_status(struct oa_tc6 *tc6);
+int oa_tc6_update_buf_info(struct oa_tc6 *tc6);
 #endif /* OA_TC6_CFG_H__ */

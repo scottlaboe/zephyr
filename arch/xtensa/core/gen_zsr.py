@@ -14,12 +14,8 @@ import re
 def parse_args():
     parser = argparse.ArgumentParser(allow_abbrev=False)
 
-    parser.add_argument("--coherence", action="store_true",
-                        help="Enable scratch registers for CONFIG_KERNEL_COHERENCE")
     parser.add_argument("--mmu", action="store_true",
                         help="Enable scratch registers for MMU usage")
-    parser.add_argument("--syscall-scratch", action="store_true",
-                        help="Enable scratch registers for syscalls if needed")
     parser.add_argument("coreisa",
                         help="Path to preprocessed core-isa.h")
     parser.add_argument("outfile",
@@ -29,11 +25,9 @@ def parse_args():
 
 args = parse_args()
 
-NEEDED = ["A0SAVE", "CPU"]
+NEEDED = ["A0SAVE", "CPU", "FLUSH"]
 if args.mmu:
     NEEDED += ["MMU_0", "MMU_1", "DBLEXC"]
-if args.coherence:
-    NEEDED += ["FLUSH"]
 
 coreisa = args.coreisa
 outfile = args.outfile
@@ -51,14 +45,6 @@ with open(coreisa) as infile:
 
 # Use MISC registers first if available, that's what they're for
 regs = [ f"MISC{n}" for n in range(0, int(get("XCHAL_NUM_MISC_REGS"))) ]
-
-if args.syscall_scratch:
-    # If there is no THREADPTR, we need to use syscall for
-    # arch_is_user_context() where the code needs a scratch
-    # register.
-    have_threadptr = int(get("XCHAL_HAVE_THREADPTR"))
-    if have_threadptr == 0:
-        NEEDED.append("SYSCALL_SCRATCH")
 
 # Next come EXCSAVE. Also record our highest non-debug interrupt level.
 maxint = 0

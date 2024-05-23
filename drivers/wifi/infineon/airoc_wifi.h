@@ -10,7 +10,7 @@
 #include <zephyr/sd/sdio.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/net/wifi_mgmt.h>
-#include <cy_utils.h>
+#include <cyhal.h>
 
 struct airoc_wifi_data {
 	struct sd_card card;

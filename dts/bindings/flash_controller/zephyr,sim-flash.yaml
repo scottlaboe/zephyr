@@ -9,7 +9,6 @@ include: base.yaml
 properties:
   erase-value:
     type: int
-    enum: [0xff, 0x00]
     description: Value of erased flash cell
   memory-region:
     type: phandle

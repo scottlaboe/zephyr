@@ -18,7 +18,6 @@ config MULTI_LEVEL_INTERRUPTS
 	  by the hardware. (The term "aggregator" here means "interrupt
 	  controller".)
 
-if MULTI_LEVEL_INTERRUPTS
 config 1ST_LEVEL_INTERRUPT_BITS
 	int "Total number of first level interrupt bits"
 	range 1 32
@@ -30,6 +29,7 @@ config 1ST_LEVEL_INTERRUPT_BITS
 config MAX_IRQ_PER_AGGREGATOR
 	int "Max IRQs per interrupt aggregator"
 	default 0
+	depends on MULTI_LEVEL_INTERRUPTS
 
 	help
 	  The maximum number of interrupt inputs to any aggregator in the
@@ -37,6 +37,7 @@ config MAX_IRQ_PER_AGGREGATOR
 
 config 2ND_LEVEL_INTERRUPTS
 	bool "Second-level interrupt support"
+	depends on MULTI_LEVEL_INTERRUPTS
 	help
 	  Second level interrupts are used to increase the number of
 	  addressable interrupts in a system.
@@ -141,5 +142,3 @@ aggregator = 6
 rsource "Kconfig.multilevel.aggregator_template"
 aggregator = 7
 rsource "Kconfig.multilevel.aggregator_template"
-
-endif
