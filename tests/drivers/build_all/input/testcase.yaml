@@ -3,7 +3,9 @@ common:
     - drivers
     - input
   build_only: true
-  platform_allow: native_posix
+  platform_allow:
+    - native_posix
+    - native_sim
 tests:
   drivers.input.default: {}
 
@@ -17,3 +19,12 @@ tests:
   drivers.input.kbd_16_bit:
     extra_configs:
       - CONFIG_INPUT_KBD_MATRIX_16_BIT_ROW=y
+
+  drivers.input.analog_axis:
+    extra_configs:
+      - CONFIG_ADC=y
+      - CONFIG_SETTINGS=y
+
+  drivers.input.adc_keys:
+    extra_configs:
+      - CONFIG_ADC=y

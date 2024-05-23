@@ -13,8 +13,8 @@
  * arm/arch.h.
  */
 
-#ifndef ZEPHYR_INCLUDE_ARCH_ARM_AARCH32_IRQ_H_
-#define ZEPHYR_INCLUDE_ARCH_ARM_AARCH32_IRQ_H_
+#ifndef ZEPHYR_INCLUDE_ARCH_ARM_IRQ_H_
+#define ZEPHYR_INCLUDE_ARCH_ARM_IRQ_H_
 
 #include <zephyr/sw_isr_table.h>
 #include <stdbool.h>
@@ -127,7 +127,7 @@ extern void z_arm_interrupt_init(void);
 	BUILD_ASSERT(IS_ENABLED(CONFIG_ZERO_LATENCY_IRQS) || !(flags_p & IRQ_ZERO_LATENCY), \
 			"ZLI interrupt registered but feature is disabled"); \
 	_CHECK_PRIO(priority_p, flags_p) \
-	Z_ISR_DECLARE(irq_p, ISR_FLAG_DIRECT, isr_p, NULL); \
+	Z_ISR_DECLARE_DIRECT(irq_p, ISR_FLAG_DIRECT, isr_p); \
 	z_arm_irq_priority_set(irq_p, priority_p, flags_p); \
 }
 
@@ -166,10 +166,24 @@ static inline void arch_isr_direct_footer(int maybe_swap)
 	}
 }
 
+#if defined(__clang__)
+#define ARCH_ISR_DIAG_OFF \
+	_Pragma("clang diagnostic push") \
+	_Pragma("clang diagnostic ignored \"-Wextra\"")
+#define ARCH_ISR_DIAG_ON _Pragma("clang diagnostic pop")
+#elif defined(__GNUC__)
+#define ARCH_ISR_DIAG_OFF \
+	_Pragma("GCC diagnostic push") \
+	_Pragma("GCC diagnostic ignored \"-Wattributes\"")
+#define ARCH_ISR_DIAG_ON _Pragma("GCC diagnostic pop")
+#else
+#define ARCH_ISR_DIAG_OFF
+#define ARCH_ISR_DIAG_ON
+#endif
+
 #define ARCH_ISR_DIRECT_DECLARE(name) \
 	static inline int name##_body(void); \
-	_Pragma("GCC diagnostic push") \
-	_Pragma("GCC diagnostic ignored \"-Wattributes\"") \
+	ARCH_ISR_DIAG_OFF \
 	__attribute__ ((interrupt ("IRQ"))) void name(void) \
 	{ \
 		int check_reschedule; \
@@ -177,7 +191,7 @@ static inline void arch_isr_direct_footer(int maybe_swap)
 		check_reschedule = name##_body(); \
 		ISR_DIRECT_FOOTER(check_reschedule); \
 	} \
-	_Pragma("GCC diagnostic pop") \
+	ARCH_ISR_DIAG_ON \
 	static inline int name##_body(void)
 
 #if defined(CONFIG_DYNAMIC_DIRECT_INTERRUPTS)
@@ -254,4 +268,4 @@ typedef enum {
 }
 #endif
 
-#endif /* ZEPHYR_INCLUDE_ARCH_ARM_AARCH32_IRQ_H_ */
+#endif /* ZEPHYR_INCLUDE_ARCH_ARM_IRQ_H_ */

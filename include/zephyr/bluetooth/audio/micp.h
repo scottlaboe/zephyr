@@ -12,11 +12,11 @@
  *
  * @defgroup bt_gatt_micp Microphone Control Profile (MICP)
  *
+ * @since 2.7
+ * @version 0.8.0
+ *
  * @ingroup bluetooth
  * @{
- *
- * [Experimental] Users should note that the APIs can change
- * as a part of ongoing development.
  */
 
 #include <stdint.h>
@@ -185,6 +185,9 @@ struct bt_micp_mic_ctlr_cb {
 	/** Audio Input Control Service client callback */
 	struct bt_aics_cb               aics_cb;
 #endif /* CONFIG_BT_MICP_MIC_CTLR_AICS */
+
+	/** Internally used field for list handling */
+	sys_snode_t _node;
 };
 
 /**
@@ -216,6 +219,20 @@ int bt_micp_mic_ctlr_included_get(struct bt_micp_mic_ctlr *mic_ctlr,
  */
 int bt_micp_mic_ctlr_conn_get(const struct bt_micp_mic_ctlr *mic_ctlr,
 			      struct bt_conn **conn);
+
+/**
+ * @brief Get the volume controller from a connection pointer
+ *
+ * Get the Volume Control Profile Volume Controller pointer from a connection pointer.
+ * Only volume controllers that have been initiated via bt_micp_mic_ctlr_discover() can be
+ * retrieved.
+ *
+ * @param conn     Connection pointer.
+ *
+ * @retval Pointer to a Microphone Control Profile Microphone Controller instance
+ * @retval NULL if @p conn is NULL or if the connection has not done discovery yet
+ */
+struct bt_micp_mic_ctlr *bt_micp_mic_ctlr_get_by_conn(const struct bt_conn *conn);
 
 /**
  * @brief Discover Microphone Control Service

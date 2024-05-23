@@ -24,7 +24,8 @@ config ENABLE_LC3
 	bool "Enable the LC3 codec"
 	# By default let's enable it in the platforms we know are capable of supporting it
 	default y
-	depends on (ARCH_POSIX || SOC_NRF5340_CPUAPP)
+	depends on CPU_HAS_FPU && \
+		(ARCH_POSIX || SOC_COMPATIBLE_NRF52X || SOC_COMPATIBLE_NRF5340_CPUAPP)
 	select LIBLC3
 	select FPU
 
@@ -36,5 +37,12 @@ config USE_USB_AUDIO_INPUT
 	select USB_DEVICE_STACK
 	select USB_DEVICE_AUDIO
 	select RING_BUFFER
+
+config BROADCAST_CODE
+	string "The broadcast code (if any) to use for encrypted broadcast"
+	default ""
+	help
+	   Setting a non-empty string for this option will encrypt the broadcast using this
+	   string as the broadcast code. The length of the string shall be between 1 and 16 octets.
 
 source "Kconfig.zephyr"
