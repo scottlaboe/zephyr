@@ -36,9 +36,10 @@ LOG_MODULE_DECLARE(net_ipv4, CONFIG_NET_IPV4_LOG_LEVEL);
 #define IGMPV3_BLOCK_OLD_SOURCES      0x06
 
 static const struct in_addr all_systems = { { { 224, 0, 0, 1 } } };
-static const struct in_addr all_routers = { { { 224, 0, 0, 2 } } };
 #if defined(CONFIG_NET_IPV4_IGMPV3)
 static const struct in_addr igmp_multicast_addr = { { { 224, 0, 0, 22 } } };
+#else
+static const struct in_addr all_routers = { { { 224, 0, 0, 2 } } };
 #endif
 
 #define dbg_addr(action, pkt_str, src, dst)				\
@@ -191,6 +192,9 @@ static int igmp_v2_create_packet(struct net_pkt *pkt, const struct in_addr *dst,
 	const uint32_t router_alert = 0x94040000; /* RFC 2213 ch 2.1 */
 	int ret;
 
+	/* TTL set to 1, RFC 3376 ch 2 */
+	net_pkt_set_ipv4_ttl(pkt, 1U);
+
 	ret = net_ipv4_create_full(pkt,
 				   net_if_ipv4_select_src_addr(
 							net_pkt_iface(pkt),
@@ -199,8 +203,7 @@ static int igmp_v2_create_packet(struct net_pkt *pkt, const struct in_addr *dst,
 				   0U,
 				   0U,
 				   0U,
-				   0U,
-				   1U);  /* TTL set to 1, RFC 3376 ch 2 */
+				   0U);
 	if (ret) {
 		return -ENOBUFS;
 	}
@@ -222,8 +225,11 @@ static int igmp_v3_create_packet(struct net_pkt *pkt, const struct in_addr *dst,
 	const uint32_t router_alert = 0x94040000; /* RFC 2213 ch 2.1 */
 	int ret;
 
+	/* TTL set to 1, RFC 3376 ch 2 */
+	net_pkt_set_ipv4_ttl(pkt, 1U);
+
 	ret = net_ipv4_create_full(pkt, net_if_ipv4_select_src_addr(net_pkt_iface(pkt), dst), dst,
-				   0U, 0U, 0U, 0U, 1U); /* TTL set to 1, RFC 3376 ch 2 */
+				   0U, 0U, 0U, 0U);
 	if (ret) {
 		return -ENOBUFS;
 	}
@@ -249,7 +255,6 @@ static int igmp_send(struct net_pkt *pkt)
 	ret = net_send_data(pkt);
 	if (ret < 0) {
 		net_stats_update_ipv4_igmp_drop(net_pkt_iface(pkt));
-		net_pkt_unref(pkt);
 		return ret;
 	}
 

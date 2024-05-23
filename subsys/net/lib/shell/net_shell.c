@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(net_shell, LOG_LEVEL_DBG);
 
 #include <zephyr/net/ethernet.h>
 
-#include "common.h"
+#include "net_shell_private.h"
 #include "net_shell.h"
 
 int get_iface_idx(const struct shell *sh, char *index_str)
@@ -199,16 +199,6 @@ const char *iface2str(struct net_if *iface, const char **extra)
 		}
 
 		return "OpenThread";
-	}
-#endif
-
-#ifdef CONFIG_NET_L2_BT
-	if (net_if_l2(iface) == &NET_L2_GET_NAME(BLUETOOTH)) {
-		if (extra) {
-			*extra = "=========";
-		}
-
-		return "Bluetooth";
 	}
 #endif
 

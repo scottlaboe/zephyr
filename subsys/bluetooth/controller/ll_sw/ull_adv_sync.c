@@ -403,6 +403,14 @@ uint8_t ll_adv_sync_ad_data_set(uint8_t handle, uint8_t op, uint8_t len,
 
 				/* No AD data overflow */
 				ad_len_overflow = 0U;
+
+				/* No chain PDU.
+				 * Note: Not required to assign as referencing
+				 * is guarded by the fact that ad_len_overflow
+				 * is zero; having the below to make compilers
+				 * not complain of uninitialized variable.
+				 */
+				ad_len_chain = 0U;
 			}
 		}
 	} else {
@@ -484,7 +492,16 @@ uint8_t ll_adv_sync_ad_data_set(uint8_t handle, uint8_t op, uint8_t len,
 			/* Proceed to add chain PDU */
 			err = 0U;
 		} else {
+			/* No AD data overflow */
 			ad_len_overflow = 0U;
+
+			/* No chain PDU.
+			 * Note: Not required to assign as referencing is
+			 * guarded by the fact that ad_len_overflow is zero;
+			 * having the below to make compilers not complain of
+			 * uninitialized variable.
+			 */
+			ad_len_chain = 0U;
 		}
 #endif /* CONFIG_BT_CTLR_ADV_SYNC_PDU_LINK */
 	}
@@ -1257,7 +1274,7 @@ uint8_t ull_adv_sync_chm_update(void)
 	return 0;
 }
 
-void ull_adv_sync_chm_complete(struct node_rx_hdr *rx)
+void ull_adv_sync_chm_complete(struct node_rx_pdu *rx)
 {
 	uint8_t hdr_data[ULL_ADV_HDR_DATA_LEN_SIZE +
 			 ULL_ADV_HDR_DATA_ACAD_PTR_SIZE];
@@ -2005,7 +2022,7 @@ static uint8_t sync_stop(struct ll_adv_sync_set *sync)
 
 	err = ull_ticker_stop_with_mark(TICKER_ID_ADV_SYNC_BASE + sync_handle,
 					sync, &sync->lll);
-	LL_ASSERT(err == 0 || err == -EALREADY);
+	LL_ASSERT_INFO2(err == 0 || err == -EALREADY, sync_handle, err);
 	if (err) {
 		return BT_HCI_ERR_CMD_DISALLOWED;
 	}
