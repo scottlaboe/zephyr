@@ -291,6 +291,11 @@ extern "C" {
 #define IS_ALIGNED(ptr, align) (((uintptr_t)(ptr)) % (align) == 0)
 
 /**
+ * @brief Get the absolute value of a number.
+ */
+#define ABS(x)	((x) < 0 ? -(x) : (x))
+
+/**
  * @brief Value of @p x rounded up to the next multiple of @p align.
  */
 #define ROUND_UP(x, align)                                   \
