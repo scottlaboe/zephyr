@@ -47,8 +47,7 @@ extern "C" {
  * @return the node identifier for the node referenced at index "idx"
  * @see DT_PROP_BY_PHANDLE_IDX()
  */
-#define DT_IO_CHANNELS_CTLR_BY_IDX(node_id, idx) \
-	DT_PHANDLE_BY_IDX(node_id, io_channels, idx)
+#define DT_IO_CHANNELS_CTLR_BY_IDX(node_id, idx) DT_PHANDLE_BY_IDX(node_id, io_channels, idx)
 
 /**
  * @brief Get the node identifier for the node referenced by an
@@ -76,8 +75,7 @@ extern "C" {
  * @return the node identifier for the node referenced at the named element
  * @see DT_PHANDLE_BY_NAME()
  */
-#define DT_IO_CHANNELS_CTLR_BY_NAME(node_id, name) \
-	DT_PHANDLE_BY_NAME(node_id, io_channels, name)
+#define DT_IO_CHANNELS_CTLR_BY_NAME(node_id, name) DT_PHANDLE_BY_NAME(node_id, io_channels, name)
 
 /**
  * @brief Equivalent to DT_IO_CHANNELS_CTLR_BY_IDX(node_id, 0)
@@ -97,7 +95,7 @@ extern "C" {
  * @return the node identifier for the node referenced at index "idx"
  * @see DT_IO_CHANNELS_CTLR_BY_IDX()
  */
-#define DT_INST_IO_CHANNELS_CTLR_BY_IDX(inst, idx) \
+#define DT_INST_IO_CHANNELS_CTLR_BY_IDX(inst, idx)                                                 \
 	DT_IO_CHANNELS_CTLR_BY_IDX(DT_DRV_INST(inst), idx)
 
 /**
@@ -109,7 +107,7 @@ extern "C" {
  * @return the node identifier for the node referenced at the named element
  * @see DT_IO_CHANNELS_CTLR_BY_NAME()
  */
-#define DT_INST_IO_CHANNELS_CTLR_BY_NAME(inst, name) \
+#define DT_INST_IO_CHANNELS_CTLR_BY_NAME(inst, name)                                               \
 	DT_IO_CHANNELS_CTLR_BY_NAME(DT_DRV_INST(inst), name)
 
 /**
@@ -158,8 +156,7 @@ extern "C" {
  * @return the input cell in the specifier at index "idx"
  * @see DT_PHA_BY_IDX()
  */
-#define DT_IO_CHANNELS_INPUT_BY_IDX(node_id, idx) \
-	DT_PHA_BY_IDX(node_id, io_channels, idx, input)
+#define DT_IO_CHANNELS_INPUT_BY_IDX(node_id, idx) DT_PHA_BY_IDX(node_id, io_channels, idx, input)
 
 /**
  * @brief Get an io-channels specifier input cell by name
@@ -200,7 +197,7 @@ extern "C" {
  * @return the input cell in the specifier at the named element
  * @see DT_PHA_BY_NAME()
  */
-#define DT_IO_CHANNELS_INPUT_BY_NAME(node_id, name) \
+#define DT_IO_CHANNELS_INPUT_BY_NAME(node_id, name)                                                \
 	DT_PHA_BY_NAME(node_id, io_channels, name, input)
 /**
  * @brief Equivalent to DT_IO_CHANNELS_INPUT_BY_IDX(node_id, 0)
@@ -211,6 +208,24 @@ extern "C" {
 #define DT_IO_CHANNELS_INPUT(node_id) DT_IO_CHANNELS_INPUT_BY_IDX(node_id, 0)
 
 /**
+ * @brief The number of node handles for the given nodes's io-channels
+ * property. If the node doesn not have an io-channels property this exapands
+ * to 'or_val'.
+ * @param node_id node identifier for a node with an io-channels property
+ * @param or_val expand to this value if the io-channels property doesn't exist
+ * @return the length of the io-channels property.
+ */
+#define DT_INST_IO_CHANNELS_LEN_OR(node_id, or_val) DT_PROP_LEN_OR(node_id, io_channels, 0)
+
+/**
+ * @brief The number of node handles for the given nodes's io-channels
+ * property. Equivalent to DT_INST_IO_CHANNELS_LEN_OR(node_id, 0).
+ * @param node_id node identifier for a node with an io-channels property
+ * @return the length of the io-channels property.
+ */
+#define DT_INST_IO_CHANNELS_LEN(node_id) DT_INST_IO_CHANNELS_LEN_OR(node_id, 0)
+
+/**
  * @brief Get an input cell from the "DT_DRV_INST(inst)" io-channels
  *        property at an index
  * @param inst DT_DRV_COMPAT instance number
@@ -218,7 +233,7 @@ extern "C" {
  * @return the input cell in the specifier at index "idx"
  * @see DT_IO_CHANNELS_INPUT_BY_IDX()
  */
-#define DT_INST_IO_CHANNELS_INPUT_BY_IDX(inst, idx) \
+#define DT_INST_IO_CHANNELS_INPUT_BY_IDX(inst, idx)                                                \
 	DT_IO_CHANNELS_INPUT_BY_IDX(DT_DRV_INST(inst), idx)
 
 /**
@@ -230,7 +245,7 @@ extern "C" {
  * @return the input cell in the specifier at the named element
  * @see DT_IO_CHANNELS_INPUT_BY_NAME()
  */
-#define DT_INST_IO_CHANNELS_INPUT_BY_NAME(inst, name) \
+#define DT_INST_IO_CHANNELS_INPUT_BY_NAME(inst, name)                                              \
 	DT_IO_CHANNELS_INPUT_BY_NAME(DT_DRV_INST(inst), name)
 
 /**
@@ -241,6 +256,14 @@ extern "C" {
 #define DT_INST_IO_CHANNELS_INPUT(inst) DT_INST_IO_CHANNELS_INPUT_BY_IDX(inst, 0)
 
 /**
+ * @brief The number of node handles for "DT_DRV_INST(inst)" in the io-channels
+ * property. Equivalent to DT_INST_IO_CHANNELS_LEN(DT_DRV_INST(inst))
+ * @param inst DT_DRV_COMPAT instance number for node containing io-channels property
+ * @return the length of the io-channels property for the given device driver isntance.
+ */
+#define DT_INST_IO_CHANNELS_LEN(inst) DT_INST_IO_CHANNELS_LEN(DT_DRV_INST(inst))
+
+/**
  * @}
  */
 
@@ -248,4 +271,4 @@ extern "C" {
 }
 #endif
 
-#endif  /* ZEPHYR_INCLUDE_DEVICETREE_IO_CHANNELS_H_ */
+#endif /* ZEPHYR_INCLUDE_DEVICETREE_IO_CHANNELS_H_ */
