@@ -14,7 +14,7 @@ manifest:
       path: modules/iworx
       remote: scottl_private
       repo-path: iworx-zephyr-modules.git
-      revision: main
+      revision: development
       groups:
         - iworx
 
