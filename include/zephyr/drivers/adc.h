@@ -70,8 +70,26 @@ enum adc_gain {
  * @retval 0 if the gain was successfully reversed
  * @retval -EINVAL if the gain could not be interpreted
  */
-int adc_gain_invert(enum adc_gain gain,
-		    int32_t *value);
+int adc_gain_invert(enum adc_gain gain, int64_t *value);
+
+/**
+ * @brief Invert the application of gain to a measurement value
+ * with floating point precision.
+ *
+ * For example, if the gain passed in is ADC_GAIN_1_6 and the
+ * referenced value is 10, the value after the function returns is 60.0.
+ *
+ * @param gain the gain used to amplify the input signal.
+ *
+ * @param value a pointer to a value that initially has the effect of
+ * the applied gain but has that effect removed when this function
+ * successfully returns.  If the gain cannot be reversed the value
+ * remains unchanged.
+ *
+ * @retval 0 if the gain was successfully reversed
+ * @retval -EINVAL if the gain could not be interpreted
+ */
+int adc_gain_invert_float(enum adc_gain gain, float *value);
 
 /** @brief ADC references. */
 enum adc_reference {
@@ -978,6 +996,43 @@ static inline int adc_raw_to_millivolts(int32_t ref_mv,
 }
 
 /**
+ * @brief Convert a raw ADC value to millivolts with floating point precision.
+ *
+ * This function performs the necessary conversion to transform a raw
+ * ADC measurement to a voltage in millivolts with floating point precision.
+ *
+ * @param ref_mv the reference voltage used for the measurement, in
+ * millivolts.  This may be from adc_ref_internal() or a known
+ * external reference.
+ *
+ * @param gain the ADC gain configuration used to sample the input
+ *
+ * @param resolution the number of bits in the absolute value of the
+ * sample.  For differential sampling this needs to be one less than the
+ * resolution in struct adc_sequence.
+ *
+ * @param valp pointer to the raw measurement value on input, and the
+ * corresponding millivolt value on successful conversion.
+ *
+ * @param out pointer to store floating point output on successful conversion.
+ *
+ * @retval 0 on successful conversion
+ * @retval -EINVAL if the gain is not reversible
+ */
+static inline int adc_raw_to_millivolts_float(int32_t ref_mv, enum adc_gain gain,
+					      uint8_t resolution, const int *valp, float *out)
+{
+	float adc_mv = (float)ref_mv / (float)BIT(resolution) * *valp;
+	int ret = adc_gain_invert_float(gain, &adc_mv);
+
+	if (ret == 0) {
+		*out = adc_mv;
+	}
+
+	return ret;
+}
+
+/**
  * @brief Convert a raw ADC value to millivolts using information stored
  * in a struct adc_dt_spec.
  *
@@ -1016,8 +1071,49 @@ static inline int adc_raw_to_millivolts_dt(const struct adc_dt_spec *spec,
 		resolution -= 1U;
 	}
 
-	return adc_raw_to_millivolts(vref_mv, spec->channel_cfg.gain,
-				     resolution, valp);
+	return adc_raw_to_millivolts(vref_mv, spec->channel_cfg.gain, resolution, valp);
+}
+
+/**
+ * @brief Convert a raw ADC value to millivolts with floating point precision using
+ * information stored in a struct adc_dt_spec.
+ *
+ * @param[in] spec ADC specification from Devicetree.
+ * @param[in] valp Pointer to the raw measurement value on input.
+ * @param[out] out Pointer to  store the floating point millivolt value from conversion. If the
+ * conversion fails this is left unchanged.
+ *
+ * @return A value from adc_raw_to_millivolts() or -ENOTSUP if information from
+ * Devicetree is not valid.
+ * @see adc_raw_to_millivolts()
+ */
+static inline int adc_raw_to_millivolts_float_dt(const struct adc_dt_spec *spec, int32_t *valp,
+						 float *out)
+{
+	int32_t vref_mv;
+	uint8_t resolution;
+
+	if (!spec->channel_cfg_dt_node_exists) {
+		return -ENOTSUP;
+	}
+
+	if (spec->channel_cfg.reference == ADC_REF_INTERNAL) {
+		vref_mv = (int32_t)adc_ref_internal(spec->dev);
+	} else {
+		vref_mv = spec->vref_mv;
+	}
+
+	resolution = spec->resolution;
+
+	/*
+	 * For differential channels, one bit less needs to be specified
+	 * for resolution to achieve correct conversion.
+	 */
+	if (spec->channel_cfg.differential) {
+		resolution -= 1U;
+	}
+
+	return adc_raw_to_millivolts_float(vref_mv, spec->channel_cfg.gain, resolution, valp, out);
 }
 
 /**
