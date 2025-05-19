@@ -985,7 +985,7 @@ static inline int adc_raw_to_millivolts(int32_t ref_mv,
 					uint8_t resolution,
 					int32_t *valp)
 {
-	int32_t adc_mv = *valp * ref_mv;
+	int64_t adc_mv = (int64_t)*valp * (int64_t)ref_mv;
 	int ret = adc_gain_invert(gain, &adc_mv);
 
 	if (ret == 0) {
